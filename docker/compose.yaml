@@ -1,0 +1,21 @@
+services:
+  research-seminar:
+    image: ${RESEARCH_SEMINAR_IMAGE:-research-seminar:humble}
+    build:
+      context: ..
+      dockerfile: docker/Dockerfile
+      args:
+        ROS_BASE_IMAGE: ${ROS_BASE_IMAGE:-osrf/ros:humble-desktop}
+    network_mode: host
+    ipc: host
+    environment:
+      DISPLAY: ${DISPLAY}
+      QT_X11_NO_MITSHM: "1"
+      ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      SDL_AUDIODRIVER: dummy
+      AUDIODEV: null
+      PYGAME_HIDE_SUPPORT_PROMPT: "1"
+    volumes:
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
+    stdin_open: true
+    tty: true

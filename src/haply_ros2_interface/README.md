@@ -48,22 +48,9 @@ You can find more information on how to install ROS2 Humble here:
 
 ### Required Python Packages
 
-Below are the external Python packages that must be installed manually:
-
-- **Name:** `websockets` 
-  ```bash
-  pip install websockets
-  ```
-
-- **Name:** `orjson` 
-  ```bash
-  pip install orjson
-  ```
-
-- **Name:** `rclpy` 
-  ```bash
-  pip install rclpy
-  ```
+The interface uses `websockets` and `orjson` in addition to standard ROS 2
+Python packages such as `rclpy`. The project Docker image installs these during
+the image build.
 
 ### Communication Protocol
 
@@ -213,5 +200,3 @@ This package includes the **STL files** used for 3D visualization of the Handle 
 
 ### `haply_msgs`  
 This package defines the **custom ROS2 message types** used by the ROS2 interface.
-
-

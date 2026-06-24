@@ -4,8 +4,8 @@
   <name>haply_study_gui</name>
   <version>0.0.0</version>
   <description>Study GUI for Haply shared-control experiments.</description>
-  <maintainer email="student@todo.todo">student</maintainer>
-  <license>TODO: License declaration</license>
+  <maintainer email="ltorquato@users.noreply.github.com">Luisa Torquato Niño</maintainer>
+  <license>UNLICENSED</license>
 
   <depend>rclpy</depend>
   <depend>geometry_msgs</depend>
@@ -13,7 +13,7 @@
   <depend>std_msgs</depend>
 
   <exec_depend>haply_interface</exec_depend>
-  <exec_depend>python3-tk</exec_depend>
+  <exec_depend>python3-pygame</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

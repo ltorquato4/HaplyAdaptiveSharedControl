@@ -1,4 +1,4 @@
-"""Launch the study GUI with the real Haply driver."""
+"""Launch the study GUI with mouse input and a dummy scenario generator."""
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -12,14 +12,14 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    """Build the launch description for hardware-backed GUI runs."""
-    haply_driver = Node(
-        package='haply_interface',
-        executable='haply_driver_node',
-        name='haply_driver_node',
+    """Build the launch description for mouse-only GUI testing."""
+    dummy_scenario = Node(
+        package='haply_study_gui',
+        executable='dummy_scenario_generator',
+        name='dummy_scenario_generator',
         output='screen',
         parameters=[{
-            'frequency': 100.0,
+            'seed': 7,
         }],
     )
     study_gui = Node(
@@ -33,10 +33,11 @@ def generate_launch_description():
             'AUDIODEV': 'null',
         },
         parameters=[{
-            'source': 'haply',
-            'render_fps': 100.0,
+            'source': 'mouse',
+            'render_fps': 30.0,
             'state_publish_hz': 100.0,
-            'auto_start': False,
+            'mouse_simulation_hz': 100.0,
+            'auto_start': True,
             'endpoint_reached_radius': 0.01,
         }],
     )
@@ -44,8 +45,8 @@ def generate_launch_description():
     return LaunchDescription([
         SetEnvironmentVariable('SDL_AUDIODRIVER', 'dummy'),
         SetEnvironmentVariable('PYGAME_HIDE_SUPPORT_PROMPT', '1'),
-        haply_driver,
         study_gui,
+        dummy_scenario,
         RegisterEventHandler(
             OnProcessExit(
                 target_action=study_gui,

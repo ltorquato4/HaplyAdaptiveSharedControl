@@ -1,4 +1,4 @@
-"""Launch the study GUI with the real Haply driver."""
+"""Launch the study GUI with Haply input and dummy scenario data."""
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -12,7 +12,7 @@ from launch_ros.actions import Node
 
 
 def generate_launch_description():
-    """Build the launch description for hardware-backed GUI runs."""
+    """Build the launch description for hardware GUI testing."""
     haply_driver = Node(
         package='haply_interface',
         executable='haply_driver_node',
@@ -20,6 +20,15 @@ def generate_launch_description():
         output='screen',
         parameters=[{
             'frequency': 100.0,
+        }],
+    )
+    dummy_scenario = Node(
+        package='haply_study_gui',
+        executable='dummy_scenario_generator',
+        name='dummy_scenario_generator',
+        output='screen',
+        parameters=[{
+            'seed': 7,
         }],
     )
     study_gui = Node(
@@ -36,7 +45,7 @@ def generate_launch_description():
             'source': 'haply',
             'render_fps': 100.0,
             'state_publish_hz': 100.0,
-            'auto_start': False,
+            'auto_start': True,
             'endpoint_reached_radius': 0.01,
         }],
     )
@@ -46,6 +55,7 @@ def generate_launch_description():
         SetEnvironmentVariable('PYGAME_HIDE_SUPPORT_PROMPT', '1'),
         haply_driver,
         study_gui,
+        dummy_scenario,
         RegisterEventHandler(
             OnProcessExit(
                 target_action=study_gui,
