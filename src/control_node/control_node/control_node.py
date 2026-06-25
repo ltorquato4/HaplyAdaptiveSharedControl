@@ -113,26 +113,28 @@ class ControlNode(Node):
             """
             TODO: make sure control logic runs
             """
-            control_output = self.controller.compute(self.current_point)
-
-            control_output_ros_msg = Point()
-            control_output_ros_msg.x = control_output[0]
-            control_output_ros_msg.y = control_output[1]
-            control_output_ros_msg.z = 0.0
-
-            self.control_output_pub.publish(control_output_ros_msg)
+            self.controller.compute_control(self.current_point)    
 
     def estimation_uh_callback(self, msg: Point):
         """
         TODO: Think about this first before doing anything random
         - adjusting controller based on this
         """
+        u_h = [msg.x, msg.y]
+        
         if self.controller_mode:
             """
             TODO: adjust controller parameter
             """
 
-        pass
+        control_output = self.controller.compute_shared_control(u_h)
+
+        control_output_ros_msg = Point()
+        control_output_ros_msg.x = control_output[0]
+        control_output_ros_msg.y = control_output[1]
+        control_output_ros_msg.z = 0.0
+
+        self.control_output_pub.publish(control_output_ros_msg)
 
     # Placeholder callbacks:
     # def estimation_kh_callback(self, msg):

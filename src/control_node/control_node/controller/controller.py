@@ -19,7 +19,7 @@ class Controller:
         self.prev_position = None
         self.u_a = np.zeros(2)
 
-    def compute_control(self, current_point: list[float]):
+    def compute_control(self, current_point: list[float]) -> list[float]:
         position = np.array(current_point)
 
         if self.prev_position is None:
@@ -36,6 +36,6 @@ class Controller:
 
         return self.u_a
 
-    def share_control(self, u_h: list[float]):
+    def compute_shared_control(self, u_h: list[float]):
         u_h = np.array(u_h)
         return 0.5 * (self.u_a + u_h)
