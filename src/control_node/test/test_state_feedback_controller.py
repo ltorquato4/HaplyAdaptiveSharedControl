@@ -1,6 +1,6 @@
 import matplotlib.pyplot as plt
 from math import sqrt
-from control_node.controller.controller import Controller
+from control_node.control_node.state_feedback_controller.state_feedback_controller import Controller
 
 START_POINT = [-6, 0]
 END_POINT = [10, 10]
