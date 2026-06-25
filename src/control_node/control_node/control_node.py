@@ -2,7 +2,7 @@ import rclpy
 from rclpy.node import Node
 from std_msgs.msg import Point, Bool
 
-from control_node.controller.controller import Controller
+from control_node.control_node.state_feedback_controller.state_feedback_controller import Controller
 
 
 """
