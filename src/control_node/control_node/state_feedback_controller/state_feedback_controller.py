@@ -1,6 +1,6 @@
 import numpy as np
 
-class Controller:
+class StateFeedbackController:
     def __init__(self, start_point: list[float], end_point: list[float], dt: float, node=None):
         self.experiment_start_point = np.array(start_point)
         self.experiment_end_point = np.array(end_point)

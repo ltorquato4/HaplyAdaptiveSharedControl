@@ -1,8 +1,9 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Point, Bool
+from std_msgs.msg import Point, Bool, Float32MultiArray
 
-from control_node.control_node.state_feedback_controller.state_feedback_controller import Controller
+from control_node.control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
+from control_node.control_node.state_feedback_controller.adaptive_state_feedback_controller import AdaptiveStateFeedbackController
 
 
 """
@@ -53,13 +54,15 @@ class ControlNode(Node):
     def __init__(self):
         super().__init__('control_node')
 
+        self.dt = 0.1    # TODO find appropriate value
+
         self.study_running: bool = False
         self.controller_mode: bool = True
         self.start_point: list[float] = []
         self.end_point: list[float] = []
         self.current_point: list[float] = []
         
-        self.controller: Controller = Controller() #TODO
+        self.controller: StateFeedbackController
 
         # ----------
         # Publishers 
@@ -74,7 +77,7 @@ class ControlNode(Node):
         self.start_point_sub = self.create_subscription(Point, '/study_start_point', self.start_point_callback, 10)
         self.end_point_sub = self.create_subscription(Point, '/study_end_point', self.end_point_callback, 10)
         self.current_point_sub = self.create_subscription(Point, '/study_current_point', self.current_point_callback, 10)
-        # self.estimation_kh_sub = self.create_subscription(<MessageType>, '/estimation/K_h', self.estimation_kh_callback, 10) # /estimation/K_h (continuous) → TODO: format TBD
+        self.estimation_kh_sub = self.create_subscription(Float32MultiArray, '/estimation/K_h', self.estimation_kh_callback, 10)
         self.estimation_uh_sub = self.create_subscription(Point, '/estimation/u_h', self.estimation_uh_callback, 10)
 
         # ------------------------
@@ -96,9 +99,11 @@ class ControlNode(Node):
     def controller_mode_callback(self, msg: Bool):
         self.controller_mode = msg.data
 
-        """
-        TODO: initialize controller here based on flag, adaptive for true and fixed for false
-        """
+        if self.controller_mode:
+            self.controller = AdaptiveStateFeedbackController(self.start_point, self.end_point, self.dt, self)
+        else:
+            self.controller = StateFeedbackController(self.start_point, self.end_point, self.dt, self)
+        
 
     def start_point_callback(self, msg: Point):
         self.start_point = [msg.x, msg.y]
@@ -110,22 +115,13 @@ class ControlNode(Node):
         self.current_point = [msg.x, msg.y]
         
         if self.study_running:
-            """
-            TODO: make sure control logic runs
-            """
             self.controller.compute_control(self.current_point)    
 
     def estimation_uh_callback(self, msg: Point):
         """
-        TODO: Think about this first before doing anything random
-        - adjusting controller based on this
+        TODO: Think about combining uh callback function and kh callback function
         """
         u_h = [msg.x, msg.y]
-        
-        if self.controller_mode:
-            """
-            TODO: adjust controller parameter
-            """
 
         control_output = self.controller.compute_shared_control(u_h)
 
@@ -136,10 +132,14 @@ class ControlNode(Node):
 
         self.control_output_pub.publish(control_output_ros_msg)
 
+    def estimation_kh_callback(self, msg):
+        k_h = [[msg.data[0], msg.data[1]],
+               [msg.data[2], msg.data[3]]]
+        
+        if self.controller_mode:
+            self.controller.adapt_gain(k_h)
+    
     # Placeholder callbacks:
-    # def estimation_kh_callback(self, msg):
-    #     pass
-
     # def reference_position_callback(self, msg):
     #     pass
 
