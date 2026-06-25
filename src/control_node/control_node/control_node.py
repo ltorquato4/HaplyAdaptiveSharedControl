@@ -1,7 +1,8 @@
 import rclpy
 from rclpy.node import Node
-
 from std_msgs.msg import Point, Bool
+
+from control_node.controller.controller import Controller
 
 
 """
@@ -52,6 +53,14 @@ class ControlNode(Node):
     def __init__(self):
         super().__init__('control_node')
 
+        self.study_running: bool = False
+        self.controller_mode: bool = True
+        self.start_point: list[float] = []
+        self.end_point: list[float] = []
+        self.current_point: list[float] = []
+        
+        self.controller: Controller = Controller() #TODO
+
         # ----------
         # Publishers 
         # ----------
@@ -82,21 +91,47 @@ class ControlNode(Node):
     # Callbacks
     # ------------------------
     def study_running_callback(self, msg: Bool):
-        pass
+        self.study_running = msg.data
 
     def controller_mode_callback(self, msg: Bool):
-        pass
+        self.controller_mode = msg.data
+
+        """
+        TODO: initialize controller here based on flag, adaptive for true and fixed for false
+        """
 
     def start_point_callback(self, msg: Point):
-        pass
+        self.start_point = [msg.x, msg.y]
 
     def end_point_callback(self, msg: Point):
-        pass
+        self.end_point = [msg.x, msg.y]
 
     def current_point_callback(self, msg: Point):
-        pass
+        self.current_point = [msg.x, msg.y]
+        
+        if self.study_running:
+            """
+            TODO: make sure control logic runs
+            """
+            control_output = self.controller.compute(self.current_point)
+
+            control_output_ros_msg = Point()
+            control_output_ros_msg.x = control_output[0]
+            control_output_ros_msg.y = control_output[1]
+            control_output_ros_msg.z = 0.0
+
+            self.control_output_pub.publish(control_output_ros_msg)
 
     def estimation_uh_callback(self, msg: Point):
+        """
+        TODO: Think about this first before doing anything random
+        - adjusting controller based on this
+        """
+        if self.controller_mode:
+            """
+            TODO: adjust controller parameter
+            """
+
         pass
 
     # Placeholder callbacks:
