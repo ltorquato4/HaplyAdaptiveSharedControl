@@ -43,19 +43,19 @@ class AdaptiveStateFeedbackController(StateFeedbackController):
         )
 
         # Normalized progress along trajectory in range [0, 1]
-        progress_along_path = (
+        self.progress_along_path = (
             distance_start_to_current / distance_start_to_end
             if distance_start_to_end > 1e-6
             else 0.0
         )
-        progress_along_path = np.clip(progress_along_path, 0.0, 1.0)
+        progress_along_path = np.clip(self.progress_along_path, 0.0, 1.0)
 
         # --- Human gain magnitude ---
         K_h = np.array(K_h)
         K_h_magnitude = np.linalg.norm(K_h)
 
         # Smooth normalization into [0, 1]
-        normalized_human_gain = np.tanh(K_h) # TODO this needs to be done based on the actual values of K_h
+        normalized_human_gain = np.tanh(K_h_magnitude) # TODO this needs to be done based on the actual values of K_h
 
         # --- Adaptive borders ---
         border_one = (
