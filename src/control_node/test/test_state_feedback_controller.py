@@ -1,5 +1,7 @@
 import os
 import sys
+import logging
+from pathlib import Path
 
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
 
@@ -15,8 +17,19 @@ START_POINT = [-6, 0]
 END_POINT = [10, 10]
 cntr = StateFeedbackController(START_POINT, END_POINT, dt=0.1)
 
+LOG_FILE = Path(__file__).resolve().with_suffix('.log')
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
+logger.handlers.clear()
+file_handler = logging.FileHandler(LOG_FILE, mode='w')
+file_handler.setFormatter(logging.Formatter('%(message)s'))
+logger.addHandler(file_handler)
+logger.propagate = False
+
 def test_compute_control():
-    current_point = START_POINT
+    current_point = START_POINT.copy()
+
+    logger.info("Starting Compute Control Test")
 
     t = []
     xs, ys = [], []
@@ -83,7 +96,7 @@ def test_adaptive_gain():
 
     current_point = START_POINT.copy()
 
-    step = 0
+    logger.info("Starting Adaptivity Test")
 
     while sqrt((current_point[0] - END_POINT[0])**2 +
                (current_point[1] - END_POINT[1])**2) > 0.2:
@@ -95,21 +108,8 @@ def test_adaptive_gain():
         controller.current_point = current_point
         controller.adapt_gain(K_h)
 
-        # --- recompute progress_along_path (same logic as controller) ---
-        distance_start_to_end = np.linalg.norm(
-            np.array(END_POINT) - np.array(START_POINT)
-        )
-        distance_start_to_current = np.linalg.norm(
-            np.array(current_point) - np.array(START_POINT)
-        )
-
-        progress_along_path = (
-            distance_start_to_current / distance_start_to_end
-            if distance_start_to_end > 1e-6 else 0.0
-        )
-
-        print(
-            f'position of current point {progress_along_path:.3f} '
+        logger.info(
+            f'position of current point {controller.progress_along_path:.3f} '
             f'current human estimation {K_h} '
             f'adapted gain {controller.K_p.tolist()}'
         )
@@ -118,7 +118,5 @@ def test_adaptive_gain():
         controller.compute_control(current_point)
         current_point[0] += controller.u_a[0] * 0.005
         current_point[1] += controller.u_a[1] * 0.005
-
-        step += 1
 
     assert True
