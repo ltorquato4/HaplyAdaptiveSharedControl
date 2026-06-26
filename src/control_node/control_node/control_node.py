@@ -132,6 +132,10 @@ class ControlNode(Node):
         self.control_output_pub.publish(control_output_ros_msg)
 
     def estimation_kh_callback(self, msg):
+        """
+        works in principle
+        TODO: important to analyse best factors in the adaptation process
+        """
         k_h = [[msg.data[0], msg.data[1]],
                [msg.data[2], msg.data[3]]]
         
