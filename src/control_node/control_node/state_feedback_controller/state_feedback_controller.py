@@ -20,6 +20,8 @@ class StateFeedbackController:
         self.u_a = np.zeros(2)
 
     def compute_control(self, current_point: list[float]) -> list[float]:
+        self.current_point = current_point
+        
         position = np.array(current_point)
 
         if self.prev_position is None:

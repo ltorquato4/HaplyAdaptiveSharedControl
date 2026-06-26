@@ -1,10 +1,10 @@
 import rclpy
 from rclpy.node import Node
-from std_msgs.msg import Point, Bool, Float32MultiArray
+from geometry_msgs.msg import Point
+from std_msgs.msg import Bool, Float32MultiArray
 
-from control_node.control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
-from control_node.control_node.state_feedback_controller.adaptive_state_feedback_controller import AdaptiveStateFeedbackController
-
+from control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
+from control_node.state_feedback_controller.adaptive_state_feedback_controller import AdaptiveStateFeedbackController
 
 """
     from study_gui_node to control_node:
@@ -37,7 +37,7 @@ from control_node.control_node.state_feedback_controller.adaptive_state_feedback
 			
 	from estimator_node to control_node
         /estimation/K_h
-            format to be determined
+            Float32MultiArray
             continous
 
         /estimation/u_h
@@ -103,7 +103,6 @@ class ControlNode(Node):
             self.controller = AdaptiveStateFeedbackController(self.start_point, self.end_point, self.dt, self)
         else:
             self.controller = StateFeedbackController(self.start_point, self.end_point, self.dt, self)
-        
 
     def start_point_callback(self, msg: Point):
         self.start_point = [msg.x, msg.y]
@@ -145,7 +144,6 @@ class ControlNode(Node):
 
     # def virtual_fixture_callback(self, msg):
     #     pass
-
 
 def main(args=None):
     rclpy.init(args=args)
