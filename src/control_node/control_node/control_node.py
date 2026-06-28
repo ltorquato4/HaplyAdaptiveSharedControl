@@ -1,10 +1,14 @@
 import rclpy
 from rclpy.node import Node
-from geometry_msgs.msg import Point
+from geometry_msgs.msg import Point, Vector3
 from std_msgs.msg import Bool, Float32MultiArray
+
+from haply_ros2_interface.haply_msgs.msg import HaplyContrl 
 
 from control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
 from control_node.state_feedback_controller.adaptive_state_feedback_controller import AdaptiveStateFeedbackController
+
+ACCELERATION_TO_FORCE_FACTOR = 1    # TODO: find appropriate values, unit is kilogram, though this would be a virtual mass, used for heuristic force modeling
 
 """
     from study_gui_node to control_node:
@@ -48,6 +52,14 @@ from control_node.state_feedback_controller.adaptive_state_feedback_controller i
         /control_output
             geometry_msgs/msg/Point Point: only x and y read, z ignored
 			continous
+    
+    from control_node to haply_driver_node:
+        /haply_target
+            Haply_Control.msg
+                bool use_position                    # If true, use target position, else force
+                geometry_msgs/Point target_position  # Target position
+                geometry_msgs/Vector3 force          # Force to apply
+			continous
 """
 
 class ControlNode(Node):
@@ -68,6 +80,7 @@ class ControlNode(Node):
         # Publishers 
         # ----------
         self.control_output_pub = self.create_publisher(Point, '/control_output', 10)
+        self.force_output_pub = self.create_publisher(HaplyContrl, '/haply_target', 10)
 
         # -----------
         # Subscribers 
@@ -130,6 +143,20 @@ class ControlNode(Node):
         control_output_ros_msg.z = 0.0
 
         self.control_output_pub.publish(control_output_ros_msg)
+
+        # TODO: implement Haply Force Feedbeck, should this only be based on the u_a or u_total = 0.5*(u_a + u_h)
+        #       For now this implementation only uses u_a, relies solely on F = m * a heuristics
+        force_feedback_vector = Vector3()
+        force_feedback_vector.x = ACCELERATION_TO_FORCE_FACTOR * self.controller.u_a[0]
+        force_feedback_vector.y = ACCELERATION_TO_FORCE_FACTOR * self.controller.u_a[1]
+        force_feedback_vector.z = 0
+        
+        force_feedback = HaplyContrl()
+        force_feedback.use_position = False
+        force_feedback.target_position = Point()
+        force_feedback.force = force_feedback_vector
+
+        self.force_output_pub.publish(force_feedback)
 
     def estimation_kh_callback(self, msg):
         """
