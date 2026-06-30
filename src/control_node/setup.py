@@ -11,7 +11,7 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools'],
+    install_requires=['setuptools', 'casadi'],
     zip_safe=True,
     maintainer='kitsa',
     maintainer_email='sadegh.tehrani@student.kit.edu',
