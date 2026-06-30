@@ -1,3 +1,4 @@
+import numpy as np
 import casadi as ca
 
 WEIGHT_COMFORT = 1
@@ -51,6 +52,16 @@ class CostFunction:
         """Convert a flattened control vector into an N x 2 sequence."""
         return ca.reshape(u, 2, prediction_horizon).T
 
+    def get_parameters(self):
+        return {
+            "weight_comfort": self.weight_comfort,
+            "weight_trajectory": self.weight_trajectory,
+            "weight_goal": self.weight_goal,
+            "Q": np.array(self.Q).tolist(),
+            "R": np.array(self.R).tolist(),
+            "P": np.array(self.P).tolist(),
+        }
+
     def get_symbolic_cost(
         self,
         x_predicted,
@@ -75,3 +86,4 @@ class CostFunction:
         J += ca.mtimes([e_goal, self.P, e_goal.T])
 
         return J
+    

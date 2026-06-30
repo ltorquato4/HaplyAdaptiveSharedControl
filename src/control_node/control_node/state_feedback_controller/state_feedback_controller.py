@@ -1,3 +1,4 @@
+import json
 import numpy as np
 
 from ..controller import Controller
@@ -50,3 +51,11 @@ class StateFeedbackController(Controller):
         self.u_a = np.clip(u_command, -self.max_control, self.max_control)
 
         return self.u_a.tolist()
+    
+    
+    def publish_control_parameter(self):
+        return json.dumps({
+            "K_p": np.diag(self.K_p).tolist(),
+            "K_d": np.diag(self.K_d).tolist(),
+        })
+

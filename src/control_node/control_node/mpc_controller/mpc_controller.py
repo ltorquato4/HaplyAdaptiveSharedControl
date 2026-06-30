@@ -1,6 +1,7 @@
 from __future__ import annotations
 from typing import List
 
+import json
 import numpy as np
 
 from ..controller import Controller
@@ -116,3 +117,6 @@ class MpcController(Controller):
         self.u_a = u_command
 
         return u_command.tolist()
+
+    def publish_control_parameter(self):
+        return json.dumps(self.cost_function.get_parameters)

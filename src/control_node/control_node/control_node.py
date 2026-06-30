@@ -1,85 +1,49 @@
 import rclpy
 from rclpy.node import Node
 from geometry_msgs.msg import Point, Vector3
-from std_msgs.msg import Bool, Float32MultiArray
+from std_msgs.msg import Bool, Float32MultiArray, String
 
 from haply_ros2_interface.haply_msgs.msg import HaplyContrl 
 
 from control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
 from control_node.state_feedback_controller.adaptive_state_feedback_controller import AdaptiveStateFeedbackController
-
-ACCELERATION_TO_FORCE_FACTOR = 1    # TODO: find appropriate values, unit is kilogram, though this would be a virtual mass, used for heuristic force modeling
-
-"""
-    from study_gui_node to control_node:
-        /study_running
-            boolean value: true == running, false == stopped
-			event-based
-	
-	from scenario_generator to control_node:
-        /study_controller_mode
-            boolean value: true == adaptive, false == fixed
-			event-based
-		
-		/study_start_point
-            geometry_msgs/msg/Point Point: only x and y read, z ignored
-			event-based
-		
-		/study_end_point --> to be added to mermaid
-            geometry_msgs/msg/Point Point: only x and y read, z ignored
-			event-based
-		
-		/study_current_point --> to be added to mermaid
-            geometry_msgs/msg/Point Point: only x and y read, z ignored
-			continous
-			
-		/reference_position
-            what is this?
-		
-		/virtual_fixture
-            what is this?
-			
-	from estimator_node to control_node
-        /estimation/K_h
-            Float32MultiArray
-            continous
-
-        /estimation/u_h
-            geometry_msgs/msg/Point Point: only x and y read, z ignored
-			continous
-
-    from control_node to study_gui_node or scenario_generator_node and to data_logger_node:
-        /control_output
-            geometry_msgs/msg/Point Point: only x and y read, z ignored
-			continous
-    
-    from control_node to haply_driver_node:
-        /haply_target
-            Haply_Control.msg
-                bool use_position                    # If true, use target position, else force
-                geometry_msgs/Point target_position  # Target position
-                geometry_msgs/Vector3 force          # Force to apply
-			continous
-"""
+from control_node.mpc_controller.mpc_controller import MpcController
+from control_node.mpc_controller.adaptive_mpc_controller import AdaptiveMpcController
 
 class ControlNode(Node):
     def __init__(self):
         super().__init__('control_node')
+        
+        # Control Parameters
+        self.dt = self.declare_parameter('delta_time', 0.1).value
+        self.use_mpc_controller = self.declare_parameter('use_mpc_controller', True).value
+        self.controller_mode = self.declare_parameter('adaptive_control_enabled', True).value
+        self.max_control_amplitude = self.declare_parameter('max_control_amplitude', 10.0).value
+        self.max_velocity_amplitude = self.declare_parameter('max_velocity_amplitude', 10.0).value
+        self.acceleration_to_force_factor = self.declare_parameter('acceleration_to_force_factor', 1.0).value
+        
+        # MPC specific Parameters
+        self.prediction_horizon = self.declare_parameter('prediction_horizon', 10).value
 
-        self.dt = 0.1    # TODO find appropriate value
+        # GUI-Experiment parameters
+        self.x_bounds_limit = self.declare_parameter('x_bounds', 400.0).value
+        self.y_bounds_limit = self.declare_parameter('y_bounds', 700.0).value
 
         self.study_running: bool = False
-        self.controller_mode: bool = True
         self.start_point: list[float] = []
         self.end_point: list[float] = []
         self.current_point: list[float] = []
         
-        self.controller: StateFeedbackController
+        if self.use_mpc_controller:
+            self.controller: MpcController
+        else:
+            self.controller: StateFeedbackController
 
         # ----------
         # Publishers 
         # ----------
-        self.control_output_pub = self.create_publisher(Point, '/control_output', 10)
+        self.control_output_pub = self.create_publisher(Point, '/control/u_a', 10)
+        self.control_parameter_pub = self.create_publisher(String, '/control/K_a', 10)
         self.force_output_pub = self.create_publisher(HaplyContrl, '/haply_target', 10)
 
         # -----------
@@ -91,17 +55,7 @@ class ControlNode(Node):
         self.end_point_sub = self.create_subscription(Point, '/study_end_point', self.end_point_callback, 10)
         self.current_point_sub = self.create_subscription(Point, '/study_current_point', self.current_point_callback, 10)
         self.estimation_kh_sub = self.create_subscription(Float32MultiArray, '/estimation/K_h', self.estimation_kh_callback, 10)
-        self.estimation_uh_sub = self.create_subscription(Point, '/estimation/u_h', self.estimation_uh_callback, 10)
-
-        # ------------------------
-        # Undefined topics (placeholders)
-        # ------------------------
-        # /reference_position → TODO: define if needed and type/role
-        # self.reference_position_sub = self.create_subscription(<MessageType>, '/reference_position', self.reference_position_callback, 10)
-
-        # /virtual_fixture → TODO: define if needed and type/role
-        # self.virtual_fixture_sub = self.create_subscription(<MessageType>, '/virtual_fixture', self.virtual_fixture_callback, 10)
-
+        self.estimation_uh_sub = self.create_subscription(Point, '/estimation/u_h', self.estimation_uh_callback, 10) #TODO: consider the importance of this
 
     # ------------------------
     # Callbacks
@@ -113,9 +67,51 @@ class ControlNode(Node):
         self.controller_mode = msg.data
 
         if self.controller_mode:
-            self.controller = AdaptiveStateFeedbackController(self.start_point, self.end_point, self.dt, self)
+            if self.use_mpc_controller:
+                self.controller = AdaptiveMpcController(
+                    self.start_point,
+                    self.end_point,
+                    self.dt,
+                    prediction_horizon=int(self.prediction_horizon),
+                    max_control=(self.max_control_amplitude, self.max_control_amplitude),
+                    max_velocity=(self.max_velocity_amplitude, self.max_velocity_amplitude),
+                    x_bounds=(0.0, self.x_bounds_limit),
+                    y_bounds=(0.0, self.y_bounds_limit),
+                )
+            else:
+                self.controller = AdaptiveStateFeedbackController(
+                    self.start_point,
+                    self.end_point,
+                    self.dt,
+                    self,
+                    max_control=(self.max_control_amplitude, self.max_control_amplitude),
+                    max_velocity=(self.max_velocity_amplitude, self.max_velocity_amplitude),
+                )
         else:
-            self.controller = StateFeedbackController(self.start_point, self.end_point, self.dt, self)
+            if self.use_mpc_controller:
+                self.controller = MpcController(
+                    self.start_point,
+                    self.end_point,
+                    self.dt,
+                    prediction_horizon=int(self.prediction_horizon),
+                    max_control=(self.max_control_amplitude, self.max_control_amplitude),
+                    max_velocity=(self.max_velocity_amplitude, self.max_velocity_amplitude),
+                    x_bounds=(0.0, self.x_bounds_limit),
+                    y_bounds=(0.0, self.y_bounds_limit),
+                )
+            else:
+                self.controller = StateFeedbackController(
+                    self.start_point,
+                    self.end_point,
+                    self.dt,
+                    self,
+                    max_control=(self.max_control_amplitude, self.max_control_amplitude),
+                    max_velocity=(self.max_velocity_amplitude, self.max_velocity_amplitude),
+                )
+
+        control_parameter_msg = String()
+        control_parameter_msg.data = self.controller.publish_control_parameter()
+        self.control_parameter_pub.publish(control_parameter_msg)
 
     def start_point_callback(self, msg: Point):
         self.start_point = [msg.x, msg.y]
@@ -124,57 +120,51 @@ class ControlNode(Node):
         self.end_point = [msg.x, msg.y]
 
     def current_point_callback(self, msg: Point):
-        self.current_point = [msg.x, msg.y]
-        
         if self.study_running:
-            self.controller.compute_control(self.current_point)    
+
+            self.current_point = [msg.x, msg.y]
+        
+            # compute control
+            control_output = self.controller.compute_control(self.current_point)   
+
+            control_output_ros_msg = Point()
+            control_output_ros_msg.x = control_output[0]
+            control_output_ros_msg.y = control_output[1]
+            control_output_ros_msg.z = 0.0
+
+            self.control_output_pub.publish(control_output_ros_msg)
+
+            # compute force on haply
+            force_feedback_vector = Vector3()
+            force_feedback_vector.x = self.acceleration_to_force_factor * control_output[0]
+            force_feedback_vector.y = self.acceleration_to_force_factor * control_output[1]
+            force_feedback_vector.z = 0
+            
+            force_feedback = HaplyContrl()
+            force_feedback.use_position = False
+            force_feedback.target_position = Point()
+            force_feedback.force = force_feedback_vector
+
+            self.force_output_pub.publish(force_feedback) 
 
     def estimation_uh_callback(self, msg: Point):
-        """
-        TODO: Think about combining uh callback function and kh callback function
-        """
-        u_h = [msg.x, msg.y]
-
-        control_output = self.controller.compute_shared_control(u_h)
-
-        control_output_ros_msg = Point()
-        control_output_ros_msg.x = control_output[0]
-        control_output_ros_msg.y = control_output[1]
-        control_output_ros_msg.z = 0.0
-
-        self.control_output_pub.publish(control_output_ros_msg)
-
-        # TODO: implement Haply Force Feedbeck, should this only be based on the u_a or u_total = 0.5*(u_a + u_h)
-        #       For now this implementation only uses u_a, relies solely on F = m * a heuristics
-        force_feedback_vector = Vector3()
-        force_feedback_vector.x = ACCELERATION_TO_FORCE_FACTOR * self.controller.u_a[0]
-        force_feedback_vector.y = ACCELERATION_TO_FORCE_FACTOR * self.controller.u_a[1]
-        force_feedback_vector.z = 0
-        
-        force_feedback = HaplyContrl()
-        force_feedback.use_position = False
-        force_feedback.target_position = Point()
-        force_feedback.force = force_feedback_vector
-
-        self.force_output_pub.publish(force_feedback)
+        # TODO: consider importance of this method
+        if self.study_running:
+            u_h = [msg.x, msg.y]
 
     def estimation_kh_callback(self, msg):
         """
-        works in principle
-        TODO: important to analyse best factors in the adaptation process
+        TODO: Test once the estimation is available
         """
-        k_h = [[msg.data[0], msg.data[1]],
-               [msg.data[2], msg.data[3]]]
-        
-        if self.controller_mode:
-            self.controller.adapt_gain(k_h)
-    
-    # Placeholder callbacks:
-    # def reference_position_callback(self, msg):
-    #     pass
-
-    # def virtual_fixture_callback(self, msg):
-    #     pass
+        if self.study_running:
+            if self.controller_mode:    
+                k_h = [[msg.data[0], msg.data[1]],
+                    [msg.data[2], msg.data[3]]]
+            
+                self.controller.adapt(k_h)
+                control_parameter_msg = String()
+                control_parameter_msg.data = self.controller.publish_control_parameter()
+                self.control_parameter_pub.publish(control_parameter_msg)
 
 def main(args=None):
     rclpy.init(args=args)
@@ -187,3 +177,4 @@ def main(args=None):
     finally:
         node.destroy_node()
         rclpy.shutdown()
+        
