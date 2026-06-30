@@ -29,9 +29,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-std-msgs \
     && rm -rf /var/lib/apt/lists/*
 
-RUN python3 -m pip install --no-cache-dir orjson
+RUN python3 -m pip install --no-cache-dir \
+    orjson \
+    casadi
 
-RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then rosdep init; fi
+RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then \
+        rosdep init; \
+    fi
 
 COPY src ./src
 COPY README.md ./
@@ -47,5 +51,6 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 
 COPY docker/ros_entrypoint.sh /ros_entrypoint.sh
 RUN chmod +x /ros_entrypoint.sh
+
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]
