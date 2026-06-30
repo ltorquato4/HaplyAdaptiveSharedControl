@@ -11,21 +11,39 @@ class CostFunction:
         weight_trajectory = WEIGHT_TRAJECTORY,
         weight_goal = WEIGHT_GOAL,
     ):
+        self.weight_comfort = weight_comfort
+        self.weight_trajectory = weight_trajectory
+        self.weight_goal = weight_goal
+        self.set_weights(weight_comfort, weight_trajectory, weight_goal)
+
+    def set_weights(
+        self,
+        weight_comfort=None,
+        weight_trajectory=None,
+        weight_goal=None,
+    ):
+        if weight_comfort is not None:
+            self.weight_comfort = weight_comfort
+        if weight_trajectory is not None:
+            self.weight_trajectory = weight_trajectory
+        if weight_goal is not None:
+            self.weight_goal = weight_goal
+
         self.R = ca.diag([
-            weight_comfort * 0.01,  # ux
-            weight_comfort * 0.01,  # uy
+            self.weight_comfort * 0.01,  # ux
+            self.weight_comfort * 0.01,  # uy
         ])
         self.Q = ca.diag([
-            weight_trajectory * 10.0,  # x
+            self.weight_trajectory * 10.0,  # x
             0,   # vx
-            weight_trajectory * 10.0,  # y
+            self.weight_trajectory * 10.0,  # y
             0,   # vy
         ])
         self.P = ca.diag([
-            weight_goal * 100.0, # x
-            weight_goal * 10.0,  # vx
-            weight_goal * 100.0, # y
-            weight_goal * 10.0,  # vy
+            self.weight_goal * 100.0, # x
+            self.weight_goal * 10.0,  # vx
+            self.weight_goal * 100.0, # y
+            self.weight_goal * 10.0,  # vy
         ])
 
     @staticmethod
