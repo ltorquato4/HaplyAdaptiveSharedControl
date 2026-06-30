@@ -36,7 +36,9 @@ RUN python3 -m pip install --no-cache-dir \
     mypy \
     orjson \
     pre-commit \
-    ruff
+    ruff \
+    orjson \
+    casadi
 
 RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then \
         rosdep init; \
