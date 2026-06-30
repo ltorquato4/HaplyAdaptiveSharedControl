@@ -2,6 +2,7 @@ import numpy as np
 
 from math import sqrt
 
+from control_node.adaptive_controller import AdaptiveController
 from control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
 
 FACTOR_DEFAULT = 0.5
@@ -11,11 +12,11 @@ BORDER_ONE_RANGE = [0.2, 0.4]
 BORDER_TWO_DEFAULT = 0.7
 BORDER_TWO_RANGE = [0.6, 0.8]
 
-class AdaptiveStateFeedbackController(StateFeedbackController):
+class AdaptiveStateFeedbackController(AdaptiveController, StateFeedbackController):
     def __init__(self, start_point, end_point, dt, node=None):
         super().__init__(start_point, end_point, dt, node)
     
-    def adapt_gain(self, K_h: list[list[float]]) -> None:
+    def adapt(self, K_h: list[list[float]]) -> None:
         """
         The point to point connection is modelled as
 
