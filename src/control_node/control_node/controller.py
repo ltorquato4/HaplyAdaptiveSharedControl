@@ -36,3 +36,7 @@ class Controller(ABC):
     def compute_shared_control(self, u_h: list[float]):
         u_h = np.asarray(u_h, dtype=float).reshape(2)
         return 0.5 * (np.asarray(self.u_a, dtype=float) + u_h)
+    
+    @abstractmethod
+    def publish_control_parameter(self) -> str:
+        raise NotImplementedError
