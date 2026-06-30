@@ -1,11 +1,10 @@
 import numpy as np
 
-class StateFeedbackController:
-    def __init__(self, start_point: list[float], end_point: list[float], dt: float, node=None):
-        self.experiment_start_point = np.array(start_point)
-        self.experiment_end_point = np.array(end_point)
+from ..controller import Controller
 
-        self.dt = dt 
+class StateFeedbackController(Controller):
+    def __init__(self, start_point: list[float], end_point: list[float], dt: float, node=None):
+        super().__init__(start_point, end_point, dt)
 
         if node is not None:
             kp = node.declare_parameter('K_p', [0.5, 0.5]).value
@@ -16,20 +15,10 @@ class StateFeedbackController:
 
         self.K_p = np.diag(kp)
         self.K_d = np.diag(kd)
-        self.prev_position = None
-        self.u_a = np.zeros(2)
 
     def compute_control(self, current_point: list[float]) -> list[float]:
-        self.current_point = current_point
-        
-        position = np.array(current_point)
-
-        if self.prev_position is None:
-            velocity = np.zeros(2)
-        else:
-            velocity = (position - self.prev_position) / self.dt
-
-        self.prev_position = position
+        position = self._build_position(current_point)
+        velocity = self._estimate_velocity(position)
 
         e = position - self.experiment_end_point
         e_dot = velocity

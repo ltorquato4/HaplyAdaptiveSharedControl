@@ -3,6 +3,8 @@ from typing import List
 
 import numpy as np
 
+from ..controller import Controller
+
 from .batch_predictor import BatchPredictor
 from .constraints import Constraints
 from .costfunction import CostFunction
@@ -10,7 +12,7 @@ from .linear_system_model import LinearSystemModel
 from .optimization import ModelDependencies, Optimization, StateDependencies
 
 
-class MpcController:
+class MpcController(Controller):
     """Encapsulates 2D point-to-point MPC setup and control solve."""
 
     def __init__(
@@ -27,22 +29,19 @@ class MpcController:
         weight_trajectory: float = 1.0,
         weight_goal: float = 1.0,
     ) -> None:
-        self.start_point = np.asarray(start_point, dtype=float).reshape(2)
-        self.end_point = np.asarray(end_point, dtype=float).reshape(2)
-        self.dt = dt
+        super().__init__(start_point, end_point, dt)
         self.prediction_horizon = prediction_horizon
         self.max_control = max_control
         self.max_velocity = max_velocity
         self.x_bounds = x_bounds or (
-            float(min(self.start_point[0], self.end_point[0]) - 0.5),
-            float(max(self.start_point[0], self.end_point[0]) + 0.5),
+            float(min(self.experiment_start_point[0], self.experiment_end_point[0]) - 0.5),
+            float(max(self.experiment_start_point[0], self.experiment_end_point[0]) + 0.5),
         )
         self.y_bounds = y_bounds or (
-            float(min(self.start_point[1], self.end_point[1]) - 0.5),
-            float(max(self.start_point[1], self.end_point[1]) + 0.5),
+            float(min(self.experiment_start_point[1], self.experiment_end_point[1]) - 0.5),
+            float(max(self.experiment_start_point[1], self.experiment_end_point[1]) + 0.5),
         )
         self.u_init = np.zeros(self.prediction_horizon * 2, dtype=float)
-        self._previous_point: np.ndarray | None = None
 
         self.linear_system_model = LinearSystemModel(dt)
 
@@ -74,19 +73,14 @@ class MpcController:
 
     def _build_initial_state(self, current_point: list[float]) -> np.ndarray:
         """Build [x, vx, y, vy] from the current 2D point and previous sample."""
-        current_position = np.asarray(current_point, dtype=float).reshape(2)
+        current_position = self._build_position(current_point)
+        velocity = self._estimate_velocity(current_position)
 
-        if self._previous_point is None:
-            velocity = np.zeros(2, dtype=float)
-        else:
-            velocity = (current_position - self._previous_point) / self.dt
-
-        self._previous_point = current_position
         return np.array([current_position[0], velocity[0], current_position[1], velocity[1]], dtype=float)
 
     def _build_goal_state(self) -> np.ndarray:
         """Build the terminal MPC state for the configured end point."""
-        return np.array([self.end_point[0], 0.0, self.end_point[1], 0.0], dtype=float)
+        return np.array([self.experiment_end_point[0], 0.0, self.experiment_end_point[1], 0.0], dtype=float)
 
     @staticmethod
     def _shift_warm_start(u_optimum: np.ndarray) -> np.ndarray:
@@ -119,5 +113,6 @@ class MpcController:
         self.u_init = self._shift_warm_start(u_optimum)
 
         u_command = np.clip(u_optimum[:2], -np.asarray(self.max_control), np.asarray(self.max_control))
+        self.u_a = u_command
 
         return u_command.tolist()
