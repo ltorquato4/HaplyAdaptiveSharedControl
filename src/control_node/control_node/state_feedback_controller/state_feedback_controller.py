@@ -26,7 +26,3 @@ class StateFeedbackController(Controller):
         self.u_a = - self.K_p @ e - self.K_d @ e_dot
 
         return self.u_a
-
-    def compute_shared_control(self, u_h: list[float]):
-        u_h = np.array(u_h)
-        return 0.5 * (self.u_a + u_h)
