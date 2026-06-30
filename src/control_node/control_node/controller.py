@@ -30,7 +30,7 @@ class Controller(ABC):
         return velocity
 
     @abstractmethod
-    def compute_control(self, current_point: list[float]):
+    def compute_control(self, current_point: list[float]) -> list[float]:
         raise NotImplementedError
 
     def compute_shared_control(self, u_h: list[float]):
