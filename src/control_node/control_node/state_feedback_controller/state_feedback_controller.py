@@ -3,7 +3,15 @@ import numpy as np
 from ..controller import Controller
 
 class StateFeedbackController(Controller):
-    def __init__(self, start_point: list[float], end_point: list[float], dt: float, node=None):
+    def __init__(
+        self,
+        start_point: list[float],
+        end_point: list[float],
+        dt: float,
+        node=None,
+        max_control: tuple[float, float] = (1.0, 1.0),
+        max_velocity: tuple[float, float] = (1.0, 1.0),
+    ):
         super().__init__(start_point, end_point, dt)
 
         if node is not None:
@@ -15,6 +23,8 @@ class StateFeedbackController(Controller):
 
         self.K_p = np.diag(kp)
         self.K_d = np.diag(kd)
+        self.max_control = np.asarray(max_control, dtype=float)
+        self.max_velocity = np.asarray(max_velocity, dtype=float)
 
     def compute_control(self, current_point: list[float]) -> list[float]:
         position = self._build_position(current_point)
@@ -23,6 +33,20 @@ class StateFeedbackController(Controller):
         e = position - self.experiment_end_point
         e_dot = velocity
 
-        self.u_a = - self.K_p @ e - self.K_d @ e_dot
+        u_command = - self.K_p @ e - self.K_d @ e_dot
 
-        return self.u_a
+        # If the current velocity is already outside the allowed range, do not
+        # add control in the same direction that would push it further out.
+        if velocity[0] > self.max_velocity[0]:
+            u_command[0] = min(u_command[0], 0.0)
+        elif velocity[0] < -self.max_velocity[0]:
+            u_command[0] = max(u_command[0], 0.0)
+
+        if velocity[1] > self.max_velocity[1]:
+            u_command[1] = min(u_command[1], 0.0)
+        elif velocity[1] < -self.max_velocity[1]:
+            u_command[1] = max(u_command[1], 0.0)
+
+        self.u_a = np.clip(u_command, -self.max_control, self.max_control)
+
+        return self.u_a.tolist()
