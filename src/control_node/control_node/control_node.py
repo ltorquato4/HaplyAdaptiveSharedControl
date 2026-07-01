@@ -35,6 +35,9 @@ class ControlNode(Node):
         # Logging
         self.log_level = self.declare_parameter('log_level', 'DEBUG').value
 
+        # Watchdog
+        self.cursor_timeout_sec = self.declare_parameter('cursor_timeout_sec', 0.5).value
+
         log_levels = {
             'DEBUG': LoggingSeverity.DEBUG,
             'INFO': LoggingSeverity.INFO,
