@@ -22,20 +22,19 @@ Inside the container, the ROS environment and workspace are already sourced, so
 you can launch ROS commands directly. For example:
 
 ```bash
-ros2 launch haply_study_gui study_gui_mouse.launch.py
+ros2 pkg list
 ```
 
-GUI launch modes, mouse testing, Haply testing, topic checks, and hardware
-notes are documented in
-[`src/haply_study_gui/README.md`](src/haply_study_gui/README.md). The current
-system design is summarized in [`architecture_analysis.md`](architecture_analysis.md).
+Package-specific launch commands are documented in each package's README under
+[`src/`](src/).
 
 ## ROS Workspace Commands
 
-After changing a ROS package, rebuild it from the workspace root:
+After changing a ROS package, rebuild it from the workspace root. Replace
+`<package_name>` with the package you changed:
 
 ```bash
-colcon build --symlink-install --packages-select haply_study_gui
+colcon build --symlink-install --packages-select <package_name>
 ```
 
 Source the rebuilt workspace before launching nodes from the same terminal:
