@@ -2,7 +2,6 @@ import rclpy
 from rclpy.node import Node
 from rclpy.logging import LoggingSeverity
 from rclpy.duration import Duration
-
 from geometry_msgs.msg import Point, Vector3
 from std_msgs.msg import Bool, Float32MultiArray, String
 
@@ -35,9 +34,6 @@ class ControlNode(Node):
 
         # Logging
         self.log_level = self.declare_parameter('log_level', 'DEBUG').value
-
-        # Watchdog
-        self.cursor_timeout_sec = self.declare_parameter('cursor_timeout_sec', 0.5).value
 
         log_levels = {
             'DEBUG': LoggingSeverity.DEBUG,
@@ -194,7 +190,7 @@ class ControlNode(Node):
         force_feedback.target_position = Point()
         force_feedback.force = force_feedback_vector
 
-            self.force_output_pub.publish(force_feedback) 
+        self.force_output_pub.publish(force_feedback)
 
         self.get_logger().debug(
             f'Published force feedback: '
