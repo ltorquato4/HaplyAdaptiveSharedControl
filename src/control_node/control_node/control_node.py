@@ -2,7 +2,6 @@ import rclpy
 from rclpy.node import Node
 from rclpy.logging import LoggingSeverity
 from rclpy.duration import Duration
-
 from geometry_msgs.msg import Point, Vector3
 from std_msgs.msg import Bool, Float32MultiArray, String
 
@@ -35,9 +34,6 @@ class ControlNode(Node):
 
         # Logging
         self.log_level = self.declare_parameter('log_level', 'DEBUG').value
-
-        # Watchdog
-        self.cursor_timeout_sec = self.declare_parameter('cursor_timeout_sec', 0.5).value
 
         log_levels = {
             'DEBUG': LoggingSeverity.DEBUG,
@@ -82,7 +78,6 @@ class ControlNode(Node):
         self.end_point_sub = self.create_subscription(Point, '/study_end_point', self.end_point_callback, 10)
         self.current_point_sub = self.create_subscription(Point, '/experiment_cursor_position', self.current_point_callback, 10)
         self.estimation_kh_sub = self.create_subscription(Float32MultiArray, '/estimation/K_h', self.estimation_kh_callback, 10)
-        self.estimation_uh_sub = self.create_subscription(Vector3, '/estimation/u_h', self.estimation_uh_callback, 10)
         self.estimator_status_sub = self.create_subscription(String, '/estimator_status', self.estimator_status_callback, 10)
 
     def initialize_controller(self):
@@ -161,19 +156,15 @@ class ControlNode(Node):
         self.get_logger().debug(f'End point updated: {self.end_point}')
 
     def current_point_callback(self, msg: Point):
+        control_output = [0.0, 0.0]
+
         if self.study_running:
 
-            self.current_point = [msg.x, msg.y]
-
-            self.get_logger().debug(f'Current point received: {self.current_point}')
-
             if self.estimator_status in ['force_stale', 'saturated', 'reset']:
-                self.get_logger().warn(
-                    f'Estimator fault detected ({self.estimator_status}), publishing zero force.'
-                )
-                control_output = [0.0, 0.0]
-
+                self.get_logger().warn(f'Estimator fault detected ({self.estimator_status}), publishing zero force.')
             else:
+                self.current_point = [msg.x, msg.y]
+                self.get_logger().debug(f'Current point received: {self.current_point}')
                 control_output = self.controller.compute_control(self.current_point)
 
             self.get_logger().debug(f'Control output: {control_output}')
@@ -184,30 +175,27 @@ class ControlNode(Node):
             control_output_ros_msg.z = 0.0
 
             self.control_output_pub.publish(control_output_ros_msg)
+        
+        else:
+            self.get_logger().warn(f'Study is not running, publishing zero force.')
 
-            # compute force on haply
-            force_feedback_vector = Vector3()
-            force_feedback_vector.x = self.acceleration_to_force_factor * control_output[0]
-            force_feedback_vector.y = self.acceleration_to_force_factor * control_output[1]
-            force_feedback_vector.z = 0.0
+        # compute force on haply
+        force_feedback_vector = Vector3()
+        force_feedback_vector.x = self.acceleration_to_force_factor * control_output[0]
+        force_feedback_vector.y = self.acceleration_to_force_factor * control_output[1]
+        force_feedback_vector.z = 0.0
 
-            force_feedback = HaplyControl()
-            force_feedback.use_position = False
-            force_feedback.target_position = Point()
-            force_feedback.force = force_feedback_vector
+        force_feedback = HaplyControl()
+        force_feedback.use_position = False
+        force_feedback.target_position = Point()
+        force_feedback.force = force_feedback_vector
 
-            self.force_output_pub.publish(force_feedback)
+        self.force_output_pub.publish(force_feedback)
 
-            self.get_logger().debug(
-                f'Published force feedback: '
-                f'({force_feedback_vector.x}, {force_feedback_vector.y}, {force_feedback_vector.z})'
-            )
-
-    def estimation_uh_callback(self, msg: Vector3):
-        # TODO: consider importance of this method
-        if self.study_running:
-            u_h = [msg.x, msg.y]
-            self.get_logger().debug(f'Received human input estimate u_h={u_h}')
+        self.get_logger().debug(
+            f'Published force feedback: '
+            f'({force_feedback_vector.x}, {force_feedback_vector.y}, {force_feedback_vector.z})'
+        )
 
     def estimation_kh_callback(self, msg: Float32MultiArray):
         """
