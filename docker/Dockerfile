@@ -34,6 +34,7 @@ RUN python3 -m pip install --no-cache-dir orjson
 RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then rosdep init; fi
 
 COPY src ./src
+COPY scripts ./scripts
 COPY README.md ./
 
 RUN apt-get update \
