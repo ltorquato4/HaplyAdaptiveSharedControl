@@ -134,7 +134,7 @@ class ControlNode(Node):
         self.get_logger().debug(f'Study running state changed to {self.study_running}')
 
     def controller_mode_callback(self, msg: String):
-        if self.study_running and self.start_point is not None and self.end_point is not None:
+        if self.study_running and self.start_point is not [] and self.end_point is not []:
             self.controller_mode = msg.data.lower()
 
             self.get_logger().debug(f'Controller mode changed to {self.controller_mode}')
