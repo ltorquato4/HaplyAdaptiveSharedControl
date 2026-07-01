@@ -55,6 +55,7 @@ class StateFeedbackController(Controller):
     
     def publish_control_parameter(self):
         return json.dumps({
+            "Controller Type": "State Feedback Controller",
             "K_p": np.diag(self.K_p).tolist(),
             "K_d": np.diag(self.K_d).tolist(),
         })

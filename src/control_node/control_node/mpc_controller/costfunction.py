@@ -54,6 +54,7 @@ class CostFunction:
 
     def get_parameters(self):
         return {
+            "Controller Type": "MPC Controller",
             "weight_comfort": self.weight_comfort,
             "weight_trajectory": self.weight_trajectory,
             "weight_goal": self.weight_goal,

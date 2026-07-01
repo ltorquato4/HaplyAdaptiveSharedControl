@@ -1,6 +1,8 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.logging import LoggingSeverity
+from rclpy.duration import Duration
+
 from geometry_msgs.msg import Point, Vector3
 from std_msgs.msg import Bool, Float32MultiArray, String
 
@@ -17,9 +19,9 @@ class ControlNode(Node):
         super().__init__('control_node')
 
         # Control Parameters
-        self.dt = self.declare_parameter('delta_time', 0.1).value
+        self.dt = self.declare_parameter('delta_time', 0.01).value
         self.use_mpc_controller = self.declare_parameter('use_mpc_controller', True).value
-        self.controller_mode = self.declare_parameter('adaptive_control_enabled', True).value
+        self.controller_mode = 'adaptive' if self.declare_parameter('adaptive_control_enabled', True).value else 'fixed'
         self.max_control_amplitude = self.declare_parameter('max_control_amplitude', 10.0).value
         self.max_velocity_amplitude = self.declare_parameter('max_velocity_amplitude', 10.0).value
         self.acceleration_to_force_factor = self.declare_parameter('acceleration_to_force_factor', 1.0).value
@@ -34,6 +36,9 @@ class ControlNode(Node):
         # Logging
         self.log_level = self.declare_parameter('log_level', 'DEBUG').value
 
+        # Watchdog
+        self.cursor_timeout_sec = self.declare_parameter('cursor_timeout_sec', 0.5).value
+
         log_levels = {
             'DEBUG': LoggingSeverity.DEBUG,
             'INFO': LoggingSeverity.INFO,
@@ -43,8 +48,15 @@ class ControlNode(Node):
             'FATAL': LoggingSeverity.FATAL,
         }
 
-        self.get_logger().set_level(
-            log_levels.get(str(self.log_level).upper(), LoggingSeverity.DEBUG)
+        self.get_logger().set_level(log_levels.get(str(self.log_level).upper(), LoggingSeverity.DEBUG))
+
+        self.get_logger().info('Control node started.')
+
+        self.get_logger().debug(
+            f'Configuration: dt={self.dt}, '
+            f'use_mpc_controller={self.use_mpc_controller}, '
+            f'controller_mode={self.controller_mode}, '
+            f'prediction_horizon={self.prediction_horizon}'
         )
 
         self.study_running: bool = False
@@ -52,51 +64,29 @@ class ControlNode(Node):
         self.end_point: list[float] = []
         self.current_point: list[float] = []
 
-        if self.use_mpc_controller:
-            self.controller: MpcController
-        else:
-            self.controller: StateFeedbackController
+        self.estimator_status = 'ok'
 
         # ----------
         # Publishers
         # ----------
-        self.control_output_pub = self.create_publisher(Point, '/control/u_a', 10)
+        self.control_output_pub = self.create_publisher(Vector3, '/control/U_a', 10)
         self.control_parameter_pub = self.create_publisher(String, '/control/K_a', 10)
         self.force_output_pub = self.create_publisher(HaplyControl, '/haply_target', 10)
 
         # -----------
         # Subscribers
         # -----------
-        self.study_running_sub = self.create_subscription(Bool, '/study_running', self.study_running_callback, 10)
-        self.controller_mode_sub = self.create_subscription(Bool, '/study_controller_mode', self.controller_mode_callback, 10)
+        self.study_running_sub = self.create_subscription(Bool, '/study_is_running', self.study_running_callback, 10)
+        self.controller_mode_sub = self.create_subscription(String, '/study_controller_mode', self.controller_mode_callback, 10)
         self.start_point_sub = self.create_subscription(Point, '/study_start_point', self.start_point_callback, 10)
         self.end_point_sub = self.create_subscription(Point, '/study_end_point', self.end_point_callback, 10)
-        self.current_point_sub = self.create_subscription(Point, '/study_current_point', self.current_point_callback, 10)
+        self.current_point_sub = self.create_subscription(Point, '/experiment_cursor_position', self.current_point_callback, 10)
         self.estimation_kh_sub = self.create_subscription(Float32MultiArray, '/estimation/K_h', self.estimation_kh_callback, 10)
-        self.estimation_uh_sub = self.create_subscription(Point, '/estimation/u_h', self.estimation_uh_callback, 10)  # TODO: consider the importance of this
+        self.estimation_uh_sub = self.create_subscription(Vector3, '/estimation/u_h', self.estimation_uh_callback, 10)
+        self.estimator_status_sub = self.create_subscription(String, '/estimator_status', self.estimator_status_callback, 10)
 
-        self.get_logger().info('Control node started.')
-        self.get_logger().debug(
-            f'Configuration: dt={self.dt}, '
-            f'use_mpc_controller={self.use_mpc_controller}, '
-            f'adaptive_control_enabled={self.controller_mode}, '
-            f'prediction_horizon={self.prediction_horizon}'
-        )
-    # ------------------------
-    # Callbacks
-    # ------------------------
-    def study_running_callback(self, msg: Bool):
-        self.study_running = msg.data
-        self.get_logger().debug(f'Study running state changed to {self.study_running}')
-
-    def controller_mode_callback(self, msg: Bool):
-        self.controller_mode = msg.data
-
-        self.get_logger().debug(
-            f'Controller mode changed. Adaptive={self.controller_mode}'
-        )
-
-        if self.controller_mode:
+    def initialize_controller(self):
+        if self.controller_mode == 'adaptive':
             if self.use_mpc_controller:
                 self.controller = AdaptiveMpcController(
                     self.start_point,
@@ -139,15 +129,28 @@ class ControlNode(Node):
                     max_velocity=(self.max_velocity_amplitude, self.max_velocity_amplitude),
                 )
 
-        self.get_logger().debug(
-            f'Initialized controller: {type(self.controller).__name__}'
-        )
+        self.get_logger().debug(f'Initialized controller: {type(self.controller).__name__}')
 
-        control_parameter_msg = String()
-        control_parameter_msg.data = self.controller.publish_control_parameter()
-        self.control_parameter_pub.publish(control_parameter_msg)
+    # ------------------------
+    # Callbacks
+    # ------------------------
+    def study_running_callback(self, msg: Bool):
+        self.study_running = msg.data
+        self.get_logger().debug(f'Study running state changed to {self.study_running}')
 
-        self.get_logger().debug('Published controller parameters.')
+    def controller_mode_callback(self, msg: String):
+        if self.study_running and self.start_point is not None and self.end_point is not None:
+            self.controller_mode = msg.data.lower()
+
+            self.get_logger().debug(f'Controller mode changed to {self.controller_mode}')
+
+            self.initialize_controller()
+
+            control_parameter_msg = String()
+            control_parameter_msg.data = self.controller.publish_control_parameter()
+            self.control_parameter_pub.publish(control_parameter_msg)
+
+            self.get_logger().debug('Published controller parameters.')
 
     def start_point_callback(self, msg: Point):
         self.start_point = [msg.x, msg.y]
@@ -164,12 +167,18 @@ class ControlNode(Node):
 
             self.get_logger().debug(f'Current point received: {self.current_point}')
 
-            # compute control
-            control_output = self.controller.compute_control(self.current_point)
+            if self.estimator_status in ['force_stale', 'saturated', 'reset']:
+                self.get_logger().warn(
+                    f'Estimator fault detected ({self.estimator_status}), publishing zero force.'
+                )
+                control_output = [0.0, 0.0]
+
+            else:
+                control_output = self.controller.compute_control(self.current_point)
 
             self.get_logger().debug(f'Control output: {control_output}')
 
-            control_output_ros_msg = Point()
+            control_output_ros_msg = Vector3()
             control_output_ros_msg.x = control_output[0]
             control_output_ros_msg.y = control_output[1]
             control_output_ros_msg.z = 0.0
@@ -180,7 +189,7 @@ class ControlNode(Node):
             force_feedback_vector = Vector3()
             force_feedback_vector.x = self.acceleration_to_force_factor * control_output[0]
             force_feedback_vector.y = self.acceleration_to_force_factor * control_output[1]
-            force_feedback_vector.z = 0
+            force_feedback_vector.z = 0.0
 
             force_feedback = HaplyControl()
             force_feedback.use_position = False
@@ -194,26 +203,24 @@ class ControlNode(Node):
                 f'({force_feedback_vector.x}, {force_feedback_vector.y}, {force_feedback_vector.z})'
             )
 
-    def estimation_uh_callback(self, msg: Point):
+    def estimation_uh_callback(self, msg: Vector3):
         # TODO: consider importance of this method
         if self.study_running:
             u_h = [msg.x, msg.y]
             self.get_logger().debug(f'Received human input estimate u_h={u_h}')
 
-    def estimation_kh_callback(self, msg):
+    def estimation_kh_callback(self, msg: Float32MultiArray):
         """
         TODO: Test once the estimation is available
         """
         if self.study_running:
-            if self.controller_mode:
+            if self.controller_mode == 'adaptive':
                 k_h = [[msg.data[0], msg.data[1]],
-                       [msg.data[2], msg.data[3]]]
+                    [msg.data[2], msg.data[3]]]
 
                 self.get_logger().debug(f'Received K_h estimate: {k_h}')
 
                 self.controller.adapt(k_h)
-
-                self.get_logger().debug('Adapted controller using updated K_h.')
 
                 control_parameter_msg = String()
                 control_parameter_msg.data = self.controller.publish_control_parameter()
@@ -221,6 +228,9 @@ class ControlNode(Node):
 
                 self.get_logger().debug('Published updated controller parameters.')
 
+    def estimator_status_callback(self, msg: String):
+        self.estimator_status = msg.data
+        self.get_logger().debug(f'Estimator status changed to {self.estimator_status}')
 
 def main(args=None):
     rclpy.init(args=args)

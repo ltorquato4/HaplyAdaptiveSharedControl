@@ -73,19 +73,16 @@ class MpcController(Controller):
         )
 
     def _build_initial_state(self, current_point: list[float]) -> np.ndarray:
-        """Build [x, vx, y, vy] from the current 2D point and previous sample."""
         current_position = self._build_position(current_point)
         velocity = self._estimate_velocity(current_position)
 
         return np.array([current_position[0], velocity[0], current_position[1], velocity[1]], dtype=float)
 
     def _build_goal_state(self) -> np.ndarray:
-        """Build the terminal MPC state for the configured end point."""
         return np.array([self.experiment_end_point[0], 0.0, self.experiment_end_point[1], 0.0], dtype=float)
 
     @staticmethod
     def _shift_warm_start(u_optimum: np.ndarray) -> np.ndarray:
-        """Shift the open-loop solution forward by one control step."""
         control_sequence = u_optimum.reshape(-1, 2)
         if control_sequence.shape[0] == 0:
             return u_optimum
@@ -93,12 +90,7 @@ class MpcController(Controller):
         shifted_sequence = np.vstack([control_sequence[1:], control_sequence[-1]])
         return shifted_sequence.reshape(-1)
 
-    def compute_control(
-        self,
-        current_point: list[float],
-    ) -> List[float]:
-        """Solve the MPC problem and return the first control input."""
-
+    def compute_control(self, current_point: list[float]) -> List[float]:
         x0 = self._build_initial_state(current_point)
         goal_state = self._build_goal_state()
 
@@ -119,4 +111,4 @@ class MpcController(Controller):
         return u_command.tolist()
 
     def publish_control_parameter(self):
-        return json.dumps(self.cost_function.get_parameters)
+        return json.dumps(self.cost_function.get_parameters())
