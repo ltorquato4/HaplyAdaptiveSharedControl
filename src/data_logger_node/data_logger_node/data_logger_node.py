@@ -1,83 +1,53 @@
 #!/usr/bin/env python3
-
 import csv
 import os
-from datetime import datetime
+
+from dataclasses import dataclass
 
 import rclpy
 from rclpy.node import Node
 
-from std_msgs.msg import (
-    Bool,
-    Float64,
-    String
-)
-
-from geometry_msgs.msg import (
-    Point,
-    Vector3
-)
+from std_msgs.msg import Bool, Float64, String
+from geometry_msgs.msg import Point, Vector3
 
 from haply_msgs.msg import HaplyState
 
+from csv_logger import CSVLogger
+
+@dataclass
+class LoggerConfig:
+    log_rate_hz: float = 100.0
+    flush_interval: int = 100
+    file_prefix: str = "trial"
+
 
 class DataLoggerNode(Node):
-
     def __init__(self):
         super().__init__("data_logger_node")
 
-        self.log_rate_hz = 100.0
+        self.declare_parameter("save_directory", "./logs")
+        self.save_directory = (self.get_parameter("save_directory").get_parameter_value().string_value)
 
+        self.config = LoggerConfig()
+        self.recording = False
         self.latest = {}
+        self.flush_counter = 0
 
-        self.initialize_storage()
-        self.create_subscribers()
+        self.csv_logger = CSVLogger(self.save_directory, self.config.file_prefix, self.fieldnames())
 
-        self.timer = self.create_timer(
-            1.0 / self.log_rate_hz,
-            self.write_row
-        )
+        self.setup_subscribers()
+        self.timer = self.create_timer(1.0 / self.config.log_rate_hz, self.write_row)
+        
+        self.get_logger().info("Data logger ready.")
 
-        self.get_logger().info("Data Logger started")
-
-    # ---------------------------------------------------
-    # CSV
-    # ---------------------------------------------------
-
-    def initialize_storage(self):
-
-        timestamp = datetime.now().strftime(
-            "%Y%m%d_%H%M%S"
-        )
-
-        os.makedirs("logs", exist_ok=True)
-
-        filename = f"logs/study_{timestamp}.csv"
-
-        self.csv_file = open(
-            filename,
-            "w",
-            newline=""
-        )
-
-        self.writer = csv.DictWriter(
-            self.csv_file,
-            fieldnames=self.fieldnames()
-        )
-
-        self.writer.writeheader()
-
-        self.get_logger().info(
-            f"Logging to {filename}"
-        )
 
     def fieldnames(self):
-
         return [
-
+            "trial_id",
             "timestamp",
 
             "study_running",
+
             "study_phase",
             "study_controller_mode",
 
@@ -122,183 +92,118 @@ class DataLoggerNode(Node):
             "estimator_status"
         ]
 
-    # ---------------------------------------------------
-    # Subscribers
-    # ---------------------------------------------------
+    
+    def reset_state(self):
+        self.latest = {}
 
-    def create_subscribers(self):
 
-        qos = 10
+    def start_recording(self):
+        self.reset_state()
+        trial_id, filepath = self.csv_logger.start()
+        self.recording = True
+        self.get_logger().info(f"Started trial {trial_id}: {filepath}")
 
-        self.create_subscription(
-            Bool,
-            "/study_is_running",
-            self.study_running_cb,
-            qos
-        )
 
-        self.create_subscription(
-            String,
-            "/study_phase",
-            self.phase_cb,
-            qos
-        )
+    def stop_recording(self):
+        self.csv_logger.stop()
+        self.recording = False
+        self.reset_state()
+        self.get_logger().info("Trial finished.")
 
-        self.create_subscription(
-            String,
-            "/study_controller_mode",
-            self.mode_cb,
-            qos
-        )
 
-        self.create_subscription(
-            Point,
-            "/study_start_point",
-            self.start_cb,
-            qos
-        )
+    def setup_subscribers(self):
+        self.create_subscription(Bool, "/study_is_running", self.study_running_callback, 10)
+        self.create_subscription(String, "/study_phase", self.phase_callback, 10)
+        self.create_subscription(String, "/study_controller_mode", self.mode_callback, 10)
+        self.create_subscription(Point, "/study_start_point", self.start_point_callback, 10)
+        self.create_subscription(Point, "/study_end_point", self.end_point_callback, 10)
+        self.create_subscription(Point, "/experiment_cursor_position", self.cursor_callback, 10)
+        self.create_subscription(HaplyState, "/haply_state", self.haply_callback, 10)
+        self.create_subscription(Vector3, "/haply_endeffector_force", self.force_callback, 10)
+        self.create_subscription(Float64, "/estimation/K_h", self.kh_callback, 10)
+        self.create_subscription(Vector3, "/estimation/u_h", self.uh_callback, 10)
+        self.create_subscription(Float64, "/control/K_a", self.ka_callback, 10)
+        self.create_subscription(Vector3, "/control/U_a", self.ua_callback, 10)
+        self.create_subscription(String, "/estimator_status", self.estimator_status_callback, 10)
+        self.create_subscription(Bool, "/study_endpoint_reached", self.endpoint_callback, 10)
 
-        self.create_subscription(
-            Point,
-            "/study_end_point",
-            self.end_cb,
-            qos
-        )
 
-        self.create_subscription(
-            Point,
-            "/experiment_cursor_position",
-            self.cursor_cb,
-            qos
-        )
+    def study_running_callback(self, msg):
+        old_state = self.recording
+        new_state = msg.data
 
-        self.create_subscription(
-            HaplyState,
-            "/haply_state",
-            self.haply_state_cb,
-            qos
-        )
+        self.latest["study_running"] = new_state
 
-        self.create_subscription(
-            Vector3,
-            "/haply_endeffector_force",
-            self.force_cb,
-            qos
-        )
+        if new_state and not old_state:
+            self.start_recording()
 
-        self.create_subscription(
-            Float64,
-            "/estimation/K_h",
-            self.kh_cb,
-            qos
-        )
+        elif not new_state and old_state:
+            self.stop_recording()
 
-        self.create_subscription(
-            Vector3,
-            "/estimation/u_h",
-            self.uh_cb,
-            qos
-        )
 
-        self.create_subscription(
-            String,
-            "/estimator_status",
-            self.estimator_status_cb,
-            qos
-        )
-
-        self.create_subscription(
-            Float64,
-            "/control/K_a",
-            self.ka_cb,
-            qos
-        )
-
-        self.create_subscription(
-            Vector3,
-            "/control/U_a",
-            self.ua_cb,
-            qos
-        )
-
-        self.create_subscription(
-            Bool,
-            "/study_endpoint_reached",
-            self.endpoint_cb,
-            qos
-        )
-
-    # ---------------------------------------------------
-    # Callbacks
-    # ---------------------------------------------------
-
-    def study_running_cb(self, msg):
-        self.latest["study_running"] = msg.data
-
-    def phase_cb(self, msg):
+    def phase_callback(self, msg):
         self.latest["study_phase"] = msg.data
 
-    def mode_cb(self, msg):
+
+    def mode_callback(self, msg):
         self.latest["study_controller_mode"] = msg.data
 
-    def start_cb(self, msg):
+
+    def start_point_callback(self, msg):
         self.latest["start"] = msg
 
-    def end_cb(self, msg):
+
+    def end_point_callback(self, msg):
         self.latest["end"] = msg
 
-    def cursor_cb(self, msg):
+
+    def cursor_callback(self, msg):
         self.latest["cursor"] = msg
 
-    def force_cb(self, msg):
+
+    def force_callback(self, msg):
         self.latest["force"] = msg
 
-    def kh_cb(self, msg):
+
+    def kh_callback(self, msg):
         self.latest["K_h"] = msg.data
 
-    def uh_cb(self, msg):
+
+    def uh_callback(self, msg):
         self.latest["u_h"] = msg
 
-    def ka_cb(self, msg):
+
+    def ka_callback(self, msg):
         self.latest["K_a"] = msg.data
 
-    def ua_cb(self, msg):
+
+    def ua_callback(self, msg):
         self.latest["U_a"] = msg
 
-    def estimator_status_cb(self, msg):
+
+    def estimator_status_callback(self, msg):
         self.latest["estimator_status"] = msg.data
 
-    def endpoint_cb(self, msg):
+
+    def endpoint_callback(self, msg):
         self.latest["endpoint_reached"] = msg.data
 
-    def haply_state_cb(self, msg):
-        self.latest["haply_state"] = msg
 
-    # ---------------------------------------------------
-    # Logging
-    # ---------------------------------------------------
+    def haply_callback(self, msg):
+        self.latest["haply"] = msg
+
 
     def write_row(self):
+        if not self.recording:
+            return
 
         row = {}
 
-        row["timestamp"] = (
-            self.get_clock()
-            .now()
-            .nanoseconds
-            * 1e-9
-        )
-
-        row["study_running"] = \
-            self.latest.get("study_running")
-
-        row["study_phase"] = \
-            self.latest.get("study_phase")
-
-        row["study_controller_mode"] = \
-            self.latest.get(
-                "study_controller_mode"
-            )
+        row["trial_id"] = self.csv_logger.trial_id
+        row["timestamp"] = self.get_clock().now().nanoseconds * 1e-9
+        row["study_running"] = self.latest.get("study_running")
+        row["study_phase"] = self.latest.get("study_phase")
+        row["study_controller_mode"] = self.latest.get("study_controller_mode")
 
         start = self.latest.get("start")
         end = self.latest.get("end")
@@ -306,6 +211,7 @@ class DataLoggerNode(Node):
         force = self.latest.get("force")
         uh = self.latest.get("u_h")
         ua = self.latest.get("U_a")
+        haply = self.latest.get("haply")
 
         if start:
             row["start_x"] = start.x
@@ -322,24 +228,10 @@ class DataLoggerNode(Node):
             row["cursor_y"] = cursor.y
             row["cursor_z"] = cursor.z
 
-        haply = self.latest.get("haply_state")
-
-        if haply:
-            row["haply_pos_x"] = haply.position.x
-            row["haply_pos_y"] = haply.position.y
-            row["haply_pos_z"] = haply.position.z
-
-            row["haply_vel_x"] = haply.velocity.x
-            row["haply_vel_y"] = haply.velocity.y
-            row["haply_vel_z"] = haply.velocity.z
-
         if force:
             row["force_x"] = force.x
             row["force_y"] = force.y
             row["force_z"] = force.z
-
-        row["K_h"] = self.latest.get("K_h")
-        row["K_a"] = self.latest.get("K_a")
 
         if uh:
             row["u_h_x"] = uh.x
@@ -351,23 +243,60 @@ class DataLoggerNode(Node):
             row["U_a_y"] = ua.y
             row["U_a_z"] = ua.z
 
-        row["endpoint_reached"] = \
+        if haply:
+            row["haply_pos_x"] = (
+                haply.position.x
+            )
+            row["haply_pos_y"] = (
+                haply.position.y
+            )
+            row["haply_pos_z"] = (
+                haply.position.z
+            )
+            row["haply_vel_x"] = (
+                haply.velocity.x
+            )
+            row["haply_vel_y"] = (
+                haply.velocity.y
+            )
+            row["haply_vel_z"] = (
+                haply.velocity.z
+            )
+
+        row["K_h"] = (
+            self.latest.get("K_h")
+        )
+
+        row["K_a"] = (
+            self.latest.get("K_a")
+        )
+
+        row["endpoint_reached"] = (
             self.latest.get(
                 "endpoint_reached"
             )
+        )
 
-        row["estimator_status"] = \
+        row["estimator_status"] = (
             self.latest.get(
                 "estimator_status"
             )
+        )
 
-        self.writer.writerow(row)
+        self.csv_logger.write(row)
+
+        self.flush_counter += 1
+
+        if (
+            self.flush_counter
+            >= self.config.flush_interval
+        ):
+            self.csv_logger.flush()
+            self.flush_counter = 0
+
 
     def destroy_node(self):
-
-        self.csv_file.flush()
-        self.csv_file.close()
-
+        self.csv_logger.stop()
         super().destroy_node()
 
 
