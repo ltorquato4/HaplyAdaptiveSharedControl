@@ -15,3 +15,6 @@ grep -qxF "source /opt/ros/humble/setup.bash" ~/.bashrc \
 WORKSPACE_SOURCE="if [ -f /workspaces/research-seminar/install/setup.bash ]; then source /workspaces/research-seminar/install/setup.bash; fi"
 grep -qxF "${WORKSPACE_SOURCE}" ~/.bashrc \
   || echo "${WORKSPACE_SOURCE}" >> ~/.bashrc
+
+git config --global --add safe.directory /workspaces/research-seminar
+pre-commit install --install-hooks

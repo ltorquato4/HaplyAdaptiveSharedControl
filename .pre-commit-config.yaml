@@ -1,0 +1,53 @@
+exclude: ^src/haply_ros2_interface/
+
+repos:
+  # Python tooling executed in the active development environment.
+  - repo: local
+    hooks:
+      # Auto-format Python code using Ruff.
+      - id: ruff-format
+        name: ruff format
+        description: "Run 'ruff format' for fast Python formatting"
+        entry: ruff format --force-exclude
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+      # Lint and auto-fix Python issues using Ruff.
+      - id: ruff-check
+        name: ruff check
+        description: "Run 'ruff check' for fast Python linting"
+        entry: ruff check --force-exclude --fix
+        language: system
+        types_or: [python, pyi]
+        require_serial: true
+
+  - repo: local
+    hooks:
+      - id: mypy
+        name: mypy
+        entry: mypy
+        language: system
+        types_or: [python, pyi]
+        exclude: (^|/).*\.launch\.py$
+        require_serial: true
+
+  # General repository hygiene hooks.
+  - repo: https://github.com/pre-commit/pre-commit-hooks
+    rev: v5.0.0
+    hooks:
+      # Prevent accidentally committing huge files.
+      - id: check-added-large-files
+
+      # Detect unresolved git merge conflict markers.
+      - id: check-merge-conflict
+
+      # Validate YAML file syntax.
+      - id: check-yaml
+
+      # Remove trailing whitespace.
+      - id: trailing-whitespace
+
+      # Prevent commits directly to main.
+      - id: no-commit-to-branch
+        args: [--branch, main]

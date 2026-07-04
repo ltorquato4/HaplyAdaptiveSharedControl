@@ -29,9 +29,7 @@ class FakeHaplyStatePublisher(Node):
 
         self.publisher = self.create_publisher(HaplyState, "haply_state", 10)
         self.start_time = time.monotonic()
-        self.timer = self.create_timer(
-            1.0 / self.frequency, self._publish_state
-        )
+        self.timer = self.create_timer(1.0 / self.frequency, self._publish_state)
 
     def _publish_state(self):
         elapsed = time.monotonic() - self.start_time
@@ -84,16 +82,11 @@ def _print_message(msg):
         f"y={msg.velocity.y:.4f}, "
         f"z={msg.velocity.z:.4f}"
     )
-    print(
-        "  buttons: "
-        f"a={msg.buttons.a}, b={msg.buttons.b}, c={msg.buttons.c}"
-    )
+    print(f"  buttons: a={msg.buttons.a}, b={msg.buttons.b}, c={msg.buttons.c}")
 
 
 def main(args=None):
-    parser = argparse.ArgumentParser(
-        description="Wait for one /haply_state message."
-    )
+    parser = argparse.ArgumentParser(description="Wait for one /haply_state message.")
     parser.add_argument(
         "--timeout",
         type=float,
@@ -128,10 +121,7 @@ def main(args=None):
         node.destroy_node()
         if rclpy.ok():
             rclpy.shutdown()
-        print(
-            "No /haply_state message received within "
-            f"{parsed_args.timeout:.1f}s."
-        )
+        print(f"No /haply_state message received within {parsed_args.timeout:.1f}s.")
         return 1
 
     _print_message(node.message)
