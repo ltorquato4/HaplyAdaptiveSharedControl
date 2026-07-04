@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>data_logger_node</name>
+  <name>test_data_logger</name>
   <version>0.0.0</version>
-  <description>Data Logger for Haply shared-control experiments</description>
+  <description>Test Node for Data Logger for Haply shared-control experiments</description>
   <maintainer email="sadegh.tehrani@student.kit.edu">Sadegh Khalili Tehrani</maintainer>
   <license>UNLICENSED</license>
 

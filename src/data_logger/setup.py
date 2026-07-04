@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = 'data_logger_node'
+package_name = 'data_logger'
 
 setup(
     name=package_name,
@@ -24,6 +24,7 @@ setup(
     },
     entry_points={
         'console_scripts': [
+            'data_logger_node = data_logger.data_logger_node:main',
         ],
     },
 )
