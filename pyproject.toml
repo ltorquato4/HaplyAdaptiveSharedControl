@@ -1,0 +1,51 @@
+[tool.ruff]
+exclude = [
+    ".git",
+    ".ruff_cache",
+    ".venv",
+    "build",
+    "install",
+    "log",
+]
+line-length = 88
+indent-width = 4
+target-version = "py310"
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "ARG"]
+ignore = [
+    "E402", # Allow ROS/demo scripts that adjust sys.path before imports.
+]
+
+[tool.ruff.format]
+quote-style = "double"
+indent-style = "space"
+skip-magic-trailing-comma = false
+line-ending = "auto"
+docstring-code-format = true
+
+[tool.mypy]
+python_version = "3.10"
+strict = true
+exclude = [
+    "^build/",
+    "^install/",
+    "^log/",
+]
+disallow_untyped_calls = false
+
+[[tool.mypy.overrides]]
+module = [
+    "ament_copyright.*",
+    "ament_flake8.*",
+    "ament_pep257.*",
+    "geometry_msgs.*",
+    "haply_msgs.*",
+    "launch.*",
+    "launch_ros.*",
+    "matplotlib.*",
+    "pygame.*",
+    "rclpy.*",
+    "std_msgs.*",
+]
+ignore_missing_imports = true

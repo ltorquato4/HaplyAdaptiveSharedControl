@@ -2,21 +2,14 @@
 
 ## Development Setup
 
-The easiest setup is the VS Code devcontainer in
-[`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json). Use
-VS Code's "Dev Containers: Reopen in Container" command with Docker Desktop
-running; VS Code builds the image from [`docker/Dockerfile`](docker/Dockerfile)
-if needed, mounts this repository, builds the ROS workspace, and sources
-ROS/workspace setup files for new terminals.
+The supported development setup is the VS Code devcontainer in
+[`.devcontainer/devcontainer.json`](.devcontainer/devcontainer.json). Use VS
+Code's "Dev Containers: Reopen in Container" command with Docker Desktop
+running.
 
-Docker Compose is also available if you prefer to build and enter the container
-manually. The default image uses the official ROS 2 Humble Desktop base and
-installs the project dependencies with apt/rosdep during the image build.
-
-```bash
-docker compose -f docker/compose.yaml build
-docker compose -f docker/compose.yaml run --rm research-seminar
-```
+VS Code builds the image from [`docker/Dockerfile`](docker/Dockerfile), mounts
+this repository, builds the ROS workspace, sources ROS/workspace setup files for
+new terminals, and installs the pre-commit hook.
 
 Inside the container, the ROS environment and workspace are already sourced, so
 you can launch ROS commands directly. For example:
@@ -47,4 +40,18 @@ For a full workspace rebuild, omit `--packages-select`:
 
 ```bash
 colcon build --symlink-install
+```
+
+## Pre-Commit Checks
+
+This repository includes pre-commit hooks for Python formatting, linting, type
+checking, and basic repository hygiene. The devcontainer image installs
+`pre-commit`, `ruff`, and `mypy`, and
+[`.devcontainer/post-create.sh`](.devcontainer/post-create.sh) installs the git
+hook automatically.
+
+From inside the devcontainer, run the checks manually with:
+
+```bash
+pre-commit run
 ```
