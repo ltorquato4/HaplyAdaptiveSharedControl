@@ -15,6 +15,7 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 WORKDIR /workspaces/research-seminar
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    git \
     python3-colcon-common-extensions \
     python3-pip \
     python3-pygame \
@@ -32,13 +33,17 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 RUN python3 -m pip install --no-cache-dir \
     orjson \
     casadi
+    mypy \
+    orjson \
+    pre-commit \
+    ruff
 
 RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then \
         rosdep init; \
     fi
 
 COPY src ./src
-COPY scripts ./scripts
+COPY .pre-commit-config.yaml pyproject.toml ./
 COPY README.md ./
 
 RUN apt-get update \

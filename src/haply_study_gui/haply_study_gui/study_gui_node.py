@@ -83,19 +83,11 @@ class StudyGui(Node):
 
         self.width = int(self.get_parameter("width").value)
         self.height = int(self.get_parameter("height").value)
-        self.side_panel_width = int(
-            self.get_parameter("side_panel_width").value
-        )
-        self.workspace_padding = int(
-            self.get_parameter("workspace_padding").value
-        )
+        self.side_panel_width = int(self.get_parameter("side_panel_width").value)
+        self.workspace_padding = int(self.get_parameter("workspace_padding").value)
         self.render_fps = float(self.get_parameter("render_fps").value)
-        self.state_publish_hz = float(
-            self.get_parameter("state_publish_hz").value
-        )
-        self.mouse_simulation = bool(
-            self.get_parameter("mouse_simulation").value
-        )
+        self.state_publish_hz = float(self.get_parameter("state_publish_hz").value)
+        self.mouse_simulation = bool(self.get_parameter("mouse_simulation").value)
         self.source = self._parse_source(
             str(self.get_parameter("source").value),
             self.mouse_simulation,
@@ -140,28 +132,20 @@ class StudyGui(Node):
         self.trial_completion_latched = False
         self.running = True
 
-        self.study_is_running_pub = self.create_publisher(
-            Bool, "study_is_running", 10
-        )
+        self.study_is_running_pub = self.create_publisher(Bool, "study_is_running", 10)
         self.endpoint_reached_pub = self.create_publisher(
             Bool, "study_endpoint_reached", 10
         )
 
-        self.create_subscription(
-            HaplyState, "haply_state", self._haply_state, 10
-        )
-        self.create_subscription(
-            Point, "study_start_point", self._start_point, 10
-        )
+        self.create_subscription(HaplyState, "haply_state", self._haply_state, 10)
+        self.create_subscription(Point, "study_start_point", self._start_point, 10)
         self.create_subscription(Point, "study_end_point", self._end_point, 10)
         self.create_subscription(String, "study_phase", self._study_phase, 10)
         self.create_subscription(
             String, "study_controller_mode", self._controller_mode, 10
         )
         if self.source == "mouse":
-            self.mouse_state_pub = self.create_publisher(
-                HaplyState, "haply_state", 10
-            )
+            self.mouse_state_pub = self.create_publisher(HaplyState, "haply_state", 10)
             mouse_period_s = 1.0 / max(self.mouse_simulation_hz, 1.0)
             self.mouse_timer = self.create_timer(
                 mouse_period_s, self._publish_mouse_haply_state
@@ -184,16 +168,13 @@ class StudyGui(Node):
         self.pill_font = self._load_font(15, bold=True)
         self.icon_font = self._load_font(13, bold=True)
         if self.source == "mouse":
-            self.current_position = self._screen_to_world(
-                pygame.mouse.get_pos()
-            )
+            self.current_position = self._screen_to_world(pygame.mouse.get_pos())
             self.previous_mouse_position = self.current_position
 
     def _load_font(self, size, bold=False):
         preferred = ["Inter", "Roboto", "Open Sans", "DejaVu Sans", "Arial"]
         available = {
-            name.lower().replace(" ", ""): name
-            for name in pygame.font.get_fonts()
+            name.lower().replace(" ", ""): name for name in pygame.font.get_fonts()
         }
         for font_name in preferred:
             key = font_name.lower().replace(" ", "")
@@ -207,9 +188,7 @@ class StudyGui(Node):
                 (self.width, self.height), pygame.DOUBLEBUF, vsync=1
             )
         except TypeError:
-            return pygame.display.set_mode(
-                (self.width, self.height), pygame.DOUBLEBUF
-            )
+            return pygame.display.set_mode((self.width, self.height), pygame.DOUBLEBUF)
 
     def _parse_source(self, value, mouse_simulation):
         source = value.strip().lower()
@@ -256,15 +235,11 @@ class StudyGui(Node):
 
     def _study_phase(self, msg):
         phase = msg.data.strip().lower()
-        valid_phases = {
-            "aggressive", "normal", "careful", "red", "yellow", "green"
-        }
+        valid_phases = {"aggressive", "normal", "careful", "red", "yellow", "green"}
         if phase in valid_phases:
             self.study_phase = phase
         else:
-            self.get_logger().warning(
-                f"Ignoring unknown study_phase '{msg.data}'"
-            )
+            self.get_logger().warning(f"Ignoring unknown study_phase '{msg.data}'")
 
     def _controller_mode(self, msg):
         mode = msg.data.strip().lower()
@@ -324,9 +299,8 @@ class StudyGui(Node):
         if self.source == "mouse":
             mouse_pos = pygame.mouse.get_pos()
             self.current_position = self._screen_to_world(mouse_pos)
-            pressed = (
-                pygame.mouse.get_pressed(3)[0]
-                and self._screen_pos_in_workspace(mouse_pos)
+            pressed = pygame.mouse.get_pressed(3)[0] and self._screen_pos_in_workspace(
+                mouse_pos
             )
         else:
             pressed = bool(self.current_buttons.a)
@@ -378,9 +352,7 @@ class StudyGui(Node):
 
     def _draw_workspace(self):
         workspace = self._workspace_rect()
-        pygame.draw.rect(
-            self.draw_target, self.WORKSPACE_BACKGROUND, workspace
-        )
+        pygame.draw.rect(self.draw_target, self.WORKSPACE_BACKGROUND, workspace)
         pygame.draw.rect(self.draw_target, self.BORDER, workspace, width=2)
 
         sx, sy = self._world_to_canvas(self.start_point)
@@ -388,9 +360,7 @@ class StudyGui(Node):
         cx, cy = self._world_to_canvas(self.current_position)
 
         if len(self.drawn_line) >= 2:
-            points = [
-                self._world_to_canvas(point) for point in self.drawn_line
-            ]
+            points = [self._world_to_canvas(point) for point in self.drawn_line]
             pygame.draw.lines(self.draw_target, self.PATH, False, points, 4)
 
         self._draw_target_marker(sx, sy)
@@ -402,15 +372,9 @@ class StudyGui(Node):
         panel = self._side_panel_rect()
         card = self._side_card_rect()
         shadow = card.move(0, 3)
-        pygame.draw.rect(
-            self.draw_target, self.SHADOW, shadow, border_radius=12
-        )
-        pygame.draw.rect(
-            self.draw_target, self.SURFACE, card, border_radius=12
-        )
-        pygame.draw.rect(
-            self.draw_target, self.BORDER, card, width=1, border_radius=12
-        )
+        pygame.draw.rect(self.draw_target, self.SHADOW, shadow, border_radius=12)
+        pygame.draw.rect(self.draw_target, self.SURFACE, card, border_radius=12)
+        pygame.draw.rect(self.draw_target, self.BORDER, card, width=1, border_radius=12)
         pygame.draw.line(
             self.draw_target,
             self.BORDER,
@@ -469,16 +433,14 @@ class StudyGui(Node):
         icon_rect = icon.get_rect(center=dot_center)
         self.draw_target.blit(icon, icon_rect)
 
-        label = self.pill_font.render(
-            config["behavior"].capitalize(), True, text_color
-        )
+        label = self.pill_font.render(config["behavior"].capitalize(), True, text_color)
         label_rect = label.get_rect(midleft=(rect.x + 34, rect.centery))
         self.draw_target.blit(label, label_rect)
 
     def _blend_color(self, color, target, amount):
         return tuple(
             int(channel + ((target_channel - channel) * amount))
-            for channel, target_channel in zip(color, target)
+            for channel, target_channel in zip(color, target, strict=True)
         )
 
     def _legend_rect(self):
@@ -493,12 +455,8 @@ class StudyGui(Node):
         radius = 11
         pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), radius)
         pygame.draw.circle(self.draw_target, self.TEXT, (x, y), radius, 2)
-        pygame.draw.line(
-            self.draw_target, self.TEXT, (x - 5, y - 5), (x + 5, y + 5), 2
-        )
-        pygame.draw.line(
-            self.draw_target, self.TEXT, (x - 5, y + 5), (x + 5, y - 5), 2
-        )
+        pygame.draw.line(self.draw_target, self.TEXT, (x - 5, y - 5), (x + 5, y + 5), 2)
+        pygame.draw.line(self.draw_target, self.TEXT, (x - 5, y + 5), (x + 5, y - 5), 2)
 
     def _draw_status_text(self):
         card = self._side_card_rect()
@@ -628,10 +586,9 @@ class StudyGui(Node):
         if len(self.drawn_line) < 2:
             return False
         radius = self.endpoint_reached_radius
-        return (
-            self._is_near(self.drawn_line[0], self.start_point, radius)
-            and self._is_near(self.drawn_line[-1], self.end_point, radius)
-        )
+        return self._is_near(
+            self.drawn_line[0], self.start_point, radius
+        ) and self._is_near(self.drawn_line[-1], self.end_point, radius)
 
     def _is_near(self, first, second, radius):
         dx = float(first.x) - float(second.x)

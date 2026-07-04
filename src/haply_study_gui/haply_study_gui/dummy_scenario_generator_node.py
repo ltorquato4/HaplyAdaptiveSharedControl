@@ -37,9 +37,7 @@ class DummyScenarioGenerator(Node):
             "y_min": float(self.get_parameter("workspace_y_min").value),
             "y_max": float(self.get_parameter("workspace_y_max").value),
         }
-        self.min_segment_length = float(
-            self.get_parameter("min_segment_length").value
-        )
+        self.min_segment_length = float(self.get_parameter("min_segment_length").value)
         self.min_phase_duration_s = float(
             self.get_parameter("min_phase_duration_s").value
         )
@@ -59,20 +57,14 @@ class DummyScenarioGenerator(Node):
 
         self.start_pub = self.create_publisher(Point, "study_start_point", 10)
         self.end_pub = self.create_publisher(Point, "study_end_point", 10)
-        self.reference_pub = self.create_publisher(
-            Point, "reference_position", 10
-        )
+        self.reference_pub = self.create_publisher(Point, "reference_position", 10)
         self.phase_pub = self.create_publisher(String, "study_phase", 10)
-        self.mode_pub = self.create_publisher(
-            String, "study_controller_mode", 10
-        )
+        self.mode_pub = self.create_publisher(String, "study_controller_mode", 10)
 
         self.create_subscription(
             Bool, "study_endpoint_reached", self._endpoint_reached, 10
         )
-        self.create_subscription(
-            Bool, "study_is_running", self._is_running, 10
-        )
+        self.create_subscription(Bool, "study_is_running", self._is_running, 10)
 
         self._rollout_phase()
         self.republish_timer = self.create_timer(0.5, self._publish_phase)
@@ -90,9 +82,7 @@ class DummyScenarioGenerator(Node):
             return
 
         if not self.endpoint_armed:
-            self.get_logger().debug(
-                "Ignoring repeated endpoint reached message"
-            )
+            self.get_logger().debug("Ignoring repeated endpoint reached message")
             return
 
         if self.endpoint_was_reached:
@@ -141,12 +131,8 @@ class DummyScenarioGenerator(Node):
 
     def _random_point(self):
         point = Point()
-        point.x = self.random.uniform(
-            self.workspace["x_min"], self.workspace["x_max"]
-        )
-        point.y = self.random.uniform(
-            self.workspace["y_min"], self.workspace["y_max"]
-        )
+        point.x = self.random.uniform(self.workspace["x_min"], self.workspace["x_max"])
+        point.y = self.random.uniform(self.workspace["y_min"], self.workspace["y_max"])
         point.z = 0.0
         return point
 

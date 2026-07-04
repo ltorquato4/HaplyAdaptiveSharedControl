@@ -14,48 +14,50 @@ from launch_ros.actions import Node
 def generate_launch_description():
     """Build the launch description for hardware-backed GUI runs."""
     haply_driver = Node(
-        package='haply_interface',
-        executable='haply_driver_node',
-        name='haply_driver_node',
-        output='screen',
-        parameters=[{
-            'frequency': 100.0,
-        }],
+        package="haply_interface",
+        executable="haply_driver_node",
+        name="haply_driver_node",
+        output="screen",
+        parameters=[
+            {
+                "frequency": 100.0,
+            }
+        ],
     )
     study_gui = Node(
-        package='haply_study_gui',
-        executable='study_gui',
-        name='study_gui',
-        output='screen',
+        package="haply_study_gui",
+        executable="study_gui",
+        name="study_gui",
+        output="screen",
         additional_env={
-            'SDL_AUDIODRIVER': 'dummy',
-            'PYGAME_HIDE_SUPPORT_PROMPT': '1',
-            'AUDIODEV': 'null',
+            "SDL_AUDIODRIVER": "dummy",
+            "PYGAME_HIDE_SUPPORT_PROMPT": "1",
+            "AUDIODEV": "null",
         },
-        parameters=[{
-            'source': 'haply',
-            'render_fps': 100.0,
-            'state_publish_hz': 100.0,
-            'auto_start': False,
-            'endpoint_reached_radius': 0.01,
-        }],
+        parameters=[
+            {
+                "source": "haply",
+                "render_fps": 100.0,
+                "state_publish_hz": 100.0,
+                "auto_start": False,
+                "endpoint_reached_radius": 0.01,
+            }
+        ],
     )
 
-    return LaunchDescription([
-        SetEnvironmentVariable('SDL_AUDIODRIVER', 'dummy'),
-        SetEnvironmentVariable('PYGAME_HIDE_SUPPORT_PROMPT', '1'),
-        haply_driver,
-        study_gui,
-        RegisterEventHandler(
-            OnProcessExit(
-                target_action=study_gui,
-                on_exit=[
-                    EmitEvent(
-                        event=Shutdown(
-                            reason='study_gui window closed'
-                        )
-                    )
-                ],
-            )
-        ),
-    ])
+    return LaunchDescription(
+        [
+            SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
+            SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
+            haply_driver,
+            study_gui,
+            RegisterEventHandler(
+                OnProcessExit(
+                    target_action=study_gui,
+                    on_exit=[
+                        EmitEvent(event=Shutdown(reason="study_gui window closed"))
+                    ],
+                )
+            ),
+        ]
+    )
