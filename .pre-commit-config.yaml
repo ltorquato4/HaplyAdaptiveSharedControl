@@ -29,6 +29,7 @@ repos:
         entry: mypy
         language: system
         types_or: [python, pyi]
+        exclude: (^|/).*\.launch\.py$
         require_serial: true
 
   # General repository hygiene hooks.
