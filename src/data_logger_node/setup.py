@@ -13,10 +13,10 @@ setup(
     ],
     install_requires=['setuptools'],
     zip_safe=True,
-    maintainer='root',
+    maintainer='Sadegh Khalili Tehrani',
     maintainer_email='sadegh.tehrani@student.kit.edu',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Data Logger for Haply shared-control experiments',
+    license='UNLICENSED',
     extras_require={
         'test': [
             'pytest',
