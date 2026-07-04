@@ -2,7 +2,7 @@ from __future__ import annotations
 
 import numpy as np
 
-from control_node.adaptive_controller import AdaptiveController
+from control_node.controller_interface import AdaptiveController
 from .mpc_controller import MpcController
 
 FACTOR_DEFAULT = 0.5

@@ -3,12 +3,14 @@
 <package format="3">
   <name>control_node</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="sadegh.tehrani@student.kit.edu">kitsa</maintainer>
-  <license>TODO: License declaration</license>
+  <description>Control Node including adaptive and fixed contol, MPC or state feedback, for Haply shared control experiments.</description>
+  <maintainer email="sadegh.tehrani@student.kit.edu">Sadegh Khalili Tehrani</maintainer>
+  <license>UNLICENSED</license>
 
   <exec_depend>rclpy</exec_depend>
   <exec_depend>std_msgs</exec_depend>
+  <exec_depend>geometry_msgs</exec_depend>
+  <exec_depend>haply_msgs</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

@@ -11,7 +11,6 @@ class BatchPredictor:
 
         self._A_bar = self.build_A_bar()
         self._B_bar = self.build_B_bar()
-        self._Z_bar = self.build_Z_bar()
 
     def build_A_bar(self):
         """Build stacked powers of A: [A; A^2; ...; A^N]."""
@@ -52,23 +51,6 @@ class BatchPredictor:
 
         return B_bar
 
-    def build_Z_bar(self):
-        """Build lower-triangular disturbance influence matrix for the horizon."""
-        state_dimension = self.system_model.A.shape[0]
-        Z_bar = np.zeros((state_dimension * self.N, state_dimension * self.N))
-
-        for i in range(self.N):
-            for j in range(i + 1):
-                steps = i - j
-                A_power = np.linalg.matrix_power(self.system_model.A, steps)
-                row_start = i * state_dimension
-                row_end = (i + 1) * state_dimension
-                col_start = j * state_dimension
-                col_end = (j + 1) * state_dimension
-                Z_bar[row_start:row_end, col_start:col_end] = A_power
-
-        return Z_bar
-
     def predict(self, x0, u_sequence, z_sequence=None):
         """Predict a state trajectory from an initial state and control sequence."""
         state_dimension = self.system_model.A.shape[0]
@@ -100,7 +82,6 @@ class BatchPredictor:
         # Compute predicted states over the horizon
         x_s = self._A_bar @ x0_flat
         x_s += self._B_bar @ u_sequence_flat
-        x_s += self._Z_bar @ z_sequence_flat
 
         # Reshape x_s into list of state vectors
         predicted_states = [
@@ -115,6 +96,5 @@ class BatchPredictor:
         return {
             "A_bar": ca.DM(self._A_bar),
             "B_bar": ca.DM(self._B_bar),
-            "Z_bar": ca.DM(self._Z_bar),
         }
    

@@ -83,7 +83,8 @@ class CostFunction:
             J += ca.mtimes([uk, self.R, uk.T])
 
         final_goal_state = goal_state if goal_state is not None else reference_trajectory[-1, :]
-        e_goal = x_predicted[-1, :] - final_goal_state
+        goal_T = final_goal_state.T
+        e_goal = x_predicted[k,:] - goal_T
         J += ca.mtimes([e_goal, self.P, e_goal.T])
 
         return J

@@ -11,12 +11,16 @@ setup(
             ['resource/' + package_name]),
         ('share/' + package_name, ['package.xml']),
     ],
-    install_requires=['setuptools', 'casadi'],
+    install_requires=[
+        'setuptools', 
+        'numpy',
+        'casadi'
+    ],
     zip_safe=True,
-    maintainer='kitsa',
+    maintainer='Sadegh Khalili Tehrani',
     maintainer_email='sadegh.tehrani@student.kit.edu',
-    description='TODO: Package description',
-    license='TODO: License declaration',
+    description='Control Node including adaptive and fixed contol, MPC or state feedback, for Haply shared control experiments.',
+    license='Unlicensed',
     extras_require={
         'test': [
             'pytest',

@@ -1,7 +1,7 @@
 import json
 import numpy as np
 
-from ..controller import Controller
+from ..controller_interface import Controller
 
 class StateFeedbackController(Controller):
     def __init__(

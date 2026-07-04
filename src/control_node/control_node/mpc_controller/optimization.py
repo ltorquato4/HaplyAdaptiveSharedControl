@@ -167,9 +167,8 @@ class Optimization:
 		batch_matrices = self.batch_predictor.get_batch_matrices_casadi()
 		A_bar = batch_matrices["A_bar"]
 		B_bar = batch_matrices["B_bar"]
-		Z_bar = batch_matrices["Z_bar"]
 
-		x_pred_flat = A_bar @ x0 + B_bar @ u + Z_bar @ z_seq
+		x_pred_flat = A_bar @ x0 + B_bar @ u
 		return ca.reshape(x_pred_flat, state_dimension, prediction_horizon).T
 
 	def _prepare_optimization_inputs(self) -> tuple[np.ndarray, np.ndarray]:

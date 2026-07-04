@@ -1,8 +1,6 @@
 import numpy as np
 
-from math import sqrt
-
-from control_node.adaptive_controller import AdaptiveController
+from control_node.controller_interface import AdaptiveController
 from control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
 
 FACTOR_DEFAULT = 0.5

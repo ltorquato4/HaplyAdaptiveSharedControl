@@ -4,7 +4,7 @@ from typing import List
 import json
 import numpy as np
 
-from ..controller import Controller
+from ..controller_interface import Controller
 
 from .batch_predictor import BatchPredictor
 from .constraints import Constraints

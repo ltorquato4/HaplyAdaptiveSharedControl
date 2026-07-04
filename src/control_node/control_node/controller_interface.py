@@ -4,7 +4,6 @@ from abc import ABC, abstractmethod
 
 import numpy as np
 
-
 class Controller(ABC):
     def __init__(self, start_point: list[float], end_point: list[float], dt: float) -> None:
         self.experiment_start_point = np.asarray(start_point, dtype=float).reshape(2)
@@ -39,4 +38,13 @@ class Controller(ABC):
     
     @abstractmethod
     def publish_control_parameter(self) -> str:
+        raise NotImplementedError
+    
+    
+class AdaptiveController(Controller, ABC):
+    """Common base for adaptive controllers that adjust behavior at runtime."""
+
+    @abstractmethod
+    def adapt(self, K_h: list[list[float]]) -> None:
+        """Update controller parameters from the estimated human gain matrix."""
         raise NotImplementedError

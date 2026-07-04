@@ -1,3 +1,5 @@
+import casadi as ca
+
 class Constraints:
     def __init__(
         self,
