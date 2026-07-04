@@ -167,7 +167,6 @@ flowchart LR
     Estimator -->|/estimation/K_h| Control
     Estimator -->|/estimation/K_h| Logger
     Estimator -->|/estimation/u_h| Logger
-    Estimator -->|/estimator_status| Logger
 
     Control -->|/haply_target| Driver
     Control -->|/control/U_a| Logger
