@@ -1,7 +1,6 @@
 import rclpy
 from rclpy.node import Node
 from rclpy.logging import LoggingSeverity
-from rclpy.duration import Duration
 from geometry_msgs.msg import Point, Vector3
 from std_msgs.msg import Bool, Float32MultiArray, String
 
