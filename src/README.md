@@ -57,13 +57,13 @@ boundaries, topics, and fault-handling path.
 
 ### Controller
 
-- Runs at 100 Hz.
+- Runs at 100 Hz. All actions are event driven, thus this setting depends on the other topics to which it is subscribed to
 - One control node with a mode flag: `fixed` or `adaptive`.
 - Fixed mode uses `alpha = 0.5`.
 - Is the MPC-based controller. It computes the trajectory and control action
   internally from `/study_start_point`, `/study_end_point`,
   `/experiment_cursor_position`, `/estimation/K_h`, and `/estimation/u_h`.
-- Adaptive mode updates `K(a)` based on estimated `K(h)` and `u_h`.
+- Adaptive mode updates `K(a)` based on estimated `K(h)`.
 - Publishes `/control/U_a` to Logger as the applied-assistance/control-force
   diagnostic.
 - Publishes `/control/K_a` to Logger.
@@ -88,7 +88,7 @@ u_h = K(h) * x
 - Uses `/haply_endeffector_force`, computed inside `haply_driver_node.py` from
   torque-derived force.
 - Publishes `/estimation/K_h` to Controller and Logger.
-- Publishes `/estimation/u_h` to Controller and Logger.
+- Publishes `/estimation/u_h` to Logger.
 - Publishes `/estimator_status` to Logger.
 
 ### Haply Interface / Driver
@@ -166,7 +166,6 @@ flowchart LR
 
     Estimator -->|/estimation/K_h| Control
     Estimator -->|/estimation/K_h| Logger
-    Estimator -->|/estimation/u_h| Control
     Estimator -->|/estimation/u_h| Logger
     Estimator -->|/estimator_status| Logger
 

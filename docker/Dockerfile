@@ -31,12 +31,15 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m pip install --no-cache-dir \
+    casadi \
     mypy \
     orjson \
     pre-commit \
     ruff
 
-RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then rosdep init; fi
+RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then \
+        rosdep init; \
+    fi
 
 COPY src ./src
 COPY .pre-commit-config.yaml pyproject.toml ./
@@ -53,5 +56,6 @@ RUN source /opt/ros/${ROS_DISTRO}/setup.bash \
 
 COPY docker/ros_entrypoint.sh /ros_entrypoint.sh
 RUN chmod +x /ros_entrypoint.sh
+
 ENTRYPOINT ["/ros_entrypoint.sh"]
 CMD ["bash"]
