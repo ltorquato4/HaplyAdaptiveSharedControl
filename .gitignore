@@ -1,7 +1,7 @@
 # ROS build, install, and log directories
-build/*
-install/*
-log/*
+build/
+install/
+log/
 
 # Experiment log results
 logs/*
@@ -13,6 +13,9 @@ logs/*
 __pycache__/
 *.py[cod]
 *$py.class
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
 
 .vscode/
 

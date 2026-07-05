@@ -1,10 +1,8 @@
-"""Package configuration for the Haply study GUI."""
-
-from glob import glob
+"""Package configuration for study orchestration nodes."""
 
 from setuptools import find_packages, setup
 
-package_name = "haply_study_gui"
+package_name = "study_orchestration"
 
 setup(
     name=package_name,
@@ -16,22 +14,20 @@ setup(
             ["resource/" + package_name],
         ),
         ("share/" + package_name, ["package.xml"]),
-        ("share/" + package_name + "/launch", glob("launch/*.launch.py")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="Luisa Torquato Niño",
     maintainer_email="ltorquato@users.noreply.github.com",
-    description="Study GUI for Haply shared-control experiments.",
+    description=(
+        "Scenario rollout and input mapping nodes for Haply shared-control studies."
+    ),
     license="UNLICENSED",
     tests_require=["pytest"],
     entry_points={
         "console_scripts": [
-            (
-                "test_haply_state_topic = "
-                "haply_study_gui.tests.test_haply_state_topic:main"
-            ),
-            "study_gui = haply_study_gui.study_gui_node:main",
+            "experiment_mapper = study_orchestration.experiment_mapper_node:main",
+            "scenario_generator = study_orchestration.scenario_generator_node:main",
         ],
     },
 )

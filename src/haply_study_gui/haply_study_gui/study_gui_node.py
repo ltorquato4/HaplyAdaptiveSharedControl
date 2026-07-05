@@ -18,7 +18,7 @@ from std_msgs.msg import Bool, String  # noqa: E402
 
 
 class StudyGui(Node):
-    """Pygame GUI and scenario-state publisher."""
+    """Participant-facing Pygame GUI and study run-state publisher."""
 
     COLORS = {
         "red": {
@@ -133,11 +133,11 @@ class StudyGui(Node):
         self.running = True
 
         self.study_is_running_pub = self.create_publisher(Bool, "study_is_running", 10)
-        self.endpoint_reached_pub = self.create_publisher(
-            Bool, "study_endpoint_reached", 10
-        )
 
         self.create_subscription(HaplyState, "haply_state", self._haply_state, 10)
+        self.create_subscription(
+            Point, "experiment_cursor_position", self._experiment_cursor_position, 10
+        )
         self.create_subscription(Point, "study_start_point", self._start_point, 10)
         self.create_subscription(Point, "study_end_point", self._end_point, 10)
         self.create_subscription(String, "study_phase", self._study_phase, 10)
@@ -218,8 +218,12 @@ class StudyGui(Node):
     def _haply_state(self, msg):
         if self.source != "haply":
             return
-        self.current_position = msg.position
         self.current_buttons = msg.buttons
+
+    def _experiment_cursor_position(self, msg):
+        if self.source == "mouse":
+            return
+        self.current_position = self._copy_point_2d(msg)
 
     def _start_point(self, msg):
         point = self._copy_point_2d(msg)
@@ -254,10 +258,6 @@ class StudyGui(Node):
         running_msg = Bool()
         running_msg.data = bool(self.is_running)
         self.study_is_running_pub.publish(running_msg)
-
-        endpoint_msg = Bool()
-        endpoint_msg.data = bool(self.endpoint_reached)
-        self.endpoint_reached_pub.publish(endpoint_msg)
 
     def _handle_events(self):
         for event in pygame.event.get():
@@ -615,7 +615,6 @@ class StudyGui(Node):
             rclpy.spin_once(self, timeout_sec=0.0)
             self._handle_events()
             self._update_line_drawing()
-            self._update_endpoint_feedback()
             self._draw_scene()
             self.clock.tick(max(self.render_fps, 1.0))
 
