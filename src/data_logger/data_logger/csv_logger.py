@@ -4,13 +4,7 @@ import re
 
 
 class CSVLogger:
-
-    def __init__(
-        self,
-        save_directory: str,
-        file_prefix: str,
-        fieldnames: list
-    ):
+    def __init__(self, save_directory: str, file_prefix: str, fieldnames: list):
         self.save_directory = save_directory
         self.file_prefix = file_prefix
         self.fieldnames = fieldnames
@@ -28,7 +22,6 @@ class CSVLogger:
         ids = []
 
         for filename in os.listdir(self.save_directory):
-
             match = re.match(pattern, filename)
 
             if match:
@@ -43,26 +36,13 @@ class CSVLogger:
 
         self.trial_id = self.get_next_trial_id()
 
-        filename = (
-            f"{self.file_prefix}_"
-            f"{self.trial_id:06d}.csv"
-        )
+        filename = f"{self.file_prefix}_{self.trial_id:06d}.csv"
 
-        filepath = os.path.join(
-            self.save_directory,
-            filename
-        )
+        filepath = os.path.join(self.save_directory, filename)
 
-        self.file = open(
-            filepath,
-            "w",
-            newline=""
-        )
+        self.file = open(filepath, "w", newline="")
 
-        self.writer = csv.DictWriter(
-            self.file,
-            fieldnames=self.fieldnames
-        )
+        self.writer = csv.DictWriter(self.file, fieldnames=self.fieldnames)
 
         self.writer.writeheader()
 

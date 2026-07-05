@@ -3,121 +3,61 @@
 import random
 
 import rclpy
-from rclpy.logging import LoggingSeverity
-from rclpy.node import Node
-
-from std_msgs.msg import (
-    Bool,
-    Float64,
-    String
-)
-
-from geometry_msgs.msg import (
-    Point,
-    Vector3
-)
+from geometry_msgs.msg import Point, Vector3
 
 # Change import if your package name differs
 from haply_msgs.msg import HaplyState
+from rclpy.logging import LoggingSeverity
+from rclpy.node import Node
+from std_msgs.msg import Bool, Float64, String
 
 
 class TestDataLoggerNode(Node):
-
     def __init__(self):
 
         super().__init__("test_data_logger_node")
 
         self.declare_parameter("log_level", "debug")
-        self.log_level = self.get_parameter("log_level").get_parameter_value().string_value
+        self.log_level = (
+            self.get_parameter("log_level").get_parameter_value().string_value
+        )
         self.get_logger().set_level(self._resolve_log_level(self.log_level))
 
         #
         # Publishers
         #
 
-        self.pub_running = self.create_publisher(
-            Bool,
-            "/study_is_running",
-            10
-        )
+        self.pub_running = self.create_publisher(Bool, "/study_is_running", 10)
 
-        self.pub_phase = self.create_publisher(
-            String,
-            "/study_phase",
-            10
-        )
+        self.pub_phase = self.create_publisher(String, "/study_phase", 10)
 
-        self.pub_mode = self.create_publisher(
-            String,
-            "/study_controller_mode",
-            10
-        )
+        self.pub_mode = self.create_publisher(String, "/study_controller_mode", 10)
 
-        self.pub_start = self.create_publisher(
-            Point,
-            "/study_start_point",
-            10
-        )
+        self.pub_start = self.create_publisher(Point, "/study_start_point", 10)
 
-        self.pub_end = self.create_publisher(
-            Point,
-            "/study_end_point",
-            10
-        )
+        self.pub_end = self.create_publisher(Point, "/study_end_point", 10)
 
         self.pub_cursor = self.create_publisher(
-            Point,
-            "/experiment_cursor_position",
-            10
+            Point, "/experiment_cursor_position", 10
         )
 
-        self.pub_haply = self.create_publisher(
-            HaplyState,
-            "/haply_state",
-            10
-        )
+        self.pub_haply = self.create_publisher(HaplyState, "/haply_state", 10)
 
-        self.pub_force = self.create_publisher(
-            Vector3,
-            "/haply_endeffector_force",
-            10
-        )
+        self.pub_force = self.create_publisher(Vector3, "/haply_endeffector_force", 10)
 
-        self.pub_Kh = self.create_publisher(
-            Float64,
-            "/estimation/K_h",
-            10
-        )
+        self.pub_Kh = self.create_publisher(Float64, "/estimation/K_h", 10)
 
-        self.pub_uh = self.create_publisher(
-            Vector3,
-            "/estimation/u_h",
-            10
-        )
+        self.pub_uh = self.create_publisher(Vector3, "/estimation/u_h", 10)
 
-        self.pub_Ka = self.create_publisher(
-            Float64,
-            "/control/K_a",
-            10
-        )
+        self.pub_Ka = self.create_publisher(Float64, "/control/K_a", 10)
 
-        self.pub_Ua = self.create_publisher(
-            Vector3,
-            "/control/U_a",
-            10
-        )
+        self.pub_Ua = self.create_publisher(Vector3, "/control/U_a", 10)
 
         self.pub_estimator_status = self.create_publisher(
-            String,
-            "/estimator_status",
-            10
+            String, "/estimator_status", 10
         )
 
-        self.pub_endpoint = self.create_publisher(
-            Bool,
-            "/study_endpoint_reached",
-            10
-        )
+        self.pub_endpoint = self.create_publisher(Bool, "/study_endpoint_reached", 10)
 
         #
         # State
@@ -130,20 +70,12 @@ class TestDataLoggerNode(Node):
         #
 
         # Publish data at 100 Hz
-        self.create_timer(
-            0.01,
-            self.publish_random_data
-        )
+        self.create_timer(0.01, self.publish_random_data)
 
         # Toggle logger state every 10 sec
-        self.create_timer(
-            10.0,
-            self.toggle_running
-        )
+        self.create_timer(10.0, self.toggle_running)
 
-        self.get_logger().info(
-            "Random test publisher started."
-        )
+        self.get_logger().info("Random test publisher started.")
 
     def _resolve_log_level(self, log_level_name):
 
@@ -219,9 +151,7 @@ class TestDataLoggerNode(Node):
 
     def toggle_running(self):
 
-        self.study_running = (
-            not self.study_running
-        )
+        self.study_running = not self.study_running
 
         msg = Bool()
         msg.data = self.study_running
@@ -229,10 +159,7 @@ class TestDataLoggerNode(Node):
         self.pub_running.publish(msg)
         self._log_sent_message("/study_is_running", msg)
 
-        self.get_logger().info(
-            f"study_is_running = "
-            f"{self.study_running}"
-        )
+        self.get_logger().info(f"study_is_running = {self.study_running}")
 
     # ---------------------------------------------------------
     # Publish random data
@@ -314,13 +241,7 @@ class TestDataLoggerNode(Node):
 
         phase = String()
 
-        phase.data = random.choice(
-            [
-                "aggressive",
-                "normal",
-                "careful"
-            ]
-        )
+        phase.data = random.choice(["aggressive", "normal", "careful"])
 
         self.pub_phase.publish(phase)
         self._log_sent_message("/study_phase", phase)
@@ -331,12 +252,7 @@ class TestDataLoggerNode(Node):
 
         mode = String()
 
-        mode.data = random.choice(
-            [
-                "adaptive",
-                "fixed"
-            ]
-        )
+        mode.data = random.choice(["adaptive", "fixed"])
 
         self.pub_mode.publish(mode)
         self._log_sent_message("/study_controller_mode", mode)
@@ -346,13 +262,9 @@ class TestDataLoggerNode(Node):
         #
 
         endpoint = Bool()
-        endpoint.data = random.choice(
-            [True, False]
-        )
+        endpoint.data = random.choice([True, False])
 
-        self.pub_endpoint.publish(
-            endpoint
-        )
+        self.pub_endpoint.publish(endpoint)
         self._log_sent_message("/study_endpoint_reached", endpoint)
 
         #
@@ -361,18 +273,9 @@ class TestDataLoggerNode(Node):
 
         status = String()
 
-        status.data = random.choice(
-            [
-                "ok",
-                "force_stale",
-                "reset",
-                "saturated"
-            ]
-        )
+        status.data = random.choice(["ok", "force_stale", "reset", "saturated"])
 
-        self.pub_estimator_status.publish(
-            status
-        )
+        self.pub_estimator_status.publish(status)
         self._log_sent_message("/estimator_status", status)
 
         #
@@ -386,7 +289,6 @@ class TestDataLoggerNode(Node):
         haply = HaplyState()
 
         try:
-
             haply.position.x = self.rand()
             haply.position.y = self.rand()
             haply.position.z = self.rand()
@@ -420,7 +322,6 @@ def main(args=None):
         pass
 
     finally:
-
         node.destroy_node()
         rclpy.shutdown()
 
