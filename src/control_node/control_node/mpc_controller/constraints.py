@@ -1,5 +1,6 @@
 import casadi as ca
 
+
 class Constraints:
     def __init__(
         self,
@@ -37,13 +38,11 @@ class Constraints:
             -ux - self.u_max_x,
             uy - self.u_max_y,
             -uy - self.u_max_y,
-
             # Velocity limits
             vx - self.v_max_x,
             -vx - self.v_max_x,
             vy - self.v_max_y,
             -vy - self.v_max_y,
-
             # Position limits
             self.x_min - x,
             x - self.x_max,
