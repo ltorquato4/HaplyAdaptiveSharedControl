@@ -3,6 +3,9 @@ build/*
 install/*
 log/*
 
+# Experiment log results
+logs/*
+
 # python environment
 .venv/
 
