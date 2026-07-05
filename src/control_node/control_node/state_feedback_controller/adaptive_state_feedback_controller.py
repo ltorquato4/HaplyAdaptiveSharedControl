@@ -1,36 +1,26 @@
+from collections.abc import Sequence
+
 import numpy as np
 
 from control_node.controller_interface import AdaptiveController
-from control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
+from control_node.state_feedback_controller.state_feedback_controller import (
+    StateFeedbackController,
+)
 
 FACTOR_DEFAULT = 0.5
-FACTOR_RANGE = []
+FACTOR_RANGE: list[float] = []
 BORDER_ONE_DEFAULT = 0.3
 BORDER_ONE_RANGE = [0.2, 0.4]
 BORDER_TWO_DEFAULT = 0.7
 BORDER_TWO_RANGE = [0.6, 0.8]
 
+
 class AdaptiveStateFeedbackController(AdaptiveController, StateFeedbackController):
     def __init__(self, start_point, end_point, dt, node=None):
         super().__init__(start_point, end_point, dt, node)
-    
-    def adapt(self, K_h: list[list[float]]) -> None:
-        """
-        The point to point connection is modelled as
 
-        o--------------------------------------------o
-      start     25%         50%         75%         end
-
-      
-        Rules for Adaptivity
-        
-        1. Close proximity to start and end point result in higher control gain
-        2. K_a is to be low when the current_point is between 30% and 70%, the low value LOW_K_a is to be determined
-        3. K_a is to be rising with K_a~-FACTOR in 0% till BORDER_ONE=30% and to be rising with K_a~FACTOR between BORDER_TWO=70% and 100%
-        4. For higher K_h, border_one will be moved up to 40% and border_two low to 60%
-        5. For lower K_h, border_one will be moved low to 20% and border_two up to 80%
-        6. The value for FACTOR_DEFAULT and FACTOR_RANGE
-        """
+    def adapt(self, K_h: Sequence[Sequence[float]]) -> None:
+        """Adapt proportional and derivative gains along the trajectory."""
 
         # --- Distance calculations ---
         distance_start_to_end = np.linalg.norm(
@@ -50,37 +40,34 @@ class AdaptiveStateFeedbackController(AdaptiveController, StateFeedbackControlle
         progress_along_path = np.clip(self.progress_along_path, 0.0, 1.0)
 
         # --- Human gain magnitude ---
-        K_h = np.array(K_h)
-        K_h_magnitude = np.linalg.norm(K_h)
+        K_h_array = np.asarray(K_h, dtype=float)
+        K_h_magnitude = np.linalg.norm(K_h_array)
 
         # Smooth normalization into [0, 1]
-        normalized_human_gain = np.tanh(K_h_magnitude) # TODO this needs to be done based on the actual values of K_h
+        normalized_human_gain = np.tanh(
+            K_h_magnitude
+        )  # TODO this needs to be done based on the actual values of K_h
 
         # --- Adaptive borders ---
-        border_one = (
-            BORDER_ONE_RANGE[0]
-            + normalized_human_gain * (BORDER_ONE_RANGE[1] - BORDER_ONE_RANGE[0])
+        border_one = BORDER_ONE_RANGE[0] + normalized_human_gain * (
+            BORDER_ONE_RANGE[1] - BORDER_ONE_RANGE[0]
         )
 
-        border_two = (
-            BORDER_TWO_RANGE[1]
-            - normalized_human_gain * (BORDER_TWO_RANGE[1] - BORDER_TWO_RANGE[0])
+        border_two = BORDER_TWO_RANGE[1] - normalized_human_gain * (
+            BORDER_TWO_RANGE[1] - BORDER_TWO_RANGE[0]
         )
 
         # --- Adaptive scaling factor ---
         scaling_factor = FACTOR_DEFAULT
         if FACTOR_RANGE:
-            scaling_factor = (
-                FACTOR_RANGE[0]
-                + normalized_human_gain * (FACTOR_RANGE[1] - FACTOR_RANGE[0])
+            scaling_factor = FACTOR_RANGE[0] + normalized_human_gain * (
+                FACTOR_RANGE[1] - FACTOR_RANGE[0]
             )
 
         # --- Compute adaptive gain scaling ---
         if progress_along_path < border_one:
             # Near start: high gain decreasing toward middle
-            gain_scale = 1.0 - scaling_factor * (
-                progress_along_path / border_one
-            )
+            gain_scale = 1.0 - scaling_factor * (progress_along_path / border_one)
 
         elif progress_along_path > border_two:
             # Near end: high gain increasing from middle
@@ -102,5 +89,3 @@ class AdaptiveStateFeedbackController(AdaptiveController, StateFeedbackControlle
 
         self.K_p = gain_scale * self.proportional_gain_base
         self.K_d = gain_scale * self.derivative_gain_base
-
-

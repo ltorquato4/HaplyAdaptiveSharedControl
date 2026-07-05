@@ -1,8 +1,11 @@
 from __future__ import annotations
 
+from collections.abc import Sequence
+
 import numpy as np
 
 from control_node.controller_interface import AdaptiveController
+
 from .mpc_controller import MpcController
 
 FACTOR_DEFAULT = 0.5
@@ -18,9 +21,9 @@ BORDER_TWO_RANGE = [0.6, 0.8]
 class AdaptiveMpcController(AdaptiveController, MpcController):
     def __init__(
         self,
-        start_point,
-        end_point,
-        dt,
+        start_point: Sequence[float],
+        end_point: Sequence[float],
+        dt: float,
         prediction_horizon=10,
         max_control=(1.0, 1.0),
         max_velocity=(1.0, 1.0),
@@ -50,7 +53,7 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
 
         self.progress_along_path = 0.0
 
-    def adapt(self, K_h: list[list[float]]) -> None:
+    def adapt(self, K_h: Sequence[Sequence[float]]) -> None:
         """
         Adapt MPC objective weights based on:
         1. Progress along the path.
@@ -77,8 +80,7 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
             current_point = self.current_point
 
         distance_start_to_current = np.linalg.norm(
-            np.asarray(current_point, dtype=float)
-            - self.experiment_start_point
+            np.asarray(current_point, dtype=float) - self.experiment_start_point
         )
 
         self.progress_along_path = (
@@ -94,50 +96,35 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         )
 
         # Human gain magnitude
-        K_h = np.asarray(K_h, dtype=float)
-        K_h_magnitude = np.linalg.norm(K_h)
+        K_h_array = np.asarray(K_h, dtype=float)
+        K_h_magnitude = np.linalg.norm(K_h_array)
 
         # Normalize to approximately [0, 1]
         normalized_human_gain = np.tanh(K_h_magnitude)
 
         # Adapt borders based on human gain
-        border_one = (
-            BORDER_ONE_RANGE[0]
-            + normalized_human_gain
-            * (BORDER_ONE_RANGE[1] - BORDER_ONE_RANGE[0])
+        border_one = BORDER_ONE_RANGE[0] + normalized_human_gain * (
+            BORDER_ONE_RANGE[1] - BORDER_ONE_RANGE[0]
         )
 
-        border_two = (
-            BORDER_TWO_RANGE[1]
-            - normalized_human_gain
-            * (BORDER_TWO_RANGE[1] - BORDER_TWO_RANGE[0])
+        border_two = BORDER_TWO_RANGE[1] - normalized_human_gain * (
+            BORDER_TWO_RANGE[1] - BORDER_TWO_RANGE[0]
         )
 
         scaling_factor = FACTOR_DEFAULT
 
         if FACTOR_RANGE:
-            scaling_factor = (
-                FACTOR_RANGE[0]
-                + normalized_human_gain
-                * (FACTOR_RANGE[1] - FACTOR_RANGE[0])
+            scaling_factor = FACTOR_RANGE[0] + normalized_human_gain * (
+                FACTOR_RANGE[1] - FACTOR_RANGE[0]
             )
 
         # Progress-based adaptation
         if progress_along_path < border_one:
-            gain_scale = (
-                1.0
-                - scaling_factor
-                * (progress_along_path / border_one)
-            )
+            gain_scale = 1.0 - scaling_factor * (progress_along_path / border_one)
 
         elif progress_along_path > border_two:
-            gain_scale = (
-                1.0
-                - scaling_factor
-                * (
-                    (1.0 - progress_along_path)
-                    / (1.0 - border_two)
-                )
+            gain_scale = 1.0 - scaling_factor * (
+                (1.0 - progress_along_path) / (1.0 - border_two)
             )
 
         else:
@@ -158,9 +145,7 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         goal_gain_factor = 0.5 + 1.5 * normalized_human_gain
 
         comfort_weight = (
-            self.weight_comfort_base
-            * (1.0 - 0.75 * gain_scale)
-            * comfort_gain_factor
+            self.weight_comfort_base * (1.0 - 0.75 * gain_scale) * comfort_gain_factor
         )
 
         trajectory_weight = (
@@ -170,9 +155,7 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         )
 
         goal_weight = (
-            self.weight_goal_base
-            * (0.5 + 1.5 * gain_scale)
-            * goal_gain_factor
+            self.weight_goal_base * (0.5 + 1.5 * gain_scale) * goal_gain_factor
         )
 
         self.cost_function.set_weights(

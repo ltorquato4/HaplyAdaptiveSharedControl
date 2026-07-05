@@ -1,13 +1,16 @@
 import json
+from collections.abc import Sequence
+
 import numpy as np
 
 from ..controller_interface import Controller
 
+
 class StateFeedbackController(Controller):
     def __init__(
         self,
-        start_point: list[float],
-        end_point: list[float],
+        start_point: Sequence[float],
+        end_point: Sequence[float],
         dt: float,
         node=None,
         max_control: tuple[float, float] = (1.0, 1.0),
@@ -16,8 +19,8 @@ class StateFeedbackController(Controller):
         super().__init__(start_point, end_point, dt)
 
         if node is not None:
-            kp = node.declare_parameter('K_p', [0.5, 0.5]).value
-            kd = node.declare_parameter('K_d', [0.1, 0.1]).value
+            kp = node.declare_parameter("K_p", [0.5, 0.5]).value
+            kd = node.declare_parameter("K_d", [0.1, 0.1]).value
         else:
             kp = [0.5, 0.5]
             kd = [0.1, 0.1]
@@ -27,14 +30,14 @@ class StateFeedbackController(Controller):
         self.max_control = np.asarray(max_control, dtype=float)
         self.max_velocity = np.asarray(max_velocity, dtype=float)
 
-    def compute_control(self, current_point: list[float]) -> list[float]:
+    def compute_control(self, current_point: Sequence[float]) -> list[float]:
         position = self._build_position(current_point)
         velocity = self._estimate_velocity(position)
 
         e = position - self.experiment_end_point
         e_dot = velocity
 
-        u_command = - self.K_p @ e - self.K_d @ e_dot
+        u_command = -self.K_p @ e - self.K_d @ e_dot
 
         # If the current velocity is already outside the allowed range, do not
         # add control in the same direction that would push it further out.
@@ -51,12 +54,12 @@ class StateFeedbackController(Controller):
         self.u_a = np.clip(u_command, -self.max_control, self.max_control)
 
         return self.u_a.tolist()
-    
-    
-    def publish_control_parameter(self):
-        return json.dumps({
-            "Controller Type": "State Feedback Controller",
-            "K_p": np.diag(self.K_p).tolist(),
-            "K_d": np.diag(self.K_d).tolist(),
-        })
 
+    def publish_control_parameter(self):
+        return json.dumps(
+            {
+                "Controller Type": "State Feedback Controller",
+                "K_p": np.diag(self.K_p).tolist(),
+                "K_d": np.diag(self.K_d).tolist(),
+            }
+        )

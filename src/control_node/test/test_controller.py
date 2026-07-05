@@ -1,19 +1,24 @@
+import logging
 import os
 import sys
-import logging
-from pathlib import Path
 from math import sqrt
+from pathlib import Path
 
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), '..')))
+sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
-from control_node.state_feedback_controller.adaptive_state_feedback_controller import AdaptiveStateFeedbackController
-from control_node.mpc_controller.mpc_controller import MpcController
 from control_node.mpc_controller.adaptive_mpc_controller import AdaptiveMpcController
+from control_node.mpc_controller.mpc_controller import MpcController
+from control_node.state_feedback_controller.adaptive_state_feedback_controller import (
+    AdaptiveStateFeedbackController,
+)
+from control_node.state_feedback_controller.state_feedback_controller import (
+    StateFeedbackController,
+)
 
 START_POINT = [-6, 0]
 END_POINT = [10, 10]
 DT = 0.1
+
 
 def create_logger(log_filename):
     logger = logging.getLogger(log_filename)
@@ -31,29 +36,36 @@ def create_logger(log_filename):
     return logger
 
 
-state_feedback_compute_logger = create_logger("test_state_feedback_controller_compute_control.log")
+state_feedback_compute_logger = create_logger(
+    "test_state_feedback_controller_compute_control.log"
+)
 state_feedback_adapt_logger = create_logger("test_state_feedback_controller_adapt.log")
 mpc_compute_logger = create_logger("test_mpc_compute_control.log")
 mpc_adapt_logger = create_logger("test_mpc_controller_adapt.log")
 
 state_feedback_controller = StateFeedbackController(START_POINT, END_POINT, DT)
-adaptive_state_feedback_controller = AdaptiveStateFeedbackController(START_POINT, END_POINT, DT)
-mpc_controller = MpcController(START_POINT, END_POINT, DT, max_control=(100,100))
-adaptive_mpc_controller = AdaptiveMpcController(START_POINT, END_POINT, DT, max_control=(100,100))
+adaptive_state_feedback_controller = AdaptiveStateFeedbackController(
+    START_POINT, END_POINT, DT
+)
+mpc_controller = MpcController(START_POINT, END_POINT, DT, max_control=(100, 100))
+adaptive_mpc_controller = AdaptiveMpcController(
+    START_POINT, END_POINT, DT, max_control=(100, 100)
+)
+
 
 def test_compute_control(logger, controller):
-    controller
-
     current_point = START_POINT.copy()
 
     logger.info("Starting Compute Control Test")
     step = 0
 
-    while sqrt(
-        (current_point[0] - END_POINT[0]) ** 2
-        + (current_point[1] - END_POINT[1]) ** 2
-    ) > 0.2:
-
+    while (
+        sqrt(
+            (current_point[0] - END_POINT[0]) ** 2
+            + (current_point[1] - END_POINT[1]) ** 2
+        )
+        > 0.2
+    ):
         controller.compute_control(current_point)
 
         distance = sqrt(
@@ -62,7 +74,8 @@ def test_compute_control(logger, controller):
         )
 
         logger.info(
-            f"step {step} current point{current_point} control {controller.u_a} distance {distance}"
+            f"step {step} current point{current_point} control {controller.u_a} "
+            f"distance {distance}"
         )
 
         current_point[0] += controller.u_a[0] * 0.005
@@ -70,12 +83,10 @@ def test_compute_control(logger, controller):
 
         step += 1
 
-    logger.info(
-        f"Target reached after {step} steps. "
-        f"Final position = {current_point}"
-    )
+    logger.info(f"Target reached after {step} steps. Final position = {current_point}")
 
     assert len(controller.u_a) == 2
+
 
 def test_adaptive_gain(logger, controller):
 
@@ -85,15 +96,14 @@ def test_adaptive_gain(logger, controller):
 
     step = 0
 
-    while sqrt(
-        (current_point[0] - END_POINT[0]) ** 2
-        + (current_point[1] - END_POINT[1]) ** 2
-    ) > 0.2:
-
-        K_h = [
-            [1.0, 0.0],
-            [0.0, 1.0]
-        ]
+    while (
+        sqrt(
+            (current_point[0] - END_POINT[0]) ** 2
+            + (current_point[1] - END_POINT[1]) ** 2
+        )
+        > 0.2
+    ):
+        K_h = [[1.0, 0.0], [0.0, 1.0]]
 
         controller.current_point = current_point
         controller.adapt(K_h)
@@ -113,12 +123,10 @@ def test_adaptive_gain(logger, controller):
 
         step += 1
 
-    logger.info(
-        f"Target reached after {step} steps. "
-        f"Final position = {current_point}"
-    )
+    logger.info(f"Target reached after {step} steps. Final position = {current_point}")
 
     assert True
+
 
 test_compute_control(state_feedback_compute_logger, state_feedback_controller)
 test_adaptive_gain(state_feedback_adapt_logger, adaptive_state_feedback_controller)

@@ -1,11 +1,11 @@
 from __future__ import annotations
-from typing import List
 
 import json
+from collections.abc import Sequence
+
 import numpy as np
 
 from ..controller_interface import Controller
-
 from .batch_predictor import BatchPredictor
 from .constraints import Constraints
 from .costfunction import CostFunction
@@ -18,8 +18,8 @@ class MpcController(Controller):
 
     def __init__(
         self,
-        start_point: list[float],
-        end_point: list[float],
+        start_point: Sequence[float],
+        end_point: Sequence[float],
         dt: float,
         prediction_horizon: int = 10,
         max_control: tuple[float, float] = (1.0, 1.0),
@@ -35,12 +35,20 @@ class MpcController(Controller):
         self.max_control = max_control
         self.max_velocity = max_velocity
         self.x_bounds = x_bounds or (
-            float(min(self.experiment_start_point[0], self.experiment_end_point[0]) - 0.5),
-            float(max(self.experiment_start_point[0], self.experiment_end_point[0]) + 0.5),
+            float(
+                min(self.experiment_start_point[0], self.experiment_end_point[0]) - 0.5
+            ),
+            float(
+                max(self.experiment_start_point[0], self.experiment_end_point[0]) + 0.5
+            ),
         )
         self.y_bounds = y_bounds or (
-            float(min(self.experiment_start_point[1], self.experiment_end_point[1]) - 0.5),
-            float(max(self.experiment_start_point[1], self.experiment_end_point[1]) + 0.5),
+            float(
+                min(self.experiment_start_point[1], self.experiment_end_point[1]) - 0.5
+            ),
+            float(
+                max(self.experiment_start_point[1], self.experiment_end_point[1]) + 0.5
+            ),
         )
         self.u_init = np.zeros(self.prediction_horizon * 2, dtype=float)
 
@@ -59,7 +67,9 @@ class MpcController(Controller):
             weight_goal=weight_goal,
         )
 
-        self.batch_predictor = BatchPredictor(self.linear_system_model, self.prediction_horizon)
+        self.batch_predictor = BatchPredictor(
+            self.linear_system_model, self.prediction_horizon
+        )
 
         self.optimizer = Optimization(
             model_dependencies=ModelDependencies(
@@ -72,14 +82,20 @@ class MpcController(Controller):
             input_dimension=2,
         )
 
-    def _build_initial_state(self, current_point: list[float]) -> np.ndarray:
+    def _build_initial_state(self, current_point: Sequence[float]) -> np.ndarray:
         current_position = self._build_position(current_point)
         velocity = self._estimate_velocity(current_position)
 
-        return np.array([current_position[0], velocity[0], current_position[1], velocity[1]], dtype=float)
+        return np.array(
+            [current_position[0], velocity[0], current_position[1], velocity[1]],
+            dtype=float,
+        )
 
     def _build_goal_state(self) -> np.ndarray:
-        return np.array([self.experiment_end_point[0], 0.0, self.experiment_end_point[1], 0.0], dtype=float)
+        return np.array(
+            [self.experiment_end_point[0], 0.0, self.experiment_end_point[1], 0.0],
+            dtype=float,
+        )
 
     @staticmethod
     def _shift_warm_start(u_optimum: np.ndarray) -> np.ndarray:
@@ -90,7 +106,7 @@ class MpcController(Controller):
         shifted_sequence = np.vstack([control_sequence[1:], control_sequence[-1]])
         return shifted_sequence.reshape(-1)
 
-    def compute_control(self, current_point: list[float]) -> List[float]:
+    def compute_control(self, current_point: Sequence[float]) -> list[float]:
         x0 = self._build_initial_state(current_point)
         goal_state = self._build_goal_state()
 
@@ -105,7 +121,9 @@ class MpcController(Controller):
         u_optimum = self.optimizer.solve()
         self.u_init = self._shift_warm_start(u_optimum)
 
-        u_command = np.clip(u_optimum[:2], -np.asarray(self.max_control), np.asarray(self.max_control))
+        u_command = np.clip(
+            u_optimum[:2], -np.asarray(self.max_control), np.asarray(self.max_control)
+        )
         self.u_a = u_command
 
         return u_command.tolist()
