@@ -1,6 +1,7 @@
 import casadi as ca
 import numpy as np
 
+
 class BatchPredictor:
     """Compute horizon predictions with precomputed batch matrices."""
 
@@ -47,7 +48,9 @@ class BatchPredictor:
                 row_end = (i + 1) * state_dimension
                 col_start = j * input_dimension
                 col_end = (j + 1) * input_dimension
-                B_bar[row_start:row_end, col_start:col_end] = A_power @ self.system_model.B
+                B_bar[row_start:row_end, col_start:col_end] = (
+                    A_power @ self.system_model.B
+                )
 
         return B_bar
 
@@ -59,7 +62,8 @@ class BatchPredictor:
         x0_flat = np.asarray(x0, dtype=float).reshape(-1)
         if x0_flat.size != state_dimension:
             raise ValueError(
-                f"x0 length ({x0_flat.size}) must match state dimension ({state_dimension})"
+                f"x0 length ({x0_flat.size}) must match state dimension "
+                f"({state_dimension})"
             )
 
         u_sequence_flat = np.array(u_sequence, dtype=float).reshape(-1)
@@ -85,7 +89,7 @@ class BatchPredictor:
 
         # Reshape x_s into list of state vectors
         predicted_states = [
-            np.array(x_s[i * state_dimension:(i + 1) * state_dimension])
+            np.array(x_s[i * state_dimension : (i + 1) * state_dimension])
             for i in range(self.N)
         ]
 
@@ -97,4 +101,3 @@ class BatchPredictor:
             "A_bar": ca.DM(self._A_bar),
             "B_bar": ca.DM(self._B_bar),
         }
-   
