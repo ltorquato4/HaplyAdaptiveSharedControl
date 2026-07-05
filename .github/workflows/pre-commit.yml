@@ -33,6 +33,12 @@ jobs:
             BASE="$(git rev-list --max-parents=0 HEAD)"
           fi
 
+          if ! git cat-file -e "${BASE}^{commit}" 2>/dev/null; then
+            echo "Base commit $BASE is not available; falling back to merge-base with origin/main."
+            git fetch --no-tags origin main
+            BASE="$(git merge-base HEAD origin/main)"
+          fi
+
           FILES="$(git diff --name-only "$BASE" HEAD | tr '\n' ' ')"
           echo "files=$FILES" >> "$GITHUB_OUTPUT"
 
