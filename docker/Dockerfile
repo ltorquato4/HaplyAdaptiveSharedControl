@@ -31,14 +31,11 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     && rm -rf /var/lib/apt/lists/*
 
 RUN python3 -m pip install --no-cache-dir \
-    orjson \
-    casadi
+    casadi \
     mypy \
     orjson \
     pre-commit \
-    ruff \
-    orjson \
-    casadi
+    ruff
 
 RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then \
         rosdep init; \
