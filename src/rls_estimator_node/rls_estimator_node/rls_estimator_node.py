@@ -75,12 +75,6 @@ class RLSEstimatorNode(Node):
             10
         )
 
-        self.status_pub = self.create_publisher(
-            String,
-            "/estimator_status",
-            10
-        )
-
         #
         # 100 Hz
         #
@@ -234,15 +228,6 @@ class RLSEstimatorNode(Node):
 
         self.uh_pub.publish(uh_msg)
 
-        #
-        # Status
-        #
-
-        status = String()
-
-        status.data = "ok"
-
-        self.status_pub.publish(status)
 
         #
         # save previous
