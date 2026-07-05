@@ -52,4 +52,4 @@ jobs:
             -w /workspaces/research-seminar \
             --entrypoint bash \
             research-seminar:humble \
-            -lc "git config --global --add safe.directory /workspaces/research-seminar && pre-commit run --files $FILES"
+            -lc "git config --global --add safe.directory /workspaces/research-seminar && SKIP=no-commit-to-branch pre-commit run --files $FILES"
