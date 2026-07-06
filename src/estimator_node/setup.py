@@ -12,7 +12,7 @@ setup(
     ],
     install_requires=["setuptools"],
     zip_safe=True,
-    maintainer="root",
+    maintainer="Ines Boujnah",
     maintainer_email="ines.boujnah@student.kit.edu",
     description="Estimator Node providing real-time estimation of "
     "human control authority using the Recursive Least Squares "
