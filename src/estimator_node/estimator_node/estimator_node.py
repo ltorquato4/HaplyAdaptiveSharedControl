@@ -4,7 +4,7 @@ import numpy as np
 import rclpy
 from geometry_msgs.msg import Point, Vector3
 from rclpy.node import Node
-from std_msgs.msg import Float64MultiArray, String
+from std_msgs.msg import Float64MultiArray
 
 from estimator_node.estimator.rls_estimator import RLSEstimator
 
@@ -46,8 +46,6 @@ class RLSEstimatorNode(Node):
         self.kh_pub = self.create_publisher(Float64MultiArray, "/estimation/K_h", 10)
 
         self.uh_pub = self.create_publisher(Vector3, "/estimation/u_h", 10)
-
-        self.status_pub = self.create_publisher(String, "/estimator_status", 10)
 
         #
         # 100 Hz
@@ -168,16 +166,6 @@ class RLSEstimatorNode(Node):
         uh_msg.z = 0.0
 
         self.uh_pub.publish(uh_msg)
-
-        #
-        # Status
-        #
-
-        status = String()
-
-        status.data = "ok"
-
-        self.status_pub.publish(status)
 
         #
         # save previous

@@ -89,7 +89,6 @@ u_h = K(h) * x
   torque-derived force.
 - Publishes `/estimation/K_h` to Controller and Logger.
 - Publishes `/estimation/u_h` to Logger.
-- Publishes `/estimator_status` to Logger.
 
 ### Haply Interface / Driver
 
@@ -199,7 +198,6 @@ flowchart LR
 | `/study_controller_mode` | `std_msgs/String` | Scenario Generator | GUI, Controller, Logger | Control condition for the current phase: `adaptive` or `fixed`. Logger records this for fixed/adaptive analysis. |
 | `/estimation/K_h` | `std_msgs/Float64` | Estimator | Controller, Logger | Estimated human stiffness. |
 | `/estimation/u_h` | `geometry_msgs/Vector3` | Estimator | Controller, Logger | Estimated human effort/control input in task space. |
-| `/estimator_status` | `std_msgs/String` | Estimator | Logger | Estimator health and fault status, e.g. `ok`, `force_stale`, `saturated`, `reset`. |
 | `/control/U_a` | `geometry_msgs/Vector3` | Controller | Logger | Applied robot assistance/control force, logged as a diagnostic only. |
 | `/control/K_a` | `std_msgs/Float64` | Controller | Logger | Active controller gain used for the current phase. |
 
@@ -215,36 +213,6 @@ flowchart LR
   stale.
 - GUI displays a disconnected/stale state.
 - Logger records the stale/disconnected condition.
-
-### End-effector force missing or stale
-
-- Estimator publishes:
-
-```text
-estimator_status = "force_stale"
-```
-
-- Estimator freezes or resets the RLS update.
-- Controller falls back to fixed mode until force data becomes valid again.
-- Logger records the force fault.
-
-### Estimator divergence
-
-- Estimator clamps `K(h)` to the accepted operating range.
-- If covariance or estimate quality diverges, Estimator resets to its prior.
-- Estimator publishes:
-
-```text
-estimator_status = "saturated"
-```
-
-or:
-
-```text
-estimator_status = "reset"
-```
-
-- Logger records the event.
 
 ### User leaves workspace bounds
 
