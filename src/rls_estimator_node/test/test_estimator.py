@@ -67,7 +67,14 @@ def test_behavioral_state_careful(logger):
     for step in range(10):
         estimator.update(ex, vx, ey, vy, ax, ay)
         matrix = estimator.get_matrix()
-        logger.info(f"Careful Step {step}: Kh matrix=\n{matrix}")
+
+        logger.info(
+            f"Careful Step {step}:\n"
+            f"  Pos Error: ({ex:.4f}, {ey:.4f}) | "
+            f"Vel: ({vx:.4f}, {vy:.4f}) | "
+            f"Acc: ({ax:.4f}, {ay:.4f})\n"
+            f"  Kh matrix=\n{matrix}"
+        )
 
         # Smooth, tiny corrections
         ex *= 0.95
@@ -92,7 +99,14 @@ def test_behavioral_state_normal(logger):
     for step in range(10):
         estimator.update(ex, vx, ey, vy, ax, ay)
         matrix = estimator.get_matrix()
-        logger.info(f"Normal Step {step}: Kh matrix=\n{matrix}")
+
+        logger.info(
+            f"Normal Step {step}:\n"
+            f"  Pos Error: ({ex:.4f}, {ey:.4f}) | "
+            f"Vel: ({vx:.4f}, {vy:.4f}) | "
+            f"Acc: ({ax:.4f}, {ay:.4f})\n"
+            f"  Kh matrix=\n{matrix}"
+        )
 
         # Standard corrections
         ex -= 0.05
@@ -119,7 +133,14 @@ def test_behavioral_state_aggressive(logger):
     for step in range(10):
         estimator.update(ex, vx, ey, vy, ax, ay)
         matrix = estimator.get_matrix()
-        logger.info(f"Aggressive Step {step}: Kh matrix=\n{matrix}")
+
+        logger.info(
+            f"Aggressive Step {step}:\n"
+            f"  Pos Error: ({ex:.4f}, {ey:.4f}) | "
+            f"Vel: ({vx:.4f}, {vy:.4f}) | "
+            f"Acc: ({ax:.4f}, {ay:.4f})\n"
+            f"  Kh matrix=\n{matrix}"
+        )
 
         # Erratic corrections (overshooting behavior)
         ex = -ex * 0.8
