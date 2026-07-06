@@ -6,6 +6,7 @@ import time
 
 import rclpy
 from geometry_msgs.msg import Point
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import Bool, String
 
@@ -197,6 +198,8 @@ def main(args=None):
     node = ScenarioGenerator()
     try:
         rclpy.spin(node)
+    except ExternalShutdownException:
+        pass
     except KeyboardInterrupt:
         node.get_logger().info("Shutting down...")
     finally:

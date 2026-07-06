@@ -5,6 +5,7 @@
 import rclpy
 from geometry_msgs.msg import Point
 from haply_msgs.msg import HaplyState
+from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import Bool
 
@@ -136,6 +137,8 @@ def main(args=None):
     node = ExperimentMapper()
     try:
         rclpy.spin(node)
+    except ExternalShutdownException:
+        pass
     except KeyboardInterrupt:
         node.get_logger().info("Shutting down...")
     finally:

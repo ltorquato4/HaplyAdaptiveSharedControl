@@ -13,6 +13,7 @@ import sys
 
 from geometry_msgs.msg import Quaternion, Point, Vector3
 from haply_msgs.msg import Inverse3State, HandleState, HaplyState, HaplyControl, HandleButtons
+from rclpy.executors import ExternalShutdownException
 
 class HaplyDriverNode(Node):
     def __init__(self):
@@ -21,8 +22,10 @@ class HaplyDriverNode(Node):
         # Parameters
         self.declare_parameter("frequency", 200.0)
         self.declare_parameter("max_force", 10.0)   # Maximum allowed force in N
+        self.declare_parameter("ws_uri", "ws://localhost:10001")
         self.frequency = self.get_parameter("frequency").value
         self.max_force = float(self.get_parameter("max_force").value)
+        self.ws_uri = str(self.get_parameter("ws_uri").value)
 
         # PID controller variables
         self.Kp = 30.0             # proportional [N/m]
@@ -66,7 +69,6 @@ class HaplyDriverNode(Node):
         self.timer = self.create_timer(1.0 / self.frequency, self.publish_state)
 
         self.inverse3_device_id = None
-        self.ws_uri = 'ws://localhost:10001'
 
         # WebSocket loop in a separate thread
         self.run = True
@@ -158,8 +160,14 @@ class HaplyDriverNode(Node):
     def start_async_loop(self):
         asyncio.run(self.websocket_loop())
 
+    def stop_ros(self):
+        self.run = False
+        if rclpy.ok():
+            rclpy.shutdown()
+
     async def websocket_loop(self):
         try:
+            self.get_logger().info(f"Connecting to Haply Inverse SDK Service at {self.ws_uri}")
             async with websockets.connect(self.ws_uri) as ws:
                 await ws.send(orjson.dumps({
                     "session": {"force_render_full_state": {}}
@@ -271,7 +279,9 @@ class HaplyDriverNode(Node):
                     if time.perf_counter() - self.last_msg_time > self.timeout_s and self.control_active and not self.use_target_position:
                         self.control_active = False
                         self.target_force = {"x": 0.0, "y": 0.0, "z": 0.0}
-                        self.get_logger().warn(f"No force command received for {self.timeout_s:.1f/100}s, disabling control.")
+                        self.get_logger().warn(
+                            f"No force command received for {self.timeout_s:.1f}s, disabling control."
+                        )
 
                     # Position control force update
                     if self.use_target_position and self.control_active:
@@ -295,13 +305,23 @@ class HaplyDriverNode(Node):
                     if not self.inverse_available and not self.handle_available:
                         if (time.perf_counter() - self.last_device_seen_time) > 200:
                             self.get_logger().warn("No devices available. Shutting down node.")
-                            self.run = False
-                            rclpy.shutdown()
+                            self.stop_ros()
                             return
 
+        except OSError as e:
+            self.get_logger().error(
+                f"Could not connect to the Haply Inverse SDK Service at {self.ws_uri}: {e}"
+            )
+            self.get_logger().error(
+                "Start the Haply Inverse SDK Service before using "
+                "study_gui.launch.py, or use study_gui_mouse.launch.py for testing "
+                "without hardware."
+            )
+            self.stop_ros()
         except Exception as e:
             self.get_logger().error(f"WebSocket error: {e}")
             self.get_logger().error(traceback.format_exc())
+            self.stop_ros()
 
     def destroy_node(self):
         self.run = False
@@ -314,11 +334,14 @@ def main(args=None):
     node = HaplyDriverNode()
     try:
         rclpy.spin(node)
+    except ExternalShutdownException:
+        pass
     except KeyboardInterrupt:
         node.get_logger().info("Shutting down...")
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

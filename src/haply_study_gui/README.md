@@ -60,6 +60,19 @@ want to start one executable by itself.
 
 ### Hardware
 
+Use the hardware launch only after the Haply Inverse SDK Service is running
+and reachable on port `10001`. The ROS driver connects to it as a WebSocket
+server at `ws://localhost:10001`; this is not a normal web page, so opening
+`http://localhost:10001` in a browser may not show anything useful. Start the
+Haply Inverse SDK Service from the Haply software on the machine connected to
+the device, then run the hardware launch from an environment that can reach
+that host and port. If the SDK service runs on a different host, pass the
+WebSocket URI explicitly, for example:
+
+```bash
+ros2 launch haply_study_gui study_gui.launch.py ws_uri:=ws://<host-ip>:10001
+```
+
 | Purpose | Command |
 | --- | --- |
 | Haply GUI with Mapper and Scenario Generator | `ros2 launch haply_study_gui study_gui.launch.py` |
