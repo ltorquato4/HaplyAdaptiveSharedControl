@@ -6,13 +6,13 @@ from geometry_msgs.msg import Point, Vector3
 from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray, String
 
-from rls_estimator_node.estimator.rls_estimator import RLSEstimator
+from estimator_node.estimator.rls_estimator import RLSEstimator
 
 
 class RLSEstimatorNode(Node):
     def __init__(self):
 
-        super().__init__("rls_estimator_node")
+        super().__init__("estimator_node")
 
         self.cursor = None
         self.goal = None

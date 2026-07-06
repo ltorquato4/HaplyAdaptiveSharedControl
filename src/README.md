@@ -123,7 +123,7 @@ flowchart LR
         Mapper["experiment_mapper_node\nMaps raw input to task frame\nCalibrates start pose\nPublishes experiment cursor"]
         Scenario["scenario_generator_node\nOwns phase rollout\nOwns random start/end points\nOwns controller mode\nComputes endpoint/progress"]
         Control["control_node\n100 Hz\nMPC controller\nMode: fixed or adaptive\nComputes trajectory internally"]
-        Estimator["rls_estimator_node\nRLS estimate of K(h) and u_h\nUses force and experiment cursor"]
+        Estimator["estimator_node\nRLS estimate of K(h) and u_h\nUses force and experiment cursor"]
         Logger["data_logger_node\nCSV logging"]
     end
 

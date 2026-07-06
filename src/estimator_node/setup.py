@@ -1,6 +1,6 @@
 from setuptools import find_packages, setup
 
-package_name = "rls_estimator_node"
+package_name = "estimator_node"
 
 setup(
     name=package_name,
@@ -13,9 +13,11 @@ setup(
     install_requires=["setuptools"],
     zip_safe=True,
     maintainer="root",
-    maintainer_email="inesboujnah@gmail.com",
-    description="TODO: Package description",
-    license="TODO: License declaration",
+    maintainer_email="ines.boujnah@student.kit.edu",
+    description="Estimator Node providing real-time estimation of "
+    "human control authority using the Recursive Least Squares "
+    "(RLS) algorithm for an adaptive haptic shared controller.",
+    license="Unlicensed",
     extras_require={
         "test": [
             "pytest",
@@ -23,7 +25,7 @@ setup(
     },
     entry_points={
         "console_scripts": [
-            "rls_estimator_node = rls_estimator_node.rls_estimator_node:main",
+            "estimator_node = estimator_node.estimator_node:main",
         ],
     },
 )

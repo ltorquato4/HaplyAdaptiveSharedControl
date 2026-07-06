@@ -6,7 +6,7 @@ from pathlib import Path
 # Add the parent directory to the path so the package can be imported
 sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
-from rls_estimator_node.estimator.rls_estimator import RLSEstimator
+from estimator_node.estimator.rls_estimator import RLSEstimator
 
 
 class MockPoint:
