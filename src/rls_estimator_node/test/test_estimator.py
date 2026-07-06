@@ -51,31 +51,87 @@ def test_initialization(logger):
     assert matrix[1, 3] == 6.0
 
 
-def test_update_loop(logger):
-    logger.info("Starting Update Loop Test")
+def test_behavioral_state_careful(logger):
+    """
+    Simulates a 'careful' behavioral state.
+    Defined by: Low velocities, very low accelerations, tight tracking errors
+    """
+    logger.info("--- Starting Careful Behavioral State Test ---")
     estimator = RLSEstimator()
-
-    # Initialize to avoid zero-state starting issues
     estimator.initialize_from_start_point(MockPoint(1.0, 1.0))
 
-    # Simulate errors, velocities, and accelerations for 10 steps
-    ex, vx, ey, vy = 1.0, 0.1, 1.0, 0.1
-    ax, ay = 0.01, -0.01
+    # Small error, low velocity, near-zero acceleration
+    ex, vx, ey, vy = 0.05, 0.02, 0.05, 0.02
+    ax, ay = 0.001, 0.001
 
     for step in range(10):
         estimator.update(ex, vx, ey, vy, ax, ay)
         matrix = estimator.get_matrix()
-        logger.info(f"step {step} Kh matrix=\n{matrix}")
+        logger.info(f"Careful Step {step}: Kh matrix=\n{matrix}")
 
-        # Simulate slight changes in kinematics over time
-        ex -= 0.1
-        ey -= 0.1
-        vx += 0.01
-        vy += 0.01
+        # Smooth, tiny corrections
+        ex *= 0.95
+        ey *= 0.95
 
     assert matrix.shape == (2, 4)
 
 
-# Execute tests if run as a standalone script
-test_initialization(estimator_logger)
-test_update_loop(estimator_logger)
+def test_behavioral_state_normal(logger):
+    """
+    Simulates a 'normal' behavioral state
+    Defined by: Moderate velocities, standard accelerations, average tracking errors
+    """
+    logger.info("--- Starting Normal Behavioral State Test ---")
+    estimator = RLSEstimator()
+    estimator.initialize_from_start_point(MockPoint(1.0, 1.0))
+
+    # Moderate error, medium velocity, standard acceleration
+    ex, vx, ey, vy = 0.5, 0.2, 0.5, 0.2
+    ax, ay = 0.05, -0.05
+
+    for step in range(10):
+        estimator.update(ex, vx, ey, vy, ax, ay)
+        matrix = estimator.get_matrix()
+        logger.info(f"Normal Step {step}: Kh matrix=\n{matrix}")
+
+        # Standard corrections
+        ex -= 0.05
+        ey -= 0.05
+        vx += 0.01
+        vy -= 0.01
+
+    assert matrix.shape == (2, 4)
+
+
+def test_behavioral_state_aggressive(logger):
+    """
+    Simulates an 'aggressive' behavioral state
+    Defined by: High tracking errors, fast velocities, sharp, erratic accelerations
+    """
+    logger.info("--- Starting Aggressive Behavioral State Test ---")
+    estimator = RLSEstimator()
+    estimator.initialize_from_start_point(MockPoint(1.0, 1.0))
+
+    # Large error, high velocity, sharp acceleration spikes
+    ex, vx, ey, vy = 2.0, 1.5, 2.0, -1.5
+    ax, ay = 0.8, -0.8
+
+    for step in range(10):
+        estimator.update(ex, vx, ey, vy, ax, ay)
+        matrix = estimator.get_matrix()
+        logger.info(f"Aggressive Step {step}: Kh matrix=\n{matrix}")
+
+        # Erratic corrections (overshooting behavior)
+        ex = -ex * 0.8
+        ey = -ey * 0.8
+        ax = -ax * 1.1
+        ay = -ay * 1.1
+
+    assert matrix.shape == (2, 4)
+
+
+if __name__ == "__main__":
+    test_initialization(estimator_logger)
+    test_behavioral_state_careful(estimator_logger)
+    test_behavioral_state_normal(estimator_logger)
+    test_behavioral_state_aggressive(estimator_logger)
