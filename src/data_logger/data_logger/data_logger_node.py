@@ -111,9 +111,6 @@ class DataLoggerNode(Node):
             "haply_vel_x",
             "haply_vel_y",
             "haply_vel_z",
-            "force_x",
-            "force_y",
-            "force_z",
             "K_h",
             "u_h_x",
             "u_h_y",
@@ -123,7 +120,6 @@ class DataLoggerNode(Node):
             "U_a_y",
             "U_a_z",
             "endpoint_reached",
-            "estimator_status",
         ]
 
     def reset_state(self):
@@ -157,16 +153,10 @@ class DataLoggerNode(Node):
             Point, "/experiment_cursor_position", self.cursor_callback, 10
         )
         self.create_subscription(HaplyState, "/haply_state", self.haply_callback, 10)
-        self.create_subscription(
-            Vector3, "/haply_endeffector_force", self.force_callback, 10
-        )
         self.create_subscription(Float64, "/estimation/K_h", self.kh_callback, 10)
         self.create_subscription(Vector3, "/estimation/u_h", self.uh_callback, 10)
         self.create_subscription(Float64, "/control/K_a", self.ka_callback, 10)
         self.create_subscription(Vector3, "/control/U_a", self.ua_callback, 10)
-        self.create_subscription(
-            String, "/estimator_status", self.estimator_status_callback, 10
-        )
         self.create_subscription(
             Bool, "/study_endpoint_reached", self.endpoint_callback, 10
         )
@@ -210,11 +200,6 @@ class DataLoggerNode(Node):
 
         self.latest["cursor"] = msg
 
-    def force_callback(self, msg):
-        self._log_received_message("/haply_endeffector_force", msg)
-
-        self.latest["force"] = msg
-
     def kh_callback(self, msg):
         self._log_received_message("/estimation/K_h", msg)
 
@@ -234,11 +219,6 @@ class DataLoggerNode(Node):
         self._log_received_message("/control/U_a", msg)
 
         self.latest["U_a"] = msg
-
-    def estimator_status_callback(self, msg):
-        self._log_received_message("/estimator_status", msg)
-
-        self.latest["estimator_status"] = msg.data
 
     def endpoint_callback(self, msg):
         self._log_received_message("/study_endpoint_reached", msg)
@@ -264,7 +244,6 @@ class DataLoggerNode(Node):
         start = self.latest.get("start")
         end = self.latest.get("end")
         cursor = self.latest.get("cursor")
-        force = self.latest.get("force")
         uh = self.latest.get("u_h")
         ua = self.latest.get("U_a")
         haply = self.latest.get("haply")
@@ -283,11 +262,6 @@ class DataLoggerNode(Node):
             row["cursor_x"] = cursor.x
             row["cursor_y"] = cursor.y
             row["cursor_z"] = cursor.z
-
-        if force:
-            row["force_x"] = force.x
-            row["force_y"] = force.y
-            row["force_z"] = force.z
 
         if uh:
             row["u_h_x"] = uh.x
@@ -312,8 +286,6 @@ class DataLoggerNode(Node):
         row["K_a"] = self.latest.get("K_a")
 
         row["endpoint_reached"] = self.latest.get("endpoint_reached")
-
-        row["estimator_status"] = self.latest.get("estimator_status")
 
         saved_row = self._normalize_row_for_debug(row)
 

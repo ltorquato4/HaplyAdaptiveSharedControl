@@ -43,8 +43,6 @@ class TestDataLoggerNode(Node):
 
         self.pub_haply = self.create_publisher(HaplyState, "/haply_state", 10)
 
-        self.pub_force = self.create_publisher(Vector3, "/haply_endeffector_force", 10)
-
         self.pub_Kh = self.create_publisher(Float64, "/estimation/K_h", 10)
 
         self.pub_uh = self.create_publisher(Vector3, "/estimation/u_h", 10)
@@ -52,10 +50,6 @@ class TestDataLoggerNode(Node):
         self.pub_Ka = self.create_publisher(Float64, "/control/K_a", 10)
 
         self.pub_Ua = self.create_publisher(Vector3, "/control/U_a", 10)
-
-        self.pub_estimator_status = self.create_publisher(
-            String, "/estimator_status", 10
-        )
 
         self.pub_endpoint = self.create_publisher(Bool, "/study_endpoint_reached", 10)
 
@@ -192,14 +186,6 @@ class TestDataLoggerNode(Node):
         self._log_sent_message("/experiment_cursor_position", cursor)
 
         #
-        # End-effector force
-        #
-
-        force = self.random_vector()
-        self.pub_force.publish(force)
-        self._log_sent_message("/haply_endeffector_force", force)
-
-        #
         # u_h
         #
 
@@ -266,17 +252,6 @@ class TestDataLoggerNode(Node):
 
         self.pub_endpoint.publish(endpoint)
         self._log_sent_message("/study_endpoint_reached", endpoint)
-
-        #
-        # Estimator status
-        #
-
-        status = String()
-
-        status.data = random.choice(["ok", "force_stale", "reset", "saturated"])
-
-        self.pub_estimator_status.publish(status)
-        self._log_sent_message("/estimator_status", status)
 
         #
         # Random HaplyState
