@@ -62,7 +62,7 @@ boundaries, topics, and fault-handling path.
 - Fixed mode uses `alpha = 0.5`.
 - Is the MPC-based controller. It computes the trajectory and control action
   internally from `/study_start_point`, `/study_end_point`,
-  `/experiment_cursor_position`, `/estimation/K_h`, and `/estimation/u_h`.
+  `/experiment_cursor_position`, and `/estimation/K_h`.
 - Adaptive mode updates `K(a)` based on estimated `K(h)`.
 - Publishes `/control/U_a` to Logger as the applied-assistance/control-force
   diagnostic.
@@ -197,7 +197,7 @@ flowchart LR
 | `/study_phase` | `std_msgs/String` | Scenario Generator | GUI, Logger | Behavioral State phase: `aggressive`, `normal`, or `careful`. |
 | `/study_controller_mode` | `std_msgs/String` | Scenario Generator | GUI, Controller, Logger | Control condition for the current phase: `adaptive` or `fixed`. Logger records this for fixed/adaptive analysis. |
 | `/estimation/K_h` | `std_msgs/Float64` | Estimator | Controller, Logger | Estimated human stiffness. |
-| `/estimation/u_h` | `geometry_msgs/Vector3` | Estimator | Controller, Logger | Estimated human effort/control input in task space. |
+| `/estimation/u_h` | `geometry_msgs/Vector3` | Estimator | Logger | Estimated human effort/control input in task space. |
 | `/control/U_a` | `geometry_msgs/Vector3` | Controller | Logger | Applied robot assistance/control force, logged as a diagnostic only. |
 | `/control/K_a` | `std_msgs/Float64` | Controller | Logger | Active controller gain used for the current phase. |
 
@@ -247,8 +247,9 @@ flowchart LR
   Controller and Estimator.
 - Controller computes the trajectory and task-space control action internally,
   then sends force to the Haply driver through `/haply_target`.
-- Estimator publishes both `/estimation/K_h` and `/estimation/u_h`; Controller
-  publishes `/control/U_a` only as a Logger diagnostic.
+- Estimator publishes both `/estimation/K_h` and `/estimation/u_h`; the
+  Controller consumes `/estimation/K_h` for adaptation and logs `/control/U_a`
+  only as a diagnostic.
 - Force calculation belongs in `haply_driver_node.py`.
 - CSV is the final data logging format.
 - The Controller is MPC-based and has one fixed/adaptive mode flag.
