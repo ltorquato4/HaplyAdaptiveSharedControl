@@ -33,7 +33,6 @@ RUN python3 -m pip install --no-cache-dir \
     casadi \
     mypy \
     orjson \
-    pre-commit \
     ruff \
     "websockets>=10.4,<12"
 
@@ -42,7 +41,7 @@ RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then \
     fi
 
 COPY src ./src
-COPY .pre-commit-config.yaml pyproject.toml ./
+COPY pyproject.toml ./
 COPY README.md ./
 
 RUN apt-get update \

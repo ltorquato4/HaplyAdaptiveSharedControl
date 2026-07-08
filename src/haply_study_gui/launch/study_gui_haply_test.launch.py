@@ -2,20 +2,17 @@
 
 from launch import LaunchDescription
 from launch.actions import (
-    DeclareLaunchArgument,
     EmitEvent,
     RegisterEventHandler,
     SetEnvironmentVariable,
 )
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
-from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
     """Build the launch description for hardware GUI testing."""
-    ws_uri = LaunchConfiguration("ws_uri")
     haply_driver = Node(
         package="haply_interface",
         executable="haply_driver_node",
@@ -24,7 +21,6 @@ def generate_launch_description():
         parameters=[
             {
                 "frequency": 100.0,
-                "ws_uri": ws_uri,
             }
         ],
     )
@@ -62,7 +58,7 @@ def generate_launch_description():
         },
         parameters=[
             {
-                "source": "haply",
+                "source": "inverse3",
                 "render_fps": 100.0,
                 "state_publish_hz": 100.0,
                 "auto_start": True,
@@ -73,11 +69,6 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
-            DeclareLaunchArgument(
-                "ws_uri",
-                default_value="ws://localhost:10001",
-                description="Haply Inverse SDK Service WebSocket URI.",
-            ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
             haply_driver,

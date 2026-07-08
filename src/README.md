@@ -18,7 +18,7 @@ boundaries, topics, and fault-handling path.
 - Does not own or relay measured user position. The GUI displays the mapped
   experiment-frame cursor published on `/experiment_cursor_position`.
 - Does not own phase rollout or the randomization of start/end points.
-- Does not need start, pause, or reset buttons.
+- Uses keyboard or launch parameters for test-run start/stop control.
 - Does not need to display coordinates.
 - Publishes `/study_is_running` to Scenario Generator, Controller, Estimator,
   and Logger.
@@ -28,7 +28,7 @@ boundaries, topics, and fault-handling path.
 - Separate from the GUI, Scenario Generator, and Controller.
 - Owns the mapping from raw input-device coordinates into experiment/task
   coordinates.
-- Subscribes to raw Haply position on `/haply_state`.
+- Subscribes to raw Inverse 3 position on `/inverse3_state`.
 - Subscribes to `/study_start_point` so the current raw Haply pose can be
   anchored to the current experiment start point.
 - Captures the raw Haply pose at trial start and maps subsequent displacement
@@ -73,7 +73,7 @@ boundaries, topics, and fault-handling path.
 - Does not directly manipulate the GUI or Scenario Generator position. The
   control output affects the experiment cursor through the physical Haply
   device: `/haply_target` changes the force felt by the user, the user/device
-  moves, `/haply_state` updates, and the mapper publishes the next
+  moves, `/inverse3_state` updates, and the mapper publishes the next
   `/experiment_cursor_position`.
 
 ### Estimator
@@ -97,7 +97,7 @@ u_h = K(h) * x
 
 - `haply_driver_node.py` remains the hardware measurement and command bridge.
 - Computes end-effector force from available Haply torque/state data.
-- Publishes `/haply_state`, which is the raw Haply/device state and not
+- Publishes `/inverse3_state`, which is the raw Inverse 3 state and not
   necessarily in the GUI/task coordinate frame.
 - Publishes `/haply_endeffector_force` to Estimator and Logger.
 - Receives `/haply_target` from Controller.
@@ -107,7 +107,7 @@ u_h = K(h) * x
 - Logs to CSV.
 - Subscribes to all study, control, estimator, raw Haply state, mapped cursor,
   force, controller-mode, and phase topics needed for offline analysis.
-- Logs both raw `/haply_state` and mapped `/experiment_cursor_position` so the
+- Logs both raw `/inverse3_state` and mapped `/experiment_cursor_position` so the
   coordinate mapping can be checked offline.
 
 ## 2. Final Mermaid Architecture Diagram
@@ -131,8 +131,8 @@ flowchart LR
 
     SDK -->|WebSocket state and command session| Driver
 
-    Driver -->|/haply_state\nraw device position| Mapper
-    Driver -->|/haply_state\nraw device position| Logger
+    Driver -->|/inverse3_state\nraw device position| Mapper
+    Driver -->|/inverse3_state\nraw device position| Logger
 
     Driver -->|/haply_endeffector_force| Estimator
     Driver -->|/haply_endeffector_force| Logger
@@ -190,7 +190,7 @@ flowchart LR
 
 | Topic | Type | Publisher | Subscribers | Purpose |
 |---|---|---|---|---|
-| `/haply_state` | `haply_msgs/HaplyState` | `haply_driver_node` | Experiment Mapper, Logger | Raw Haply/device position, velocity, orientation, and buttons. This is the hardware measurement source, but it is not necessarily in the GUI/task coordinate frame. |
+| `/inverse3_state` | `haply_msgs/Inverse3State` | `haply_driver_node` | Experiment Mapper, Logger | Raw Inverse 3 position and velocity. This is the hardware measurement source, but it is not necessarily in the GUI/task coordinate frame. |
 | `/experiment_cursor_position` | `geometry_msgs/Point` | Experiment Mapper | GUI, Scenario Generator, Controller, Estimator, Logger | Mapped experiment-frame cursor position. This is the cursor position used by the study task, controller, estimator, GUI, and logger. |
 | `/haply_endeffector_force` | `geometry_msgs/Vector3` | `haply_driver_node` | Estimator, Logger | End-effector force computed in the driver from torque-derived force. |
 | `/haply_target` | `haply_msgs/HaplyControl` | Controller | `haply_driver_node` | Force command sent to the Haply device. |
@@ -210,7 +210,7 @@ flowchart LR
 
 ### Haply state stale or disconnected
 
-- Experiment Mapper detects stale `/haply_state` and marks
+- Experiment Mapper detects stale `/inverse3_state` and marks
   `/experiment_cursor_position` stale.
 - Controller detects stale `/experiment_cursor_position` and immediately
   publishes zero force on `/haply_target`.
@@ -276,7 +276,7 @@ estimator_status = "reset"
   `Red = Aggressive`, `Yellow = Normal`, `Green = Careful`.
 - The GUI displays start/end points but does not generate them.
 - Scenario Generator owns randomization of start/end points.
-- Experiment Mapper converts raw `/haply_state` into
+- Experiment Mapper converts raw `/inverse3_state` into
   `/experiment_cursor_position`.
 - Scenario Generator publishes start/end points as task definition to the MPC
   Controller and Estimator.

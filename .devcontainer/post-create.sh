@@ -17,4 +17,3 @@ grep -qxF "${WORKSPACE_SOURCE}" ~/.bashrc \
   || echo "${WORKSPACE_SOURCE}" >> ~/.bashrc
 
 git config --global --add safe.directory /workspaces/research-seminar
-pre-commit install --install-hooks

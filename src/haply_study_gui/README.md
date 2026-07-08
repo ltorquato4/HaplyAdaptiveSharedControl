@@ -10,16 +10,15 @@ The GUI is a visual instruction and experiment feedback publisher:
 
 - subscribes to `experiment_cursor_position` for live experiment cursor
   feedback
-- subscribes to `haply_state` for Haply button/status feedback when
-  `source=haply`
 - subscribes to `study_start_point`, `study_end_point`, `study_phase`, and
   `study_controller_mode` from the Scenario Generator
 - publishes `study_is_running`
 - renders the participant-facing Pygame window at 100 Hz by default
-- supports `source=mouse` for testing and `source=haply` for hardware input
-- publishes fake `haply_state` in mouse mode so the Experiment Mapper and
+- supports `source=mouse` for testing and `source=inverse3` for hardware input
+- publishes fake `inverse3_state` in mouse mode so the Experiment Mapper and
   Scenario Generator can be tested without hardware
 - does not publish `haply_target`
+- hardware runs are started with keyboard input or launch parameters
 - does not own phase rollout, controller mode, or start/end point generation
 - does not own endpoint detection or trial rollout
 - does not implement fixed/adaptive controller logic
@@ -31,18 +30,14 @@ force commands to the controller node.
 ## Haply Connection
 
 The hardware launch starts `haply_interface/haply_driver_node`. That driver
-connects to the Haply Inverse SDK Service at `ws://localhost:10001` and
-publishes:
+connects to the Haply Inverse SDK Service at `ws://localhost:10001`. For this
+study stack, the grounded hardware input is:
 
-- `haply_state` (`haply_msgs/HaplyState`) for combined Inverse3 position,
-  velocity, handle orientation, and button state
 - `inverse3_state` (`haply_msgs/Inverse3State`) for Inverse3 position and
   velocity
-- `handle_state` (`haply_msgs/HandleState`) for VerseGrip orientation and
-  buttons
 
 The GUI receives the experiment cursor from `experiment_cursor_position`. It
-subscribes to `haply_state` when `source=haply` for button/status feedback.
+uses `source=inverse3` for hardware mode.
 
 ## Run
 
@@ -56,7 +51,7 @@ want to start one executable by itself.
 | --- | --- |
 | Mouse GUI with Mapper and Scenario Generator | `ros2 launch haply_study_gui study_gui_mouse.launch.py` |
 | GUI only with mouse source | `ros2 run haply_study_gui study_gui --ros-args -p source:=mouse` |
-| Self-contained `/haply_state` smoke test | `ros2 run haply_study_gui test_haply_state_topic --fake` |
+| Self-contained `/inverse3_state` smoke test | `ros2 run haply_study_gui test_inverse3_state_topic --fake` |
 
 ### Hardware
 
@@ -64,24 +59,18 @@ Use the hardware launch only after the Haply Inverse SDK Service is running
 and reachable on port `10001`. The ROS driver connects to it as a WebSocket
 server at `ws://localhost:10001`; this is not a normal web page, so opening
 `http://localhost:10001` in a browser may not show anything useful. Start the
-Haply Inverse SDK Service from the Haply software on the machine connected to
-the device, then run the hardware launch from an environment that can reach
-that host and port. If the SDK service runs on a different host, pass the
-WebSocket URI explicitly, for example:
-
-```bash
-ros2 launch haply_study_gui study_gui.launch.py ws_uri:=ws://<host-ip>:10001
-```
+Haply Inverse SDK Service in the same WSL environment that runs ROS so the
+copied Haply driver can use its expected `ws://localhost:10001` endpoint.
 
 | Purpose | Command |
 | --- | --- |
 | Haply GUI with Mapper and Scenario Generator | `ros2 launch haply_study_gui study_gui.launch.py` |
 | Haply GUI test launch | `ros2 launch haply_study_gui study_gui_haply_test.launch.py` |
-| GUI only, expecting an existing `/haply_state` publisher | `ros2 run haply_study_gui study_gui --ros-args -p source:=haply` |
-| Check live `/haply_state` messages | `ros2 run haply_study_gui test_haply_state_topic` |
+| GUI only, expecting an existing `/inverse3_state` publisher | `ros2 run haply_study_gui study_gui --ros-args -p source:=inverse3` |
+| Check live `/inverse3_state` messages | `ros2 run haply_study_gui test_inverse3_state_topic` |
 
 The mouse launch starts `study_gui`, `experiment_mapper`, and
-`scenario_generator`. The GUI publishes fake `/haply_state`, the mapper
+`scenario_generator`. The GUI publishes fake `/inverse3_state`, the mapper
 publishes `/experiment_cursor_position`, and the Scenario Generator detects
 endpoint completion from the mapped cursor.
 
@@ -99,6 +88,6 @@ State legend and run status. In mouse mode, move the mouse inside the workspace
 to move the blue cursor through the mapper. The Scenario Generator rolls out the
 next phase when the mapped cursor reaches the current endpoint.
 
-The participant-facing GUI does not show start/pause/reset buttons or
-coordinate text. Keyboard shortcuts remain available for test runs: `S` sets
-`study_is_running=True`, `Space` toggles it, and `Esc`/`Q` closes the window.
+The participant-facing GUI does not show coordinate text. Keyboard shortcuts
+remain available for test runs: `S` sets `study_is_running=True`, `Space`
+toggles it, and `Esc`/`Q` closes the window.

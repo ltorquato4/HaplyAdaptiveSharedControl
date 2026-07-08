@@ -12,7 +12,7 @@ os.environ["AUDIODEV"] = "null"
 import pygame  # noqa: E402
 import rclpy  # noqa: E402
 from geometry_msgs.msg import Point  # noqa: E402
-from haply_msgs.msg import HandleButtons, HaplyState  # noqa: E402
+from haply_msgs.msg import Inverse3State  # noqa: E402
 from rclpy.node import Node  # noqa: E402
 from std_msgs.msg import Bool, String  # noqa: E402
 
@@ -65,7 +65,7 @@ class StudyGui(Node):
         self.declare_parameter("workspace_padding", 36)
         self.declare_parameter("render_fps", 100.0)
         self.declare_parameter("state_publish_hz", 100.0)
-        self.declare_parameter("source", "haply")
+        self.declare_parameter("source", "inverse3")
         self.declare_parameter("mouse_simulation", False)
         self.declare_parameter("mouse_simulation_hz", 100.0)
         self.declare_parameter("auto_start", False)
@@ -120,10 +120,9 @@ class StudyGui(Node):
         self.current_position = Point()
         self.previous_mouse_position = Point()
         self.previous_mouse_time = time.monotonic()
-        self.current_buttons = HandleButtons()
         self.study_phase = "normal"
         self.controller_mode = "adaptive"
-        self.draw_button_pressed = False
+        self.draw_input_pressed = False
         self.is_drawing_line = False
         self.finished_line_this_frame = False
         self.drawn_line = []
@@ -134,7 +133,6 @@ class StudyGui(Node):
 
         self.study_is_running_pub = self.create_publisher(Bool, "study_is_running", 10)
 
-        self.create_subscription(HaplyState, "haply_state", self._haply_state, 10)
         self.create_subscription(
             Point, "experiment_cursor_position", self._experiment_cursor_position, 10
         )
@@ -145,10 +143,12 @@ class StudyGui(Node):
             String, "study_controller_mode", self._controller_mode, 10
         )
         if self.source == "mouse":
-            self.mouse_state_pub = self.create_publisher(HaplyState, "haply_state", 10)
+            self.mouse_state_pub = self.create_publisher(
+                Inverse3State, "inverse3_state", 10
+            )
             mouse_period_s = 1.0 / max(self.mouse_simulation_hz, 1.0)
             self.mouse_timer = self.create_timer(
-                mouse_period_s, self._publish_mouse_haply_state
+                mouse_period_s, self._publish_mouse_inverse3_state
             )
         publish_period_s = 1.0 / max(self.state_publish_hz, 0.1)
         self.publish_timer = self.create_timer(
@@ -192,12 +192,18 @@ class StudyGui(Node):
 
     def _parse_source(self, value, mouse_simulation):
         source = value.strip().lower()
-        if source not in ("mouse", "haply"):
+        if source == "haply":
             self.get_logger().warning(
-                f"Unknown source '{value}', falling back to source=haply"
+                "source=haply is deprecated for Inverse3-only study runs; "
+                "using source=inverse3"
             )
-            source = "haply"
-        if source == "haply" and mouse_simulation:
+            source = "inverse3"
+        if source not in ("mouse", "inverse3"):
+            self.get_logger().warning(
+                f"Unknown source '{value}', falling back to source=inverse3"
+            )
+            source = "inverse3"
+        if source == "inverse3" and mouse_simulation:
             source = "mouse"
         return source
 
@@ -214,11 +220,6 @@ class StudyGui(Node):
     def current_behavior(self):
         """Return the human-readable behavioral state."""
         return self.COLORS[self.current_condition]["behavior"]
-
-    def _haply_state(self, msg):
-        if self.source != "haply":
-            return
-        self.current_buttons = msg.buttons
 
     def _experiment_cursor_position(self, msg):
         if self.source == "mouse":
@@ -271,24 +272,18 @@ class StudyGui(Node):
                 elif event.key == pygame.K_s:
                     self.is_running = True
 
-    def _publish_mouse_haply_state(self):
+    def _publish_mouse_inverse3_state(self):
         mouse_pos = pygame.mouse.get_pos()
         now = time.monotonic()
         dt = max(now - self.previous_mouse_time, 1e-6)
         position = self._screen_to_world(mouse_pos)
         self.current_position = position
 
-        msg = HaplyState()
+        msg = Inverse3State()
         msg.position = position
         msg.velocity.x = (position.x - self.previous_mouse_position.x) / dt
         msg.velocity.y = (position.y - self.previous_mouse_position.y) / dt
         msg.velocity.z = 0.0
-        msg.quaternion.w = 1.0
-
-        pressed = pygame.mouse.get_pressed(3)
-        msg.buttons.a = bool(pressed[0])
-        msg.buttons.b = bool(pressed[1])
-        msg.buttons.c = bool(pressed[2])
 
         self.previous_mouse_position = position
         self.previous_mouse_time = now
@@ -303,21 +298,21 @@ class StudyGui(Node):
                 mouse_pos
             )
         else:
-            pressed = bool(self.current_buttons.a)
+            pressed = self.is_running
 
-        if pressed and not self.draw_button_pressed:
+        if pressed and not self.draw_input_pressed:
             self.is_running = True
             self.drawn_line = []
             self._append_drawn_point(self.current_position, force=True)
             self.is_drawing_line = True
         elif pressed and self.is_drawing_line:
             self._append_drawn_point(self.current_position)
-        elif not pressed and self.draw_button_pressed and self.is_drawing_line:
+        elif not pressed and self.draw_input_pressed and self.is_drawing_line:
             self._append_drawn_point(self.current_position, force=True)
             self.is_drawing_line = False
             self.finished_line_this_frame = True
 
-        self.draw_button_pressed = pressed
+        self.draw_input_pressed = pressed
 
     def _update_endpoint_feedback(self):
         if self.trial_completion_latched:
@@ -597,7 +592,7 @@ class StudyGui(Node):
 
     def _reset_drawn_path(self):
         self.drawn_line = []
-        self.draw_button_pressed = False
+        self.draw_input_pressed = False
         self.is_drawing_line = False
         self.finished_line_this_frame = False
         self.endpoint_reached = False
