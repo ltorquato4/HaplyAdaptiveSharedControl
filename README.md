@@ -93,23 +93,50 @@ Use this WSL-owned hardware path:
    ```
 
 
-2. In WSL, start the Linux Haply Inverse Service daemon:
+2. Download and install the Linux standalone Haply Inverse Service in WSL.
+
+   Haply documents two ways to run the Inverse Service: through Haply Hub or as
+   a standalone service. For this WSL-owned hardware workflow, use the
+   standalone Linux service because the USB device is attached to WSL.
+
+   Download it from Haply's official release page:
+
+   https://develop.haply.co/releases/installer
+
+   On that page, select the latest **Standalone Inverse Service** release, open
+   **All downloads**, and download the Linux `.deb` package. From the WSL
+   directory containing the downloaded file, install it with:
+
+   ```bash
+   sudo apt install ./haply-inverse-service*.deb
+   ```
+
+   If the package name differs, replace the filename with the downloaded `.deb`
+   file. After installation, the systemd unit should be available as
+   `haply-inverse-service.service`.
+
+3. In WSL, start the Linux Haply Inverse Service daemon:
 
    ```bash
    sudo systemctl start haply-inverse-service.service
    ```
 
-   If the service is not installed yet, install the Linux standalone Inverse
-   Service from Haply's Inverse Service documentation. Haply also documents
-   `restart`, `stop`, and `enable` with the same service name.
+   Haply also documents `restart`, `stop`, and `enable` with the same service
+   name:
 
-3. Verify that ROS can receive the combined Haply state:
+   ```bash
+   sudo systemctl restart haply-inverse-service.service
+   sudo systemctl stop haply-inverse-service.service
+   sudo systemctl enable haply-inverse-service.service
+   ```
+
+4. Verify that ROS can receive the combined Haply state:
 
    ```bash
    ros2 run haply_study_gui test_haply_state_topic
    ```
 
-4. Launch the study GUI:
+5. Launch the study GUI:
 
    For official study runs (requires pressing Spacebar to start the trial):
    ```bash
