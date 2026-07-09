@@ -43,6 +43,14 @@ def generate_launch_description():
         parameters=[
             {
                 "mapping_mode": "anchored_delta",
+                "use_z_as_y": True,
+                "scale_x": 2.0,        # physical 10 cm → task 15 cm
+                "scale_y": 2.0,
+                "clamp_raw": True,
+                "raw_x_min": -0.20,    # Haply x: ±10 cm left/right
+                "raw_x_max": 0.20,
+                "raw_second_min": -0.20, # Haply z: allow downward movement below anchor
+                "raw_second_max": 0.20,
             }
         ],
     )

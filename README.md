@@ -79,13 +79,19 @@ see it. ROS should therefore connect to `ws://localhost:10001` from WSL.
 
 Use this WSL-owned hardware path:
 
-1. In Administrator PowerShell, attach the device to WSL:
+1. In Administrator PowerShell, attach the 2 devices USB ports, usually identified as COM3 and COM5,  to WSL:
 
    ```powershell
    usbipd list
    usbipd bind --busid <busid>
    usbipd attach --wsl --busid <busid>
    ```
+
+   In order to detach, use: 
+   ```
+   usbipd detach --busid <busid>
+   ```
+
 
 2. In WSL, start the Linux Haply Inverse Service daemon:
 
@@ -103,11 +109,29 @@ Use this WSL-owned hardware path:
    ros2 run haply_study_gui test_haply_state_topic
    ```
 
-4. Launch the hardware GUI, mapper, and scenario generator:
+4. Launch the study GUI:
 
+   For official study runs (requires pressing Spacebar to start the trial):
    ```bash
    ros2 launch haply_study_gui study_gui.launch.py
    ```
+
+   For hardware testing and parameter tuning (starts automatically):
+   ```bash
+   ros2 launch haply_study_gui study_gui_haply_test.launch.py
+   ```
+
+### Workspace Mapping & Tuning
+
+The study mapping logic converts physical Haply movements into 2D screen coordinates using the following rules:
+
+- **Z-as-Y Mapping**: The Haply's vertical `z` axis is mapped to the screen's `y` axis (`use_z_as_y=True`), meaning vertical physical movement maps to vertical screen movement. The physical depth axis (`y`) is ignored for this 2-DoF study.
+- **Scaling**: Physical movements are scaled up by the mapper (e.g. `scale_x=2.0`, `scale_y=2.0`). A 10cm physical movement covers 20cm of task space.
+- **Physical Clamping**: The accessible physical workspace is clamped relative to the spot where the arm rested when the script launched (`clamp_raw=True`).
+  - To change left/right physical boundaries, edit `raw_x_min` and `raw_x_max`.
+  - To change down/up physical boundaries, edit `raw_second_min` and `raw_second_max`.
+
+These parameters can be tuned directly inside `study_gui.launch.py` and `study_gui_haply_test.launch.py` without rebuilding the workspace.
 
 
 ## ROS Workspace Commands

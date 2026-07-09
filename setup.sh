@@ -60,6 +60,7 @@ source "${VENV_DIR}/bin/activate"
 python3 -m pip install --upgrade pip
 python3 -m pip install --upgrade \
   casadi \
+  colcon-common-extensions \
   mypy \
   orjson \
   ruff \
@@ -77,7 +78,7 @@ source "/opt/ros/${ROS_DISTRO}/setup.bash"
 set -u
 
 rosdep install --from-paths src --ignore-src -r -y --rosdistro "${ROS_DISTRO}"
-colcon build --symlink-install
+python3 -m colcon build --symlink-install
 
 BASHRC="${HOME}/.bashrc"
 LOCAL_BIN_LINE='export PATH="$HOME/.local/bin:$PATH"'

@@ -31,6 +31,12 @@ class ExperimentMapper(Node):
         self.declare_parameter("scale_y", 1.0)
         self.declare_parameter("invert_x", False)
         self.declare_parameter("invert_y", False)
+        self.declare_parameter("use_z_as_y", True)
+        self.declare_parameter("clamp_raw", False)
+        self.declare_parameter("raw_x_min", -0.10)
+        self.declare_parameter("raw_x_max", 0.10)
+        self.declare_parameter("raw_second_min", 0.0)
+        self.declare_parameter("raw_second_max", 0.15)
 
         self.mapping_mode = (
             str(self.get_parameter("mapping_mode").value).strip().lower()
@@ -45,6 +51,12 @@ class ExperimentMapper(Node):
             scale_y=float(self.get_parameter("scale_y").value),
             invert_x=bool(self.get_parameter("invert_x").value),
             invert_y=bool(self.get_parameter("invert_y").value),
+            use_z_as_y=bool(self.get_parameter("use_z_as_y").value),
+            clamp_raw=bool(self.get_parameter("clamp_raw").value),
+            raw_x_min=float(self.get_parameter("raw_x_min").value),
+            raw_x_max=float(self.get_parameter("raw_x_max").value),
+            raw_second_min=float(self.get_parameter("raw_second_min").value),
+            raw_second_max=float(self.get_parameter("raw_second_max").value),
         )
         self.anchored_mapper = AnchoredDeltaMapper(config)
         self.latest_raw_position: TaskPoint | None = None
