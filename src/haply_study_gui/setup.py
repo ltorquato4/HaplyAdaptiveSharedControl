@@ -28,8 +28,8 @@ setup(
     entry_points={
         "console_scripts": [
             (
-                "test_inverse3_state_topic = "
-                "haply_study_gui.tests.test_inverse3_state_topic:main"
+                "test_haply_state_topic = "
+                "haply_study_gui.tests.test_haply_state_topic:main"
             ),
             "study_gui = haply_study_gui.study_gui_node:main",
         ],

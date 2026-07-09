@@ -58,7 +58,7 @@ def generate_launch_description():
         },
         parameters=[
             {
-                "source": "inverse3",
+                "source": "haply",
                 "render_fps": 100.0,
                 "state_publish_hz": 100.0,
                 "auto_start": True,

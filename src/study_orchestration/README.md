@@ -1,7 +1,7 @@
 # Study Orchestration
 
 This package contains the study-owned nodes that sit between the GUI, the raw
-Haply Inverse 3 input, and the controller-facing experiment topics.
+Haply input, and the controller-facing experiment topics.
 
 ## Nodes
 
@@ -57,7 +57,7 @@ Publishes:
 
 Subscribes:
 
-- `/inverse3_state` (`haply_msgs/Inverse3State`)
+- `/haply_state` (`haply_msgs/HaplyState`)
 - `/study_start_point` (`geometry_msgs/Point`)
 - `/study_is_running` (`std_msgs/Bool`)
 
@@ -65,7 +65,7 @@ Supported modes:
 
 - `identity`: directly republishes raw position as the experiment cursor. This
   is used for mouse simulation because the GUI already generates fake
-  `/inverse3_state` in task-frame coordinates.
+  `/haply_state` in task-frame coordinates.
 - `anchored_delta`: captures the current raw device pose when a trial starts
   and maps subsequent raw displacement onto the current `/study_start_point`.
   This is the default for Haply hardware tests.
@@ -81,7 +81,7 @@ Useful parameters:
 
 `ros2 launch haply_study_gui study_gui_mouse.launch.py`
 
-The GUI publishes fake `/inverse3_state` from the mouse. The mapper converts that
+The GUI publishes fake `/haply_state` from the mouse. The mapper converts that
 to `/experiment_cursor_position`, and the scenario generator uses the mapped
 cursor to detect when the endpoint is reached.
 
@@ -89,7 +89,7 @@ cursor to detect when the endpoint is reached.
 
 `ros2 launch haply_study_gui study_gui.launch.py`
 
-The Haply driver publishes real `/inverse3_state`. The mapper anchors the current
-raw Inverse 3 pose to the current task start point when the study starts, then
+The Haply driver publishes real `/haply_state`. The mapper anchors the current
+raw Haply pose to the current task start point when the study starts, then
 publishes mapped task-frame cursor updates for the GUI, Scenario Generator,
 Controller, Estimator, and Logger.

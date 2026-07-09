@@ -2,10 +2,17 @@
 
 ## Development Setup
 
-The supported setup for development and hardware testing is direct WSL Ubuntu
-22.04. This keeps the Haply USB device, Haply Inverse SDK Service, and ROS 2
-nodes in the same Linux environment, matching the copied Haply interface
-documentation.
+This repository supports two development paths:
+
+1. Direct WSL Ubuntu 22.04 with a project virtual environment.
+2. Docker through the VS Code devcontainer for an isolated ROS 2 workspace.
+
+Use the direct WSL path for Haply hardware testing unless you have explicitly
+confirmed that the Haply Inverse SDK Service and WebSocket endpoint are reachable
+from inside the container. Use the devcontainer for reproducible non-hardware
+builds, linting, and ROS package checks.
+
+### Direct WSL / Virtual Environment
 
 From the repository root in WSL, run:
 
@@ -13,60 +20,103 @@ From the repository root in WSL, run:
 ./setup.sh
 ```
 
-The setup script installs ROS 2 Humble dependencies, Python tooling, rosdep
-dependencies, builds the workspace, and adds ROS/workspace sourcing to
+The setup script installs ROS 2 Humble dependencies, creates `.venv` if needed,
+installs Python tooling into that virtual environment, installs rosdep
+dependencies, builds the workspace, and adds venv/ROS/workspace sourcing to
 `~/.bashrc`.
 
-The Docker/devcontainer files remain in the repository as a legacy
-non-hardware development path. Do not use Docker for Haply hardware testing:
-the hardware workflow already requires forwarding the USB device from Windows
-to WSL with `usbipd`, and adding a container creates another device and network
-boundary.
+After opening a new shell, ROS commands should be available directly. To refresh
+the current shell manually, run:
+
+```bash
+source .venv/bin/activate
+source /opt/ros/humble/setup.bash
+source install/setup.bash
+```
+
+### Docker / Devcontainer
+
+With Docker Desktop running, use VS Code's **Dev Containers: Reopen in
+Container** command. VS Code builds the image from
+[`docker/Dockerfile`](docker/Dockerfile), mounts this repository, keeps
+`build/`, `install/`, and `log/` in Docker volumes, builds the ROS workspace,
+and sources ROS/workspace setup files for new terminals.
+
+You can also build the Docker image manually:
+
+```bash
+docker build -f docker/Dockerfile -t research-seminar:humble .
+```
+
+Then run a smoke check without mounting the local workspace:
+
+```bash
+docker run --rm research-seminar:humble \
+  bash -lc "ruff --version && mypy --version && ros2 pkg list | grep haply_study_gui"
+```
+
+The local `.venv` is ignored by Docker and is not used inside the image or
+devcontainer.
 
 Package-specific launch commands are documented in each package README under
 [`src/`](src/).
 
 ## Haply Hardware Setup
 
-For WSL hardware testing, the Haply device USB connection must be attached to
-WSL before starting the SDK service and ROS nodes.
+The study uses the Haply Inverse3 together with the VerseGrip Stylus. The
+VerseGrip Stylus provides orientation tracking and in-hand input buttons; the
+study GUI uses the VerseGrip button state published on `/haply_state.buttons`.
+Button `a` is the active drawing/start input for hardware runs.
 
-In Administrator PowerShell:
+Haply's setup notes for the VerseGrip Stylus are here:
+https://docs.haply.co/docs/quick-start-verse-grip-stylus/
 
-```powershell
-usbipd list
-usbipd bind --busid <busid>
-usbipd attach --wsl --busid <busid>
-```
+The supported hardware path is to attach the Haply USB device to WSL and run
+the Linux standalone Haply Inverse Service inside WSL. The USB device can only
+be owned by one environment at a time: after `usbipd attach --wsl`, Windows
+releases the device, so Windows-side Haply Hub or Windows Inverse Service cannot
+see it. ROS should therefore connect to `ws://localhost:10001` from WSL.
 
-Then, in WSL:
+Use this WSL-owned hardware path:
 
-1. Start the Haply Inverse SDK Service so it listens at
-   `ws://localhost:10001`.
-2. Verify that ROS can receive the Inverse 3 state:
+1. In Administrator PowerShell, attach the device to WSL:
 
-   ```bash
-   ros2 run haply_study_gui test_inverse3_state_topic
+   ```powershell
+   usbipd list
+   usbipd bind --busid <busid>
+   usbipd attach --wsl --busid <busid>
    ```
 
-3. Launch the hardware GUI, mapper, and scenario generator:
+2. In WSL, start the Linux Haply Inverse Service daemon:
+
+   ```bash
+   sudo systemctl start haply-inverse-service.service
+   ```
+
+   If the service is not installed yet, install the Linux standalone Inverse
+   Service from Haply's Inverse Service documentation. Haply also documents
+   `restart`, `stop`, and `enable` with the same service name.
+
+3. Verify that ROS can receive the combined Haply state:
+
+   ```bash
+   ros2 run haply_study_gui test_haply_state_topic
+   ```
+
+4. Launch the hardware GUI, mapper, and scenario generator:
 
    ```bash
    ros2 launch haply_study_gui study_gui.launch.py
    ```
 
+
 ## ROS Workspace Commands
 
 After changing a ROS package, rebuild it from the workspace root. Replace
-`<package_name>` with the package you changed:
+`haply_study_gui` with the package you changed:
 
 ```bash
-colcon build --symlink-install --packages-select <package_name>
-```
-
-Source the rebuilt workspace before launching nodes from the same terminal:
-
-```bash
+colcon build --symlink-install --packages-select haply_study_gui
 source install/setup.bash
 ```
 
@@ -74,6 +124,7 @@ For a full workspace rebuild, omit `--packages-select`:
 
 ```bash
 colcon build --symlink-install
+source install/setup.bash
 ```
 
 ## Manual Checks
@@ -94,5 +145,5 @@ ruff format --force-exclude .
 ruff check --fix --force-exclude .
 ```
 
-The copied Haply interface under `src/haply_ros2_interface/` is excluded by
-tool configuration and should not be reformatted as project-owned code.
+The copied Haply interface under `src/haply_ros2_interface/` is excluded by tool
+configuration and should not be reformatted as project-owned code.

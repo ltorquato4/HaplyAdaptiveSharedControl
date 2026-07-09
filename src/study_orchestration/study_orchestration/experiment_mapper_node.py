@@ -1,10 +1,10 @@
 #!/usr/bin/env python3
 
-"""Map raw Inverse3 or mouse-simulated state into experiment task coordinates."""
+"""Map raw Haply or mouse-simulated state into experiment task coordinates."""
 
 import rclpy
 from geometry_msgs.msg import Point
-from haply_msgs.msg import Inverse3State
+from haply_msgs.msg import HaplyState
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from std_msgs.msg import Bool
@@ -53,15 +53,13 @@ class ExperimentMapper(Node):
         self.anchor_pending = True
 
         self.cursor_pub = self.create_publisher(Point, "experiment_cursor_position", 10)
-        self.create_subscription(
-            Inverse3State, "inverse3_state", self._inverse3_state, 10
-        )
+        self.create_subscription(HaplyState, "haply_state", self._haply_state, 10)
         self.create_subscription(
             Point, "study_start_point", self._study_start_point, 10
         )
         self.create_subscription(Bool, "study_is_running", self._study_is_running, 10)
 
-    def _inverse3_state(self, msg: Inverse3State) -> None:
+    def _haply_state(self, msg: HaplyState) -> None:
         raw_position = self._from_point_msg(msg.position)
         self.latest_raw_position = raw_position
         self._capture_anchor_if_ready()

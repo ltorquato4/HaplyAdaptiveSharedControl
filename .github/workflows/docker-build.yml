@@ -1,0 +1,44 @@
+name: Docker Build
+
+on:
+  push:
+    paths:
+      - "docker/**"
+      - ".devcontainer/**"
+      - "src/**/package.xml"
+      - "src/**/setup.py"
+      - "src/**/CMakeLists.txt"
+      - "pyproject.toml"
+      - "README.md"
+      - ".github/workflows/docker-build.yml"
+  pull_request:
+    paths:
+      - "docker/**"
+      - ".devcontainer/**"
+      - "src/**/package.xml"
+      - "src/**/setup.py"
+      - "src/**/CMakeLists.txt"
+      - "pyproject.toml"
+      - "README.md"
+      - ".github/workflows/docker-build.yml"
+
+jobs:
+  docker-build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Build image
+        run: >-
+          docker build
+          -f ./docker/Dockerfile
+          -t research-seminar:humble
+          .
+
+      - name: Run smoke test
+        run: >-
+          docker run --rm
+          research-seminar:humble
+          bash -lc "ruff --version && mypy --version && ros2 pkg list | grep haply_study_gui"
