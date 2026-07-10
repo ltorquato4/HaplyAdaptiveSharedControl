@@ -3,6 +3,7 @@
 import numpy as np
 import rclpy
 from geometry_msgs.msg import Point, Vector3
+from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
 from std_msgs.msg import Float64MultiArray
 
@@ -13,6 +14,25 @@ class RLSEstimatorNode(Node):
     def __init__(self):
 
         super().__init__("estimator_node")
+
+        #
+        # Logging Setup
+        #
+        
+        self.log_level = self.declare_parameter("log_level", "DEBUG").value
+
+        log_levels = {
+            "DEBUG": LoggingSeverity.DEBUG,
+            "INFO": LoggingSeverity.INFO,
+            "WARN": LoggingSeverity.WARN,
+            "WARNING": LoggingSeverity.WARN,
+            "ERROR": LoggingSeverity.ERROR,
+            "FATAL": LoggingSeverity.FATAL,
+        }
+
+        self.get_logger().set_level(
+            log_levels.get(str(self.log_level).upper(), LoggingSeverity.DEBUG)
+        )
 
         self.cursor = None
         self.goal = None
@@ -53,13 +73,14 @@ class RLSEstimatorNode(Node):
 
         self.timer = self.create_timer(0.01, self.update_estimator)
 
-        self.get_logger().info("RLS Estimator Started")
+        self.get_logger().info("RLS Estimator node started.")
 
     #########################################################
 
     def start_callback(self, msg):
 
         self.start_point = msg
+        self.get_logger().debug(f"Start point updated: [{msg.x}, {msg.y}]")
 
         if not self.initialized:
             self.rls.initialize_from_start_point(msg)
@@ -70,9 +91,12 @@ class RLSEstimatorNode(Node):
 
     def cursor_callback(self, msg):
         self.cursor = msg
+        # Logging at trace/debug to avoid spamming the console at 100Hz
+        self.get_logger().debug(f"Cursor position received: [{msg.x}, {msg.y}]")
 
     def goal_callback(self, msg):
         self.goal = msg
+        self.get_logger().debug(f"Goal point updated: [{msg.x}, {msg.y}]")
 
     #########################################################
 
@@ -96,7 +120,8 @@ class RLSEstimatorNode(Node):
             self.prev_time = now
             self.prev_pos = pos
             self.prev_vel = np.zeros(2)
-
+            
+            self.get_logger().debug("First sample recorded, initializing previous state variables.")
             return
 
         dt = now - self.prev_time
@@ -115,6 +140,8 @@ class RLSEstimatorNode(Node):
         #
 
         acc = (vel - self.prev_vel) / dt
+        
+        self.get_logger().debug(f"Computed kinematics - Vel: {vel}, Acc: {acc}")
 
         #
         # goal error
@@ -122,6 +149,8 @@ class RLSEstimatorNode(Node):
 
         ex = self.goal.x - self.cursor.x
         ey = self.goal.y - self.cursor.y
+        
+        self.get_logger().debug(f"Goal error - ex: {ex}, ey: {ey}")
 
         vx = vel[0]
         vy = vel[1]
@@ -136,6 +165,8 @@ class RLSEstimatorNode(Node):
         self.rls.update(ex, vx, ey, vy, ax, ay)
 
         kh = self.rls.get_matrix()
+        
+        self.get_logger().debug(f"RLS updated. K_h matrix computed: {kh.flatten().tolist()}")
 
         #
         # estimated human control
@@ -144,6 +175,8 @@ class RLSEstimatorNode(Node):
         state = np.array([ex, vx, ey, vy])
 
         uh = kh @ state
+        
+        self.get_logger().debug(f"Estimated human control u_h: {uh}")
 
         #
         # Publish Kh
@@ -154,6 +187,7 @@ class RLSEstimatorNode(Node):
         kh_msg.data = kh.flatten().tolist()
 
         self.kh_pub.publish(kh_msg)
+        self.get_logger().debug("Published K_h estimation.")
 
         #
         # Publish Uh
@@ -166,6 +200,7 @@ class RLSEstimatorNode(Node):
         uh_msg.z = 0.0
 
         self.uh_pub.publish(uh_msg)
+        self.get_logger().debug(f"Published u_h vector: ({uh_msg.x}, {uh_msg.y}, {uh_msg.z})")
 
         #
         # save previous
@@ -182,11 +217,13 @@ def main(args=None):
 
     node = RLSEstimatorNode()
 
-    rclpy.spin(node)
-
-    node.destroy_node()
-
-    rclpy.shutdown()
+    try:
+        rclpy.spin(node)
+    except KeyboardInterrupt:
+        node.get_logger().info("Shutting down RLS Estimator node.")
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":
