@@ -20,91 +20,35 @@ class ControlSystemTest(Node):
         # Publishers
         #
 
-        self.study_running_pub = self.create_publisher(
-            Bool,
-            "/study_is_running",
-            10,
-        )
-
-        self.mode_pub = self.create_publisher(
-            String,
-            "/study_controller_mode",
-            10,
-        )
-
-        self.start_pub = self.create_publisher(
-            Point,
-            "/study_start_point",
-            10,
-        )
-
-        self.goal_pub = self.create_publisher(
-            Point,
-            "/study_end_point",
-            10,
-        )
-
-        self.cursor_pub = self.create_publisher(
-            Point,
-            "/experiment_cursor_position",
-            10,
-        )
+        self.study_running_pub = self.create_publisher(Bool, "/study_is_running", 10)
+        self.mode_pub = self.create_publisher(String, "/study_controller_mode", 10)
+        self.start_pub = self.create_publisher(Point, "/study_start_point", 10)
+        self.goal_pub = self.create_publisher(Point, "/study_end_point", 10)
+        self.cursor_pub = self.create_publisher(Point, "/experiment_cursor_position", 10)
 
         #
         # Subscribers
         #
 
-        self.create_subscription(
-            Vector3,
-            "/control/U_a",
-            self.control_callback,
-            10,
-        )
-
-        self.create_subscription(
-            String,
-            "/control/K_a",
-            self.parameter_callback,
-            10,
-        )
-
-        self.create_subscription(
-            HaplyControl,
-            "/haply_target",
-            self.force_callback,
-            10,
-        )
-
-        self.create_subscription(
-            Float64MultiArray,
-            "/estimation/K_h",
-            self.kh_callback,
-            10,
-        )
-
-        self.create_subscription(
-            Vector3,
-            "/estimation/u_h",
-            self.uh_callback,
-            10,
-        )
+        self.create_subscription(Vector3, "/control/U_a", self.control_callback, 10)
+        self.create_subscription(String, "/control/K_a", self.parameter_callback, 10)
+        self.create_subscription(HaplyControl, "/haply_target", self.force_callback, 10)
+        self.create_subscription(Float64MultiArray, "/estimation/K_h", self.kh_callback, 10)
+        self.create_subscription(Vector3, "/estimation/u_h", self.uh_callback, 10)
 
         #
         # Initial experiment setup
         #
 
         self.publish_initial_messages()
+        self.i = 0
 
         #
         # Cursor simulation (100 Hz)
         #
 
         self.t = 0.0
-
-        self.timer = self.create_timer(
-            0.01,
-            self.publish_cursor,
-        )
+        self.timer = self.create_timer(0.01, self.publish_cursor)
 
         self.get_logger().info("Test node started.")
 
@@ -113,134 +57,65 @@ class ControlSystemTest(Node):
     #########################################################
 
     def publish_initial_messages(self):
-
-        running = Bool()
-        running.data = True
-
+        running = Bool(data=True)
         self.study_running_pub.publish(running)
+        self.get_logger().info(f"Published study running state: {running.data}")
 
-        self.get_logger().info(
-            f"Published study running state: {running.data}"
-        )
-
-        mode = String()
-        mode.data = "adaptive"
-
+        mode = String(data="adaptive")
         self.mode_pub.publish(mode)
+        self.get_logger().info(f"Published controller mode: {mode.data}")
 
-        self.get_logger().info(
-            f"Published controller mode: {mode.data}"
-        )
-
-        start = Point()
-        start.x = 100.0
-        start.y = 100.0
-        start.z = 0.0
-
+        start = Point(x=100.0, y=100.0, z=0.0)
         self.start_pub.publish(start)
+        self.get_logger().info(f"Published start point: ({start.x}, {start.y})")
 
-        self.get_logger().info(
-            f"Published start point: ({start.x}, {start.y})"
-        )
-
-        goal = Point()
-        goal.x = 700.0
-        goal.y = 500.0
-        goal.z = 0.0
-
+        goal = Point(x=700.0, y=500.0, z=0.0)
         self.goal_pub.publish(goal)
-
-        self.get_logger().info(
-            f"Published goal point: ({goal.x}, {goal.y})"
-        )
+        self.get_logger().info(f"Published goal point: ({goal.x}, {goal.y})")
 
     #########################################################
     # Cursor simulation
     #########################################################
 
     def publish_cursor(self):
+        if self.i < 75:
+            self.publish_initial_messages()
+            self.i = self.i + 1
+        else:
+            msg = Point(
+                x=100.0 + 300.0 * (1.0 - math.exp(-0.2 * self.t)),
+                y=100.0 + 150.0 * math.sin(0.5 * self.t),
+            )
 
-        msg = Point()
+            self.cursor_pub.publish(msg)
+            self.get_logger().debug(f"Published cursor: ({msg.x:.3f}, {msg.y:.3f})")
 
-        #
-        # Simulated human trajectory
-        #
+            self.t += 0.01
 
-        msg.x = (
-            100.0
-            + 300.0 * (1.0 - math.exp(-0.2 * self.t))
-        )
-
-        msg.y = (
-            100.0
-            + 150.0 * math.sin(0.5 * self.t)
-        )
-
-        self.cursor_pub.publish(msg)
-
-        self.get_logger().debug(
-            f"Published cursor: ({msg.x:.3f}, {msg.y:.3f})"
-        )
-
-        self.t += 0.01
 
     #########################################################
     # Subscribers
     #########################################################
 
-    def control_callback(self, msg):
-
-        self.get_logger().debug(
-            f"Control U_a: ({msg.x:.3f}, {msg.y:.3f}, {msg.z:.3f})"
-        )
-
-    def parameter_callback(self, msg):
-
-        self.get_logger().debug(
-            f"Controller parameters K_a: {msg.data}"
-        )
-
-    def force_callback(self, msg):
-
-        self.get_logger().debug(
-            f"Haply force: "
-            f"({msg.force.x:.3f}, "
-            f"{msg.force.y:.3f}, "
-            f"{msg.force.z:.3f})"
-        )
-
-    def kh_callback(self, msg):
-
-        self.get_logger().debug(
-            f"Estimated K_h: "
-            f"{[round(v, 5) for v in msg.data]}"
-        )
-
-    def uh_callback(self, msg):
-
-        self.get_logger().debug(
-            f"Estimated human control U_h: "
-            f"({msg.x:.3f}, {msg.y:.3f}, {msg.z:.3f})"
-        )
+    def control_callback(self, msg): self.get_logger().debug(f"Control U_a: ({msg.x:.3f}, {msg.y:.3f}, {msg.z:.3f})")
+    def parameter_callback(self, msg): self.get_logger().debug(f"Controller parameters K_a: {msg.data}")
+    def force_callback(self, msg): self.get_logger().debug(f"Haply force: ({msg.force.x:.3f}, {msg.force.y:.3f}, {msg.force.z:.3f})")
+    def kh_callback(self, msg): self.get_logger().debug(f"Estimated K_h: {[round(v, 5) for v in msg.data]}")
+    def uh_callback(self, msg): self.get_logger().debug(f"Estimated human control U_h: ({msg.x:.3f}, {msg.y:.3f}, {msg.z:.3f})")
 
 
 ############################################################
 
 
 def main(args=None):
-
     rclpy.init(args=args)
 
     node = ControlSystemTest()
 
     try:
         rclpy.spin(node)
-
     except KeyboardInterrupt:
-        node.get_logger().info(
-            "Shutting down test node."
-        )
-
+        node.get_logger().info("Shutting down test node.")
     finally:
         node.destroy_node()
         rclpy.shutdown()
