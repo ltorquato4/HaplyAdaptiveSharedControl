@@ -14,7 +14,7 @@ class ControlSystemTest(Node):
     def __init__(self):
         super().__init__("control_system_test")
 
-        self.get_logger().set_level(LoggingSeverity.DEBUG)
+        self.get_logger().set_level(LoggingSeverity.INFO)
 
         #
         # Publishers

@@ -221,6 +221,7 @@ class ControlNode(Node):
         """
         TODO: Test once the estimation is available
         """
+        self.get_logger().debug(f"Received estimated K_h")
         if self.study_running:
             if self.controller_mode == "adaptive":
                 k_h = [[msg.data[0], msg.data[1]], [msg.data[2], msg.data[3]]]
