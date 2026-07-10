@@ -3,7 +3,7 @@ from geometry_msgs.msg import Point, Vector3
 from haply_msgs.msg import HaplyControl
 from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
-from std_msgs.msg import Bool, Float32MultiArray, String
+from std_msgs.msg import Bool, Float64MultiArray, String
 
 from control_node.mpc_controller.adaptive_mpc_controller import AdaptiveMpcController
 from control_node.mpc_controller.mpc_controller import MpcController
@@ -121,7 +121,7 @@ class ControlNode(Node):
             10,
         )
         self.estimation_kh_sub = self.create_subscription(
-            Float32MultiArray,
+            Float64MultiArray,
             "/estimation/K_h",
             self.estimation_kh_callback,
             10,
@@ -207,20 +207,19 @@ class ControlNode(Node):
         self.get_logger().debug(f"Study running state changed to {self.study_running}")
 
     def controller_mode_callback(self, msg: String):
-        if self.study_running and self.start_point != [] and self.end_point != []:
-            self.controller_mode = msg.data.lower()
+        self.controller_mode = msg.data.lower()
 
-            self.get_logger().debug(
-                f"Controller mode changed to {self.controller_mode}"
-            )
+        self.get_logger().debug(
+            f"Controller mode changed to {self.controller_mode}"
+        )
 
-            self.initialize_controller()
+        self.initialize_controller()
 
-            control_parameter_msg = String()
-            control_parameter_msg.data = self.controller.publish_control_parameter()
-            self.control_parameter_pub.publish(control_parameter_msg)
+        control_parameter_msg = String()
+        control_parameter_msg.data = self.controller.publish_control_parameter()
+        self.control_parameter_pub.publish(control_parameter_msg)
 
-            self.get_logger().debug("Published controller parameters.")
+        self.get_logger().debug("Published controller parameters.")
 
     def start_point_callback(self, msg: Point):
         self.start_point = [msg.x, msg.y]
@@ -269,7 +268,7 @@ class ControlNode(Node):
             f"{force_feedback_vector.z})"
         )
 
-    def estimation_kh_callback(self, msg: Float32MultiArray):
+    def estimation_kh_callback(self, msg: Float64MultiArray):
         """
         TODO: Test once the estimation is available
         """

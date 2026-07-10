@@ -5,13 +5,16 @@ import math
 import rclpy
 from geometry_msgs.msg import Point, Vector3
 from haply_msgs.msg import HaplyControl
+from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
-from std_msgs.msg import Bool, Float32MultiArray, Float64MultiArray, String
+from std_msgs.msg import Bool, Float64MultiArray, String
 
 
 class ControlSystemTest(Node):
     def __init__(self):
         super().__init__("control_system_test")
+
+        self.get_logger().set_level(LoggingSeverity.DEBUG)
 
         #
         # Publishers
@@ -97,36 +100,62 @@ class ControlSystemTest(Node):
         #
 
         self.t = 0.0
-        self.timer = self.create_timer(0.01, self.publish_cursor)
+
+        self.timer = self.create_timer(
+            0.01,
+            self.publish_cursor,
+        )
 
         self.get_logger().info("Test node started.")
 
+    #########################################################
+    # Initial messages
     #########################################################
 
     def publish_initial_messages(self):
 
         running = Bool()
         running.data = True
+
         self.study_running_pub.publish(running)
+
+        self.get_logger().info(
+            f"Published study running state: {running.data}"
+        )
 
         mode = String()
         mode.data = "adaptive"
+
         self.mode_pub.publish(mode)
+
+        self.get_logger().info(
+            f"Published controller mode: {mode.data}"
+        )
 
         start = Point()
         start.x = 100.0
         start.y = 100.0
+        start.z = 0.0
+
         self.start_pub.publish(start)
+
+        self.get_logger().info(
+            f"Published start point: ({start.x}, {start.y})"
+        )
 
         goal = Point()
         goal.x = 700.0
         goal.y = 500.0
+        goal.z = 0.0
+
         self.goal_pub.publish(goal)
 
         self.get_logger().info(
-            "Published start point, goal point, mode and running state."
+            f"Published goal point: ({goal.x}, {goal.y})"
         )
 
+    #########################################################
+    # Cursor simulation
     #########################################################
 
     def publish_cursor(self):
@@ -134,13 +163,24 @@ class ControlSystemTest(Node):
         msg = Point()
 
         #
-        # Smooth trajectory
+        # Simulated human trajectory
         #
 
-        msg.x = 100.0 + 300.0 * (1.0 - math.exp(-0.2 * self.t))
-        msg.y = 100.0 + 150.0 * math.sin(0.5 * self.t)
+        msg.x = (
+            100.0
+            + 300.0 * (1.0 - math.exp(-0.2 * self.t))
+        )
+
+        msg.y = (
+            100.0
+            + 150.0 * math.sin(0.5 * self.t)
+        )
 
         self.cursor_pub.publish(msg)
+
+        self.get_logger().debug(
+            f"Published cursor: ({msg.x:.3f}, {msg.y:.3f})"
+        )
 
         self.t += 0.01
 
@@ -150,32 +190,37 @@ class ControlSystemTest(Node):
 
     def control_callback(self, msg):
 
-        self.get_logger().info(
-            f"Control U_a = ({msg.x:.3f}, {msg.y:.3f})"
+        self.get_logger().debug(
+            f"Control U_a: ({msg.x:.3f}, {msg.y:.3f}, {msg.z:.3f})"
         )
 
     def parameter_callback(self, msg):
 
-        self.get_logger().info(
-            f"K_a = {msg.data}"
+        self.get_logger().debug(
+            f"Controller parameters K_a: {msg.data}"
         )
 
     def force_callback(self, msg):
 
-        self.get_logger().info(
-            f"Force = ({msg.force.x:.3f}, {msg.force.y:.3f})"
+        self.get_logger().debug(
+            f"Haply force: "
+            f"({msg.force.x:.3f}, "
+            f"{msg.force.y:.3f}, "
+            f"{msg.force.z:.3f})"
         )
 
     def kh_callback(self, msg):
 
-        self.get_logger().info(
-            f"K_h = {[round(v,3) for v in msg.data]}"
+        self.get_logger().debug(
+            f"Estimated K_h: "
+            f"{[round(v, 5) for v in msg.data]}"
         )
 
     def uh_callback(self, msg):
 
-        self.get_logger().info(
-            f"U_h = ({msg.x:.3f}, {msg.y:.3f})"
+        self.get_logger().debug(
+            f"Estimated human control U_h: "
+            f"({msg.x:.3f}, {msg.y:.3f}, {msg.z:.3f})"
         )
 
 
@@ -190,11 +235,15 @@ def main(args=None):
 
     try:
         rclpy.spin(node)
-    except KeyboardInterrupt:
-        pass
 
-    node.destroy_node()
-    rclpy.shutdown()
+    except KeyboardInterrupt:
+        node.get_logger().info(
+            "Shutting down test node."
+        )
+
+    finally:
+        node.destroy_node()
+        rclpy.shutdown()
 
 
 if __name__ == "__main__":
