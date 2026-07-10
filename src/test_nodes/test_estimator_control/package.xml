@@ -3,9 +3,14 @@
 <package format="3">
   <name>test_estimator_control</name>
   <version>0.0.0</version>
-  <description>TODO: Package description</description>
-  <maintainer email="uoxtx@todo.todo">uoxtx</maintainer>
-  <license>TODO: License declaration</license>
+  <description>Test Node for Estimator and Control for Haply shared-control experiments</description>
+  <maintainer email="uoxtx@users.noreply.github.com">uoxtx</maintainer>
+  <license>UNLICENSED</license>
+
+  <depend>rclpy</depend>
+  <depend>geometry_msgs</depend>
+  <depend>haply_msgs</depend>
+  <depend>std_msgs</depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>
