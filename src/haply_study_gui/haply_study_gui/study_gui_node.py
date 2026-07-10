@@ -18,7 +18,7 @@ from std_msgs.msg import Bool, String  # noqa: E402
 
 
 class StudyGui(Node):
-    """Pygame GUI and scenario-state publisher."""
+    """Participant-facing Pygame GUI and study run-state publisher."""
 
     COLORS = {
         "red": {
@@ -70,15 +70,15 @@ class StudyGui(Node):
         self.declare_parameter("mouse_simulation_hz", 100.0)
         self.declare_parameter("auto_start", False)
         self.declare_parameter("start_x", -0.08)
-        self.declare_parameter("start_y", -0.20)
+        self.declare_parameter("start_y", -0.08)
         self.declare_parameter("start_z", 0.0)
         self.declare_parameter("end_x", 0.08)
-        self.declare_parameter("end_y", -0.08)
+        self.declare_parameter("end_y", 0.08)
         self.declare_parameter("end_z", 0.0)
         self.declare_parameter("workspace_x_min", -0.12)
         self.declare_parameter("workspace_x_max", 0.12)
-        self.declare_parameter("workspace_y_min", -0.28)
-        self.declare_parameter("workspace_y_max", 0.02)
+        self.declare_parameter("workspace_y_min", -0.15)
+        self.declare_parameter("workspace_y_max", 0.15)
         self.declare_parameter("endpoint_reached_radius", 0.01)
 
         self.width = int(self.get_parameter("width").value)
@@ -133,11 +133,11 @@ class StudyGui(Node):
         self.running = True
 
         self.study_is_running_pub = self.create_publisher(Bool, "study_is_running", 10)
-        self.endpoint_reached_pub = self.create_publisher(
-            Bool, "study_endpoint_reached", 10
-        )
 
         self.create_subscription(HaplyState, "haply_state", self._haply_state, 10)
+        self.create_subscription(
+            Point, "experiment_cursor_position", self._experiment_cursor_position, 10
+        )
         self.create_subscription(Point, "study_start_point", self._start_point, 10)
         self.create_subscription(Point, "study_end_point", self._end_point, 10)
         self.create_subscription(String, "study_phase", self._study_phase, 10)
@@ -218,8 +218,12 @@ class StudyGui(Node):
     def _haply_state(self, msg):
         if self.source != "haply":
             return
-        self.current_position = msg.position
         self.current_buttons = msg.buttons
+
+    def _experiment_cursor_position(self, msg):
+        if self.source == "mouse":
+            return
+        self.current_position = self._copy_point_2d(msg)
 
     def _start_point(self, msg):
         point = self._copy_point_2d(msg)
@@ -254,10 +258,6 @@ class StudyGui(Node):
         running_msg = Bool()
         running_msg.data = bool(self.is_running)
         self.study_is_running_pub.publish(running_msg)
-
-        endpoint_msg = Bool()
-        endpoint_msg.data = bool(self.endpoint_reached)
-        self.endpoint_reached_pub.publish(endpoint_msg)
 
     def _handle_events(self):
         for event in pygame.event.get():
@@ -615,7 +615,6 @@ class StudyGui(Node):
             rclpy.spin_once(self, timeout_sec=0.0)
             self._handle_events()
             self._update_line_drawing()
-            self._update_endpoint_feedback()
             self._draw_scene()
             self.clock.tick(max(self.render_fps, 1.0))
 

@@ -43,12 +43,14 @@ boundaries, topics, and fault-handling path.
 
 - Separate from the GUI and Controller.
 - Owns experiment phase rollout.
-- Owns random start/end point generation.
+- Owns the configured three-point start/end task rollout.
 - Owns the current task definition through the randomized start and end points.
 - Defines each phase's Behavioral State: aggressive, normal, or careful.
 - Defines each phase's controller mode: adaptive or fixed.
 - Publishes start/end points to GUI, Experiment Mapper, Controller, Estimator,
-  and Logger.
+  and Logger. The default task uses exactly three points chained as
+  `P0 -> P1`, `P1 -> P2`, and `P2 -> P0`, so each start point is the previous
+  endpoint.
 - Publishes `/study_phase` to GUI and Logger.
 - Publishes `/study_controller_mode` to GUI, Controller, and Logger.
 - Subscribes to `/experiment_cursor_position` to compute progress and endpoint
@@ -120,7 +122,7 @@ flowchart LR
     subgraph STUDY["haply study nodes"]
         GUI["study_gui_node\nVisualizes experiment state\nDisplays cursor, start/end, phase\nDoes not own measured position"]
         Mapper["experiment_mapper_node\nMaps raw input to task frame\nCalibrates start pose\nPublishes experiment cursor"]
-        Scenario["scenario_generator_node\nOwns phase rollout\nOwns random start/end points\nOwns controller mode\nComputes endpoint/progress"]
+        Scenario["scenario_generator_node\nOwns phase rollout\nOwns three-point task rollout\nOwns controller mode\nComputes endpoint/progress"]
         Control["control_node\n100 Hz\nMPC controller\nMode: fixed or adaptive\nComputes trajectory internally"]
         Estimator["estimator_node\nRLS estimate of K(h) and u_h\nUses force and experiment cursor"]
         Logger["data_logger_node\nCSV logging"]

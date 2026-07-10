@@ -1,4 +1,4 @@
-"""Launch the study GUI with mouse input and a dummy scenario generator."""
+"""Launch the study GUI with mouse input, mapper, and scenario generator."""
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -13,14 +13,25 @@ from launch_ros.actions import Node
 
 def generate_launch_description():
     """Build the launch description for mouse-only GUI testing."""
-    dummy_scenario = Node(
-        package="haply_study_gui",
-        executable="dummy_scenario_generator",
-        name="dummy_scenario_generator",
+    scenario_generator = Node(
+        package="study_orchestration",
+        executable="scenario_generator",
+        name="scenario_generator",
         output="screen",
         parameters=[
             {
-                "seed": 7,
+                "endpoint_reached_radius": 0.01,
+            }
+        ],
+    )
+    experiment_mapper = Node(
+        package="study_orchestration",
+        executable="experiment_mapper",
+        name="experiment_mapper",
+        output="screen",
+        parameters=[
+            {
+                "mapping_mode": "identity",
             }
         ],
     )
@@ -51,7 +62,8 @@ def generate_launch_description():
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
             study_gui,
-            dummy_scenario,
+            experiment_mapper,
+            scenario_generator,
             RegisterEventHandler(
                 OnProcessExit(
                     target_action=study_gui,

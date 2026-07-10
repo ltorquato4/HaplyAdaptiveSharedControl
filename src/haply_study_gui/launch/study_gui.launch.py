@@ -1,4 +1,4 @@
-"""Launch the study GUI with the real Haply driver."""
+"""Launch the study GUI with the real Haply driver, mapper, and scenario."""
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -21,6 +21,36 @@ def generate_launch_description():
         parameters=[
             {
                 "frequency": 100.0,
+            }
+        ],
+    )
+    scenario_generator = Node(
+        package="study_orchestration",
+        executable="scenario_generator",
+        name="scenario_generator",
+        output="screen",
+        parameters=[
+            {
+                "endpoint_reached_radius": 0.01,
+            }
+        ],
+    )
+    experiment_mapper = Node(
+        package="study_orchestration",
+        executable="experiment_mapper",
+        name="experiment_mapper",
+        output="screen",
+        parameters=[
+            {
+                "mapping_mode": "anchored_delta",
+                "use_z_as_y": True,
+                "scale_x": 2.0,        # physical 10 cm -> task 20 cm
+                "scale_y": 2.0,
+                "clamp_raw": True,
+                "raw_x_min": -0.20,    # Haply x: +/-20 cm left/right
+                "raw_x_max": 0.20,
+                "raw_second_min": -0.20,  # Haply z: allow movement below anchor
+                "raw_second_max": 0.20,
             }
         ],
     )
@@ -50,6 +80,8 @@ def generate_launch_description():
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
             haply_driver,
+            experiment_mapper,
+            scenario_generator,
             study_gui,
             RegisterEventHandler(
                 OnProcessExit(

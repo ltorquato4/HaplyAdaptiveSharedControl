@@ -1,9 +1,9 @@
 <?xml version="1.0"?>
 <?xml-model href="http://download.ros.org/schema/package_format3.xsd" schematypens="http://www.w3.org/2001/XMLSchema"?>
 <package format="3">
-  <name>haply_study_gui</name>
+  <name>study_orchestration</name>
   <version>0.0.0</version>
-  <description>Study GUI for Haply shared-control experiments.</description>
+  <description>Scenario rollout and input mapping nodes for Haply shared-control studies.</description>
   <maintainer email="ltorquato@users.noreply.github.com">Luisa Torquato Niño</maintainer>
   <license>UNLICENSED</license>
 
@@ -11,10 +11,6 @@
   <depend>geometry_msgs</depend>
   <depend>haply_msgs</depend>
   <depend>std_msgs</depend>
-
-  <exec_depend>haply_interface</exec_depend>
-  <exec_depend>python3-pygame</exec_depend>
-  <exec_depend>study_orchestration</exec_depend>
 
   <test_depend>ament_copyright</test_depend>
   <test_depend>ament_flake8</test_depend>

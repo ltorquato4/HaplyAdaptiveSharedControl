@@ -6,6 +6,7 @@ exclude = [
     "build",
     "install",
     "log",
+    "src/haply_ros2_interface",
 ]
 line-length = 88
 indent-width = 4
@@ -30,7 +31,10 @@ exclude = [
     "^build/",
     "^install/",
     "^log/",
+    "^src/haply_ros2_interface/",
     '(^|/).*\.launch\.py$',
+    '(^|/)setup\.py$',
+    '(^|/)test/(test_copyright|test_flake8|test_pep257)\.py$',
 ]
 ignore_missing_imports = true
 disallow_untyped_calls = false
@@ -50,4 +54,3 @@ module = [
     "std_msgs.*",
 ]
 ignore_missing_imports = true
-
