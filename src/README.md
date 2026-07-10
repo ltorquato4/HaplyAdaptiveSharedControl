@@ -87,25 +87,23 @@ u_h = K(h) * x
 
 - Uses `/experiment_cursor_position`, `/study_start_point`, and
   `/study_end_point` to compute the task-space displacement/error `x`.
-- Uses `/haply_endeffector_force`, computed inside `haply_driver_node.py` from
-  torque-derived force.
+- Computes velocity and acceleration internally from
+  `/experiment_cursor_position` samples.
 - Publishes `/estimation/K_h` to Controller and Logger.
 - Publishes `/estimation/u_h` to Logger.
 
 ### Haply Interface / Driver
 
 - `haply_driver_node.py` remains the hardware measurement and command bridge.
-- Computes end-effector force from available Haply torque/state data.
 - Publishes `/haply_state`, which is the raw Haply/device state and not
   necessarily in the GUI/task coordinate frame.
-- Publishes `/haply_endeffector_force` to Estimator and Logger.
 - Receives `/haply_target` from Controller.
 
 ### Data Logger
 
 - Logs to CSV.
 - Subscribes to all study, control, estimator, raw Haply state, mapped cursor,
-  force, controller-mode, and phase topics needed for offline analysis.
+  controller-mode, and phase topics needed for offline analysis.
 - Logs both raw `/haply_state` and mapped `/experiment_cursor_position` so the
   coordinate mapping can be checked offline.
 
@@ -116,7 +114,7 @@ flowchart LR
     SDK["Haply Inverse Service\nws://localhost:10001"]
 
     subgraph HAPLY["haply_interface"]
-        Driver["haply_driver_node\nRaw Haply measurement\nComputes end-effector force\nReceives force commands"]
+        Driver["haply_driver_node\nRaw Haply measurement\nReceives force commands"]
     end
 
     subgraph STUDY["haply study nodes"]
@@ -124,7 +122,7 @@ flowchart LR
         Mapper["experiment_mapper_node\nMaps raw input to task frame\nCalibrates start pose\nPublishes experiment cursor"]
         Scenario["scenario_generator_node\nOwns phase rollout\nOwns three-point task rollout\nOwns controller mode\nComputes endpoint/progress"]
         Control["control_node\n100 Hz\nMPC controller\nMode: fixed or adaptive\nComputes trajectory internally"]
-        Estimator["estimator_node\nRLS estimate of K(h) and u_h\nUses force and experiment cursor"]
+        Estimator["estimator_node\nRLS estimate of K(h) and u_h\nUses experiment cursor"]
         Logger["data_logger_node\nCSV logging"]
     end
 
@@ -132,9 +130,6 @@ flowchart LR
 
     Driver -->|/haply_state\nraw device position| Mapper
     Driver -->|/haply_state\nraw device position| Logger
-
-    Driver -->|/haply_endeffector_force| Estimator
-    Driver -->|/haply_endeffector_force| Logger
 
     GUI -->|/study_is_running| Mapper
     GUI -->|/study_is_running| Scenario
@@ -190,7 +185,6 @@ flowchart LR
 |---|---|---|---|---|
 | `/haply_state` | `haply_msgs/HaplyState` | `haply_driver_node` | Experiment Mapper, Logger | Raw Haply/device position, velocity, orientation, and buttons. This is the hardware measurement source, but it is not necessarily in the GUI/task coordinate frame. |
 | `/experiment_cursor_position` | `geometry_msgs/Point` | Experiment Mapper | GUI, Scenario Generator, Controller, Estimator, Logger | Mapped experiment-frame cursor position. This is the cursor position used by the study task, controller, estimator, GUI, and logger. |
-| `/haply_endeffector_force` | `geometry_msgs/Vector3` | `haply_driver_node` | Estimator, Logger | End-effector force computed in the driver from torque-derived force. |
 | `/haply_target` | `haply_msgs/HaplyControl` | Controller | `haply_driver_node` | Force command sent to the Haply device. |
 | `/study_is_running` | `std_msgs/Bool` | GUI | Experiment Mapper, Scenario Generator, Controller, Estimator, Logger | Study run state. `true` means the current phase should actively run. |
 | `/study_endpoint_reached` | `std_msgs/Bool` | Scenario Generator | Logger | Records that the mapped experiment cursor reached the current stop endpoint. |

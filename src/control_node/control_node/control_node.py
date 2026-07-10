@@ -80,8 +80,6 @@ class ControlNode(Node):
         self.end_point: list[float] = []
         self.current_point: list[float] = []
 
-        self.estimator_status = "ok"
-
         # ----------
         # Publishers
         # ----------
@@ -126,12 +124,6 @@ class ControlNode(Node):
             Float32MultiArray,
             "/estimation/K_h",
             self.estimation_kh_callback,
-            10,
-        )
-        self.estimator_status_sub = self.create_subscription(
-            String,
-            "/estimator_status",
-            self.estimator_status_callback,
             10,
         )
 
@@ -242,15 +234,9 @@ class ControlNode(Node):
         control_output = [0.0, 0.0]
 
         if self.study_running:
-            if self.estimator_status in ["force_stale", "saturated", "reset"]:
-                self.get_logger().warn(
-                    f"Estimator fault detected ({self.estimator_status}), "
-                    "publishing zero force."
-                )
-            else:
-                self.current_point = [msg.x, msg.y]
-                self.get_logger().debug(f"Current point received: {self.current_point}")
-                control_output = self.controller.compute_control(self.current_point)
+            self.current_point = [msg.x, msg.y]
+            self.get_logger().debug(f"Current point received: {self.current_point}")
+            control_output = self.controller.compute_control(self.current_point)
 
             self.get_logger().debug(f"Control output: {control_output}")
 
@@ -300,10 +286,6 @@ class ControlNode(Node):
                 self.control_parameter_pub.publish(control_parameter_msg)
 
                 self.get_logger().debug("Published updated controller parameters.")
-
-    def estimator_status_callback(self, msg: String):
-        self.estimator_status = msg.data
-        self.get_logger().debug(f"Estimator status changed to {self.estimator_status}")
 
 
 def main(args=None):
