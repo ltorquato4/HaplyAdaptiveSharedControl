@@ -24,7 +24,7 @@ class DataLoggerNode(Node):
         super().__init__("data_logger_node")
 
         self.declare_parameter("save_directory", "./logs")
-        self.declare_parameter("log_level", "debug")
+        self.declare_parameter("log_level", "info")
 
         self.save_directory = (
             self.get_parameter("save_directory").get_parameter_value().string_value

@@ -47,7 +47,7 @@ class ControlNode(Node):
 
         # Control Parameters
         self.dt = self.declare_parameter("delta_time", 0.01).value
-        self.use_mpc_controller = self.declare_parameter("use_mpc_controller", False).value
+        self.use_mpc_controller = self.declare_parameter("use_mpc_controller", True).value
         self.controller_mode = "adaptive" if self.declare_parameter("adaptive_control_enabled", False).value else "fixed"
         self.max_control_amplitude = self.declare_parameter("max_control_amplitude", 10.0).value
         self.max_velocity_amplitude = self.declare_parameter("max_velocity_amplitude", 10.0).value
@@ -165,7 +165,7 @@ class ControlNode(Node):
                         self.max_velocity_amplitude,
                     ),
                 )
-        self.get_logger().info(f"Initialized controller: {type(self.controller).__name__}")
+        self.get_logger().debug(f"Initialized controller: {type(self.controller).__name__}")
         self.controller_initialized = True
         return True
 
@@ -174,7 +174,7 @@ class ControlNode(Node):
 
         if not self.endpoint_reached_flag and self.current_button_a_state:
             if not self.control_node_running:
-                self.get_logger().info("Button A pressed! Assistance control activated.")
+                self.get_logger().debug("Button A pressed! Assistance control activated.")
                 self.control_node_running = True
                 if not self.controller_initialized:
                     self.controller_initialized = self.initialize_controller()
@@ -185,10 +185,11 @@ class ControlNode(Node):
     def endpoint_reached_callback(self, msg: Bool):
         if not self.endpoint_reached_flag and msg.data:
             self.endpoint_reached_flag = True
+            del self.controller
             self.controller_initialized = False
             
             if self.control_node_running:
-                self.get_logger().info("Endpoint reached message received. Assistance control stopped.")
+                self.get_logger().debug("Endpoint reached message received. Assistance control stopped.")
                 self.control_node_running = False
 
     def study_running_callback(self, msg: Bool):
@@ -199,7 +200,7 @@ class ControlNode(Node):
         self.get_logger().debug("Message on /controller_mode")
         self.controller_mode = msg.data.lower()
 
-        self.get_logger().info(f"Controller mode changed to {self.controller_mode}")
+        self.get_logger().debug(f"Controller mode changed to {self.controller_mode}")
 
         if self.initialize_controller():
             control_parameter_msg = String()
@@ -209,13 +210,13 @@ class ControlNode(Node):
 
     def start_point_callback(self, msg: Point):
         self.start_point = [msg.x, msg.y]
-        self.get_logger().info(f"Start point updated: {self.start_point}")
+        self.get_logger().debug(f"Start point updated: {self.start_point}")
         if not self.controller_initialized:
             self.initialize_controller()
 
     def end_point_callback(self, msg: Point):
         self.end_point = [msg.x, msg.y]
-        self.get_logger().info(f"End point updated: {self.end_point}")
+        self.get_logger().debug(f"End point updated: {self.end_point}")
         if not self.controller_initialized:
             self.initialize_controller()
 
@@ -282,7 +283,7 @@ def main(args=None):
     is_debug_mode = str(node.log_level).upper() == "DEBUG"
 
     if is_debug_mode:
-        node.get_logger().info("DEBUG mode detected. Launching Pygame visualizer...")
+        node.get_logger().debug("DEBUG mode detected. Launching Pygame visualizer...")
         
         # Start ROS executor in a background thread
         executor = rclpy.executors.MultiThreadedExecutor()
