@@ -306,9 +306,9 @@ class DataLoggerNode(Node):
 
     def ua_callback(self, msg):
 
-        self._log_received_message("/control/U_a", msg)
+        self._log_received_message("/control/u_a", msg)
 
-        self.latest["U_a"] = msg
+        self.latest["u_a"] = msg
 
     def endpoint_callback(self, msg):
 
@@ -344,7 +344,8 @@ class DataLoggerNode(Node):
         end = self.latest.get("end")
         cursor = self.latest.get("cursor")
         uh = self.latest.get("u_h")
-        ua = self.latest.get("U_a")
+        ua = self.latest.get("u_a")
+        Kh = self.latest.get("K_h")
         haply = self.latest.get("haply")
 
         if start:
@@ -368,9 +369,9 @@ class DataLoggerNode(Node):
             row["u_h_z"] = uh.z
 
         if ua:
-            row["U_a_x"] = ua.x
-            row["U_a_y"] = ua.y
-            row["U_a_z"] = ua.z
+            row["u_a_x"] = ua.x
+            row["u_a_y"] = ua.y
+            row["u_a_z"] = ua.z
 
         if haply:
             row["haply_pos_x"] = haply.position.x
@@ -380,7 +381,9 @@ class DataLoggerNode(Node):
             row["haply_vel_y"] = haply.velocity.y
             row["haply_vel_z"] = haply.velocity.z
 
-        row["K_h"] = self.latest.get("K_h")
+        if Kh:
+            row["K_h"] = str(list(Kh))
+
         row["K_a"] = self.latest.get("K_a")
         row["endpoint_reached"] = self.latest.get("endpoint_reached")
 
