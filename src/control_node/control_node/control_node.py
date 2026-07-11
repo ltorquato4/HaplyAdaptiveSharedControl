@@ -53,7 +53,7 @@ class ControlNode(Node):
         self.get_logger().debug(f"Configuration: dt={self.dt}, use_mpc_controller={self.use_mpc_controller}, controller_mode={self.controller_mode}, prediction_horizon={self.prediction_horizon}")
 
         self.study_running: bool = False
-        self.control_active_by_button: bool = False  # Activation state tracker
+        self.control_node_running: bool = False  # Activation state tracker
         self.start_point: list[float] = []
         self.end_point: list[float] = []
         self.current_point: list[float] = []
@@ -84,11 +84,13 @@ class ControlNode(Node):
         if self.start_point == []: 
             self.controller_initialized = False
             return False
+        
         if self.end_point == []: 
             self.controller_initialized = False
             return False
+        
         self.get_logger().debug(f"Start Controller Initialization")
-        print(f"Start Point: {self.start_point}, End Point: {self.end_point}")
+        
         if self.controller_mode == "adaptive":
             if self.use_mpc_controller:
                 self.controller = AdaptiveMpcController(
@@ -155,34 +157,29 @@ class ControlNode(Node):
                         self.max_velocity_amplitude,
                     ),
                 )
+
         self.get_logger().debug(f"Initialized controller: {type(self.controller).__name__}")
         self.controller_initialized = True
+        
         return True
 
-    # ------------------------
-    # Callbacks
-    # ------------------------
     def haply_state_callback(self, msg: HaplyState):
         """Activates control computation if Button A is engaged (pressed or clicked)."""
         if msg.buttons.a:
-            if not self.control_active_by_button:
+            if not self.control_node_running:
                 self.get_logger().info("Button A pressed! Assistance control activated.")
-                self.control_active_by_button = True
+                self.control_node_running = True
 
     def endpoint_reached_callback(self, msg: Bool):
         """Halts control assistance immediately when the endpoint is reached."""
         if msg.data:
-            if self.control_active_by_button:
+            if self.control_node_running:
                 self.get_logger().info("Endpoint reached message received. Assistance control stopped.")
-                self.control_active_by_button = False
+                self.control_node_running = False
 
     def study_running_callback(self, msg: Bool):
-        self.get_logger().debug("Message on /study_is_running")
         self.study_running = msg.data
         self.get_logger().debug(f"Study running state changed to {self.study_running}")
-        # Reset activation if study is manually stopped
-        # if not self.study_running:
-        #     self.control_active_by_button = False
 
     def controller_mode_callback(self, msg: String):
         self.get_logger().debug("Message on /controller_mode")
@@ -198,12 +195,10 @@ class ControlNode(Node):
             self.get_logger().debug("Published controller parameters.")
 
     def start_point_callback(self, msg: Point):
-        self.get_logger().debug("Message on /study_start_point")
         self.start_point = [msg.x, msg.y]
         self.get_logger().debug(f"Start point updated: {self.start_point}")
 
     def end_point_callback(self, msg: Point):
-        self.get_logger().debug("Message on /study_end_point")
         self.end_point = [msg.x, msg.y]
         self.get_logger().debug(f"End point updated: {self.end_point}")
 
@@ -211,9 +206,7 @@ class ControlNode(Node):
         self.get_logger().debug("Message on /experiment_cursor_position")
         control_output = [0.0, 0.0]
 
-        # Condition checks both overall study loop state AND the local button toggle status
-        # if self.study_running and self.control_active_by_button:
-        if self.control_active_by_button:
+        if self.control_node_running:
             if self.controller_initialized or self.initialize_controller():
                 self.current_point = [msg.x, msg.y]
                 self.get_logger().debug(f"Current point received: {self.current_point}")
@@ -230,12 +223,8 @@ class ControlNode(Node):
             else:
                 self.get_logger().warn("Controller not initialized, publishing zero control output.")
         else:
-            if not self.study_running:
-                self.get_logger().warn("Study is not running, publishing zero force.")
-            elif not self.control_active_by_button:
-                self.get_logger().debug("Waiting for Button A engagement, publishing zero active assistance force.")
+            self.get_logger().debug("Waiting for Button A engagement, publishing zero active assistance force.")
 
-        # Compute force on haply (forces default safely back to 0.0 if inactive)
         force_feedback_vector = Vector3()
         force_feedback_vector.x = self.acceleration_to_force_factor * control_output[0]
         force_feedback_vector.y = 0.0
@@ -250,10 +239,9 @@ class ControlNode(Node):
         self.get_logger().debug(f"Published force feedback: ({force_feedback_vector.x}, {force_feedback_vector.y}, {force_feedback_vector.z})")
 
     def estimation_kh_callback(self, msg: Float64MultiArray):
-        """TODO: Test once the estimation is available"""
         self.get_logger().debug(f"Received estimated K_h")
-        # if self.study_running and self.control_active_by_button:
-        if self.control_active_by_button:    
+
+        if self.control_node_running:    
             if self.controller_mode == "adaptive":
                 k_h = [[msg.data[0], msg.data[1]], [msg.data[2], msg.data[3]]]
 
