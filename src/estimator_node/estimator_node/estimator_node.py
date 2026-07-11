@@ -21,7 +21,7 @@ class RLSEstimatorNode(Node):
         # Logging Setup
         #
 
-        self.log_level = self.declare_parameter("log_level", "DEBUG").value
+        self.log_level = self.declare_parameter("log_level", "INFO").value
 
         log_levels = {
             "DEBUG": LoggingSeverity.DEBUG,
@@ -99,7 +99,7 @@ class RLSEstimatorNode(Node):
 
         self.start_point = msg
 
-        # self.get_logger().debug(f"Start point updated: [{msg.x}, {msg.y}]")
+        self.get_logger().debug(f"Start point updated: [{msg.x}, {msg.y}]")
 
         if not self.initialized:
             self.rls.initialize_from_start_point(msg)
@@ -109,11 +109,11 @@ class RLSEstimatorNode(Node):
 
     def cursor_callback(self, msg):
         self.cursor = msg
-        # self.get_logger().debug(f"Cursor position received: [{msg.x}, {msg.y}]")
+        self.get_logger().debug(f"Cursor position received: [{msg.x}, {msg.y}]")
 
     def goal_callback(self, msg):
         self.goal = msg
-        # self.get_logger().debug(f"Goal point updated: [{msg.x}, {msg.y}]")
+        self.get_logger().debug(f"Goal point updated: [{msg.x}, {msg.y}]")
 
     #########################################################
 
@@ -163,7 +163,7 @@ class RLSEstimatorNode(Node):
 
         acc = (vel - self.prev_vel) / dt
 
-        # self.get_logger().debug(f"Computed kinematics - Vel: {vel}, Acc: {acc}")
+        self.get_logger().debug(f"Computed kinematics - Vel: {vel}, Acc: {acc}")
 
         #
         # goal error
@@ -172,7 +172,7 @@ class RLSEstimatorNode(Node):
         ex = self.goal.x - self.cursor.x
         ey = self.goal.y - self.cursor.y
 
-        # self.get_logger().debug(f"Goal error - ex: {ex}, ey: {ey}")
+        self.get_logger().debug(f"Goal error - ex: {ex}, ey: {ey}")
 
         vx = vel[0]
         vy = vel[1]
@@ -188,9 +188,7 @@ class RLSEstimatorNode(Node):
 
         kh = self.rls.get_matrix()
 
-        # self.get_logger().debug(
-        #     f"RLS updated. K_h matrix computed: {kh.flatten().tolist()}"
-        # )
+        self.get_logger().debug(f"RLS updated. K_h matrix computed: {kh.flatten().tolist()}")
 
         #
         # estimated human control
@@ -199,7 +197,7 @@ class RLSEstimatorNode(Node):
         state = np.array([ex, vx, ey, vy])
         uh = kh @ state
 
-        # self.get_logger().debug(f"Estimated human control u_h: {uh}")
+        self.get_logger().debug(f"Estimated human control u_h: {uh}")
 
         #
         # Publish Kh
@@ -210,7 +208,7 @@ class RLSEstimatorNode(Node):
 
         self.kh_pub.publish(kh_msg)
 
-        # self.get_logger().debug("Published K_h estimation.")
+        self.get_logger().debug("Published K_h estimation.")
 
         #
         # Publish Uh
@@ -223,7 +221,7 @@ class RLSEstimatorNode(Node):
 
         self.uh_pub.publish(uh_msg)
 
-        # self.get_logger().debug(f"Published u_h vector: ({uh_msg.x}, {uh_msg.y}, {uh_msg.z})")
+        self.get_logger().debug(f"Published u_h vector: ({uh_msg.x}, {uh_msg.y}, {uh_msg.z})")
 
         #
         # save previous
