@@ -35,7 +35,7 @@ class ControlNode(Node):
         self.y_bounds_limit = self.declare_parameter("y_bounds", 700.0).value
 
         # Logging
-        self.log_level = self.declare_parameter("log_level", "DEBUG").value
+        self.log_level = self.declare_parameter("log_level", "INFO").value
 
         log_levels = {
             "DEBUG": LoggingSeverity.DEBUG,
@@ -54,6 +54,9 @@ class ControlNode(Node):
 
         self.study_running: bool = False
         self.control_node_running: bool = False  # Activation state tracker
+        self.current_button_a_state: bool = False
+        self.endpoint_reached_flag: bool = False
+        
         self.start_point: list[float] = []
         self.end_point: list[float] = []
         self.current_point: list[float] = []
@@ -158,21 +161,31 @@ class ControlNode(Node):
                     ),
                 )
 
-        self.get_logger().debug(f"Initialized controller: {type(self.controller).__name__}")
+        self.get_logger().info(f"Initialized controller: {type(self.controller).__name__}")
         self.controller_initialized = True
         
         return True
 
     def haply_state_callback(self, msg: HaplyState):
         """Activates control computation if Button A is engaged (pressed or clicked)."""
-        if msg.buttons.a:
+        self.current_button_a_state = msg.buttons.a
+
+        if not self.endpoint_reached_flag and self.current_button_a_state:
             if not self.control_node_running:
                 self.get_logger().info("Button A pressed! Assistance control activated.")
                 self.control_node_running = True
+                if not self.controller_initialized:
+                    self.controller_initialized = self.initialize_controller()
+                
+        elif self.endpoint_reached_flag and not self.current_button_a_state:
+            self.endpoint_reached_flag = False
 
     def endpoint_reached_callback(self, msg: Bool):
         """Halts control assistance immediately when the endpoint is reached."""
-        if msg.data:
+        if not self.endpoint_reached_flag and msg.data:
+            self.endpoint_reached_flag = True
+            self.controller_initialized = False
+            
             if self.control_node_running:
                 self.get_logger().info("Endpoint reached message received. Assistance control stopped.")
                 self.control_node_running = False
@@ -185,7 +198,7 @@ class ControlNode(Node):
         self.get_logger().debug("Message on /controller_mode")
         self.controller_mode = msg.data.lower()
 
-        self.get_logger().debug(f"Controller mode changed to {self.controller_mode}")
+        self.get_logger().info(f"Controller mode changed to {self.controller_mode}")
 
         if self.initialize_controller():
             control_parameter_msg = String()
@@ -196,18 +209,22 @@ class ControlNode(Node):
 
     def start_point_callback(self, msg: Point):
         self.start_point = [msg.x, msg.y]
-        self.get_logger().debug(f"Start point updated: {self.start_point}")
+        self.get_logger().info(f"Start point updated: {self.start_point}")
+        if not self.controller_initialized:
+            self.controller_initialized = self.initialize_controller()
 
     def end_point_callback(self, msg: Point):
         self.end_point = [msg.x, msg.y]
-        self.get_logger().debug(f"End point updated: {self.end_point}")
+        self.get_logger().info(f"End point updated: {self.end_point}")
+        if not self.controller_initialized:
+            self.controller_initialized = self.initialize_controller()
 
     def current_point_callback(self, msg: Point):
         self.get_logger().debug("Message on /experiment_cursor_position")
         control_output = [0.0, 0.0]
 
         if self.control_node_running:
-            if self.controller_initialized or self.initialize_controller():
+            if self.controller_initialized:
                 self.current_point = [msg.x, msg.y]
                 self.get_logger().debug(f"Current point received: {self.current_point}")
                 control_output = self.controller.compute_control(self.current_point)

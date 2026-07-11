@@ -39,6 +39,9 @@ class DataLoggerNode(Node):
         self.config = LoggerConfig()
 
         self.recording = False
+        self.current_button_a_state = False
+        self.endpoint_reached_flag = False
+        
         self.latest = {}
         self.flush_counter = 0
 
@@ -306,7 +309,7 @@ class DataLoggerNode(Node):
 
     def ua_callback(self, msg):
 
-        self._log_received_message("/control/u_a", msg)
+        self._log_received_message("/control/U_a", msg)
 
         self.latest["u_a"] = msg
 
@@ -316,8 +319,11 @@ class DataLoggerNode(Node):
 
         self.latest["endpoint_reached"] = msg.data
 
-        if msg.data and self.recording:
-            self.stop_recording()
+        if not self.endpoint_reached_flag and msg.data:
+            self.endpoint_reached_flag = True
+            
+            if self.recording:
+                self.stop_recording()
 
     def haply_callback(self, msg):
 
@@ -325,8 +331,14 @@ class DataLoggerNode(Node):
 
         self.latest["haply"] = msg
 
-        if msg.buttons.a and not self.recording:
-            self.start_recording()
+        self.current_button_a_state = msg.buttons.a
+
+        if not self.endpoint_reached_flag and self.current_button_a_state:
+            if not self.recording:
+                self.start_recording()
+                
+        elif self.endpoint_reached_flag and not self.current_button_a_state:
+            self.endpoint_reached_flag = False
 
     def write_row(self):
 
