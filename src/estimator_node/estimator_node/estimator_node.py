@@ -78,7 +78,7 @@ class RLSEstimatorNode(Node):
                 self.prev_pos = None
                 self.prev_vel = None
 
-                self.get_logger().info("Button A pressed! Estimator activated.")
+                self.get_logger().debug("Button A pressed! Estimator activated.")
                 
         elif self.endpoint_reached and not self.current_button_a_state:
             self.endpoint_reached = False
@@ -92,7 +92,7 @@ class RLSEstimatorNode(Node):
 
                 self.estimator_running = False
 
-                self.get_logger().info( "Endpoint reached message received. Estimator stopped." )
+                self.get_logger().debug( "Endpoint reached message received. Estimator stopped." )
                 
 
     def start_callback(self, msg):

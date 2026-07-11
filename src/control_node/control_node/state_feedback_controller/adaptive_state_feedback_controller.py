@@ -16,8 +16,10 @@ BORDER_TWO_RANGE = [0.6, 0.8]
 
 
 class AdaptiveStateFeedbackController(AdaptiveController, StateFeedbackController):
-    def __init__(self, start_point, end_point, dt, node=None):
-        super().__init__(start_point, end_point, dt, node)
+    def __init__(self, start_point, end_point, dt, node=None, 
+                 max_control: tuple[float, float] = (1.0, 1.0),
+                 max_velocity: tuple[float, float] = (1.0, 1.0)):
+        super().__init__(start_point, end_point, dt, node, max_control, max_velocity)
 
     def adapt(self, K_h: Sequence[Sequence[float]]) -> None:
         """Adapt proportional and derivative gains along the trajectory."""

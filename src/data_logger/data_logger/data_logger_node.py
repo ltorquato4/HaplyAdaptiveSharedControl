@@ -124,13 +124,9 @@ class DataLoggerNode(Node):
             "haply_vel_y",
             "haply_vel_z",
             "K_h",
-            "u_h_x",
-            "u_h_y",
-            "u_h_z",
+            "u_h",
             "K_a",
-            "U_a_x",
-            "U_a_y",
-            "U_a_z",
+            "u_a",
             "endpoint_reached",
         ]
 
@@ -254,69 +250,47 @@ class DataLoggerNode(Node):
         )
 
     def study_running_callback(self, msg):
-
         self._log_received_message("/study_is_running", msg)
-
         self.latest["study_running"] = msg.data
 
     def phase_callback(self, msg):
-
         self._log_received_message("/study_phase", msg)
-
         self.latest["study_phase"] = msg.data
 
     def mode_callback(self, msg):
-
         self._log_received_message("/study_controller_mode", msg)
-
         self.latest["study_controller_mode"] = msg.data
 
     def start_point_callback(self, msg):
-
         self._log_received_message("/study_start_point", msg)
-
         self.latest["start"] = msg
 
     def end_point_callback(self, msg):
-
         self._log_received_message("/study_end_point", msg)
-
         self.latest["end"] = msg
 
     def cursor_callback(self, msg):
-
         self._log_received_message("/experiment_cursor_position", msg)
-
         self.latest["cursor"] = msg
 
     def kh_callback(self, msg):
-
         self._log_received_message("/estimation/K_h", msg)
-
         self.latest["K_h"] = msg.data
 
     def uh_callback(self, msg):
-
         self._log_received_message("/estimation/u_h", msg)
-
         self.latest["u_h"] = msg
 
     def ka_callback(self, msg):
-
         self._log_received_message("/control/K_a", msg)
-
         self.latest["K_a"] = msg.data
 
     def ua_callback(self, msg):
-
         self._log_received_message("/control/U_a", msg)
-
         self.latest["u_a"] = msg
 
     def endpoint_callback(self, msg):
-
         self._log_received_message("/study_endpoint_reached", msg)
-
         self.latest["endpoint_reached"] = msg.data
 
         if not self.endpoint_reached_flag and msg.data:
@@ -326,11 +300,8 @@ class DataLoggerNode(Node):
                 self.stop_recording()
 
     def haply_callback(self, msg):
-
         self._log_received_message("/haply_state", msg)
-
         self.latest["haply"] = msg
-
         self.current_button_a_state = msg.buttons.a
 
         if not self.endpoint_reached_flag and self.current_button_a_state:
@@ -341,7 +312,6 @@ class DataLoggerNode(Node):
             self.endpoint_reached_flag = False
 
     def write_row(self):
-
         if not self.recording:
             return
 
@@ -375,16 +345,6 @@ class DataLoggerNode(Node):
             row["cursor_y"] = cursor.y
             row["cursor_z"] = cursor.z
 
-        if uh:
-            row["u_h_x"] = uh.x
-            row["u_h_y"] = uh.y
-            row["u_h_z"] = uh.z
-
-        if ua:
-            row["u_a_x"] = ua.x
-            row["u_a_y"] = ua.y
-            row["u_a_z"] = ua.z
-
         if haply:
             row["haply_pos_x"] = haply.position.x
             row["haply_pos_y"] = haply.position.y
@@ -395,14 +355,18 @@ class DataLoggerNode(Node):
 
         if Kh:
             row["K_h"] = str(list(Kh))
+            
+        if uh:
+            row["u_h"] = str([uh.x, uh.y, uh.z])
+
+        if ua:
+            row["u_a"] = str([ua.x, ua.y, ua.z])
 
         row["K_a"] = self.latest.get("K_a")
         row["endpoint_reached"] = self.latest.get("endpoint_reached")
 
         saved_row = self._normalize_row_for_debug(row)
-
         self.csv_logger.write(saved_row)
-
         self.get_logger().debug(f"saved csv row: {saved_row}")
 
         self.flush_counter += 1
@@ -412,24 +376,18 @@ class DataLoggerNode(Node):
             self.flush_counter = 0
 
     def destroy_node(self):
-
         self.csv_logger.stop()
-
         super().destroy_node()
 
 
 def main(args=None):
-
     rclpy.init(args=args)
-
     node = DataLoggerNode()
 
     try:
         rclpy.spin(node)
-
     except KeyboardInterrupt:
         pass
-
     finally:
         node.destroy_node()
         rclpy.shutdown()

@@ -18,12 +18,8 @@ class StateFeedbackController(Controller):
     ):
         super().__init__(start_point, end_point, dt)
 
-        if node is not None:
-            kp = node.declare_parameter("K_p", [0.5, 0.5]).value
-            kd = node.declare_parameter("K_d", [0.1, 0.1]).value
-        else:
-            kp = [0.5, 0.5]
-            kd = [0.1, 0.1]
+        kp = [0.5, 0.5]
+        kd = [0.1, 0.1]
 
         self.K_p = np.diag(kp)
         self.K_d = np.diag(kd)
@@ -33,6 +29,8 @@ class StateFeedbackController(Controller):
     def compute_control(self, current_point: Sequence[float]) -> list[float]:
         position = self._build_position(current_point)
         velocity = self._estimate_velocity(position)
+        print(f"Current position: {position}, Current velocity: {velocity}")
+        print(f"Start point: {self.experiment_start_point}, End point: {self.experiment_end_point}")
 
         e = position - self.experiment_end_point
         e_dot = velocity
@@ -51,7 +49,7 @@ class StateFeedbackController(Controller):
         elif velocity[1] < -self.max_velocity[1]:
             u_command[1] = max(u_command[1], 0.0)
 
-        self.u_a = np.clip(u_command, -self.max_control, self.max_control)
+        self.u_a = np.clip(u_command*100, -self.max_control, self.max_control)
 
         return self.u_a.tolist()
 
