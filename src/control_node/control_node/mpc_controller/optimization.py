@@ -305,3 +305,23 @@ class Optimization:
         u_optimum = self._solve_nlp(solver, symbolic_problem.g, u_init, p_val)
 
         return u_optimum
+
+    def destroy(self) -> None:
+        if hasattr(self, "state_dependencies"):
+            del self.state_dependencies
+            self.state_dependencies = StateDependencies()
+
+        del self.model_dependencies
+        self.model_dependencies = None
+
+        del self.system_model
+        self.system_model = None
+
+        del self.constraints
+        self.constraints = None
+
+        del self.cost_function
+        self.cost_function = None
+
+        del self.batch_predictor
+        self.batch_predictor = None

@@ -43,6 +43,9 @@ class Controller(ABC):
     @abstractmethod
     def publish_control_parameter(self) -> str:
         raise NotImplementedError
+    
+    def destroy(self):
+        return None
 
 
 class AdaptiveController(Controller, ABC):
