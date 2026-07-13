@@ -1,4 +1,5 @@
 import threading
+import logging
 import rclpy
 from geometry_msgs.msg import Point, Vector3
 from haply_msgs.msg import HaplyControl, HaplyState
@@ -17,7 +18,7 @@ from control_node.state_feedback_controller.state_feedback_controller import (
 )
 
 # Import the new debug visualizer logic
-from debug_visualizer import run_visualizer
+from control_node.debug_visualizer import run_visualizer
 
 
 class ControlNode(Node):
@@ -29,6 +30,9 @@ class ControlNode(Node):
         self.define_publishers()
         self.control_node_settings_to_default()
         self.define_control_problem_settings()
+
+        self.get_logger().info("Control node started.")
+        self.get_logger().debug(f"Configuration: dt={self.dt}, use_mpc_controller={self.use_mpc_controller}, controller_mode={self.controller_mode}, prediction_horizon={self.prediction_horizon}")
         
     def control_node_settings_to_default(self):
         self.start_point: list[float] = []
@@ -37,12 +41,14 @@ class ControlNode(Node):
         self.controller_initialized = False
         self.control_iteration = -1
         self.adapt_iteration = -1
-        self.latest_control_x = 0.0
-        self.latest_control_y = 0.0
         self.study_is_running: bool = False
         self.control_node_running: bool = False
         self.current_button_a_state: bool = False
         self.endpoint_reached_flag: bool = False
+
+        # for visualization
+        self.latest_control_x: float = 0.0
+        self.latest_control_y: float = 0.0
 
     def define_logger(self):
         self.log_level = self.declare_parameter("log_level", "DEBUG").value
@@ -56,10 +62,29 @@ class ControlNode(Node):
             "FATAL": LoggingSeverity.FATAL,
         }
 
-        self.get_logger().set_level(log_levels.get(str(self.log_level).upper(), LoggingSeverity.DEBUG))
+        severity = log_levels.get(
+            str(self.log_level).upper(),
+            LoggingSeverity.DEBUG,
+        )
 
-        self.get_logger().info("Control node started.")
-        self.get_logger().debug(f"Configuration: dt={self.dt}, use_mpc_controller={self.use_mpc_controller}, controller_mode={self.controller_mode}, prediction_horizon={self.prediction_horizon}")
+        # ROS logger
+        self.get_logger().set_level(severity)
+
+        # Python file logger
+        self.file_logger = logging.getLogger("control_node_file")
+        self.file_logger.setLevel(getattr(logging, str(self.log_level).upper(), logging.DEBUG))
+
+        # Avoid duplicate handlers if node is recreated
+        self.file_logger.handlers.clear()
+
+        file_handler = logging.FileHandler("control_node.log", mode="w")
+        file_handler.setFormatter(
+            logging.Formatter(
+                "%(asctime)s - %(levelname)s - %(message)s"
+            )
+        )
+
+        self.file_logger.addHandler(file_handler)
 
     def define_publishers(self):
         self.control_output_pub = self.create_publisher(Vector3, "/control/U_a", 10)
@@ -110,7 +135,6 @@ class ControlNode(Node):
         force_feedback.force = force_feedback_vector
 
         self.force_output_pub.publish(force_feedback)
-        self.get_logger().debug(f"Published force feedback: ({force_feedback_vector.x}, {force_feedback_vector.y}, {force_feedback_vector.z})")
 
     def initialize_controller(self):
         if not self.start_point: 
@@ -178,7 +202,7 @@ class ControlNode(Node):
                         self.max_velocity_amplitude,
                     ),
                 )
-        self.get_logger().debug(f"Initialized controller: {type(self.controller).__name__}")
+        self.get_logger().debug(f"Initialized controller: {type(self.controller).__name__} with start point {self.start_point} and end point {self.end_point} and mode {self.controller_mode}")
         self.controller_initialized = True
         return True
 
@@ -186,6 +210,97 @@ class ControlNode(Node):
     ###### Callbacks ######
     #######################
     
+    # Callbacks for problem and controller initialization
+
+    def controller_mode_callback(self, msg: String):
+        new_mode = msg.data.lower()
+        
+        if self.controller_mode == new_mode and self.controller_initialized:
+            return
+
+        self.controller_mode = new_mode
+
+        if self.initialize_controller():
+            control_parameter_msg = String()
+            control_parameter_msg.data = self.controller.publish_control_parameter()
+            self.control_parameter_pub.publish(control_parameter_msg)
+            self.get_logger().debug("Published controller parameters.")
+
+    def start_point_callback(self, msg: Point):
+        new_start = [msg.x, msg.y]
+        
+        if self.start_point == new_start or self.controller_initialized:
+            return
+            
+        self.start_point = new_start
+        
+        if not self.controller_initialized:
+            self.initialize_controller()
+
+    def end_point_callback(self, msg: Point):
+        new_end = [msg.x, msg.y]
+        
+        if self.end_point == new_end or self.controller_initialized:
+            return
+
+        self.end_point = new_end
+
+        if not self.controller_initialized:
+            self.initialize_controller()
+
+
+    # Callbacks needed during the solving of the problem
+
+    def current_point_callback(self, msg: Point):
+        control_output = [0.0, 0.0]
+
+        if self.control_node_running or self.study_is_running:
+            if self.controller_initialized:
+                
+                # for MPC, check that only every i^th time step is actually calculated
+                if self.use_mpc_controller == True:
+                    self.control_iteration = self.control_iteration + 1
+                    if self.control_iteration % self.mpc_control_every_i_th_iteration != 0:
+                        return
+                
+                self.current_point = [msg.x, msg.y]
+                self.get_logger().debug(f"Current point received: {self.current_point}")
+                control_output = self.controller.compute_control(self.current_point)
+
+                self.get_logger().debug(f"Control output: {control_output}")
+
+                control_output_ros_msg = Vector3()
+                control_output_ros_msg.x = control_output[0]
+                control_output_ros_msg.y = control_output[1]
+                control_output_ros_msg.z = 0.0
+
+                self.control_output_pub.publish(control_output_ros_msg)
+            else:
+                self.get_logger().warn("Controller not initialized, publishing zero control output.")
+        else:
+            self.get_logger().debug("Waiting for Button A engagement, publishing zero active assistance force.")
+
+        self.calculate_force(control_output)
+        
+    def estimation_kh_callback(self, msg: Float64MultiArray):
+        self.adapt_iteration = self.adapt_iteration + 1
+        if self.adapt_iteration % self.adapt_every_i_th_iterarion != 0:
+            return
+
+        if (self.control_node_running or self.study_is_running) and self.controller_initialized:
+            if self.controller_mode == "adaptive":
+                k_h = [[msg.data[0], msg.data[1]], [msg.data[2], msg.data[3]]]
+                self.get_logger().debug(f"Received K_h estimate: {k_h}")
+                self.controller.adapt(k_h)
+
+                control_parameter_msg = String()
+                control_parameter_msg.data = self.controller.publish_control_parameter()
+                self.control_parameter_pub.publish(control_parameter_msg)
+                self.get_logger().debug("Published updated controller parameters.")
+
+
+    # Callbacks for checking if problem is started, is solved and is finished 
+
     def haply_state_callback(self, msg: HaplyState):
         self.current_button_a_state = msg.buttons.a
 
@@ -222,93 +337,6 @@ class ControlNode(Node):
         
         self.study_is_running = new_study_is_running
         self.get_logger().debug(f"Study running state changed to {self.study_is_running}")
-
-    def controller_mode_callback(self, msg: String):
-        new_mode = msg.data.lower()
-        
-        if self.controller_mode == new_mode and self.controller_initialized:
-            return
-
-        self.controller_mode = new_mode
-        self.get_logger().debug(f"Controller mode changed to {self.controller_mode}")
-
-        if self.initialize_controller():
-            control_parameter_msg = String()
-            control_parameter_msg.data = self.controller.publish_control_parameter()
-            self.control_parameter_pub.publish(control_parameter_msg)
-            self.get_logger().debug("Published controller parameters.")
-
-    def start_point_callback(self, msg: Point):
-        new_start = [msg.x, msg.y]
-        
-        if self.start_point == new_start and self.controller_initialized:
-            return
-            
-        self.start_point = new_start
-        self.get_logger().debug(f"Start point updated: {self.start_point}")
-        if not self.controller_initialized:
-            self.initialize_controller()
-
-    def end_point_callback(self, msg: Point):
-        new_end = [msg.x, msg.y]
-        
-        if self.end_point == new_end and self.controller_initialized:
-            return
-
-        self.end_point = new_end
-        self.get_logger().debug(f"End point updated: {self.end_point}")
-        if not self.controller_initialized:
-            self.initialize_controller()
-
-    def current_point_callback(self, msg: Point):
-        self.get_logger().debug("Message on /experiment_cursor_position")
-        control_output = [0.0, 0.0]
-
-        if self.control_node_running or self.study_is_running:
-            if self.controller_initialized:
-                
-                # for MPC, check that only every i^th time step is actually calculated
-                if self.use_mpc_controller == True:
-                    self.control_iteration = self.control_iteration + 1
-                    if self.control_iteration % self.mpc_control_every_i_th_iteration != 0:
-                        return
-                
-                self.current_point = [msg.x, msg.y]
-                self.get_logger().debug(f"Current point received: {self.current_point}")
-                control_output = self.controller.compute_control(self.current_point)
-
-                self.get_logger().debug(f"Control output: {control_output}")
-
-                control_output_ros_msg = Vector3()
-                control_output_ros_msg.x = control_output[0]
-                control_output_ros_msg.y = control_output[1]
-                control_output_ros_msg.z = 0.0
-
-                self.control_output_pub.publish(control_output_ros_msg)
-            else:
-                self.get_logger().warn("Controller not initialized, publishing zero control output.")
-        else:
-            self.get_logger().debug("Waiting for Button A engagement, publishing zero active assistance force.")
-
-        self.calculate_force(control_output)
-        
-    def estimation_kh_callback(self, msg: Float64MultiArray):
-        self.get_logger().debug(f"Received estimated K_h")
-        
-        self.adapt_iteration = self.adapt_iteration + 1
-        if self.adapt_iteration % self.adapt_every_i_th_iterarion != 0:
-            return
-
-        if (self.control_node_running or self.study_is_running) and self.controller_initialized:
-            if self.controller_mode == "adaptive":
-                k_h = [[msg.data[0], msg.data[1]], [msg.data[2], msg.data[3]]]
-                self.get_logger().debug(f"Received K_h estimate: {k_h}")
-                self.controller.adapt(k_h)
-
-                control_parameter_msg = String()
-                control_parameter_msg.data = self.controller.publish_control_parameter()
-                self.control_parameter_pub.publish(control_parameter_msg)
-                self.get_logger().debug("Published updated controller parameters.")
 
 
 def main(args=None):
