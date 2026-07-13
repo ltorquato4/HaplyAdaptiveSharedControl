@@ -52,6 +52,8 @@ class ControlNode(Node):
         self.max_control_amplitude = self.declare_parameter("max_control_amplitude", 10.0).value
         self.max_velocity_amplitude = self.declare_parameter("max_velocity_amplitude", 10.0).value
         self.acceleration_to_force_factor = self.declare_parameter("acceleration_to_force_factor", 0.1).value
+        self.mpc_control_every_i_th_iteration = self.declare_parameter("mpc_control_every_i_th_iteration", 10).value
+        self.adapt_every_i_th_iterarion = self.declare_parameter("adapt_every_i_th_iterarion", 10).value
 
         # MPC specific Parameters
         self.prediction_horizon = self.declare_parameter("prediction_horizon", 10).value
@@ -85,7 +87,7 @@ class ControlNode(Node):
         self.start_point: list[float] = []
         self.end_point: list[float] = []
         self.current_point: list[float] = []
-        self.controller_initialized: bool = False
+        self.control_settings_to_default()
 
         # Pygame tracking variables (updated regardless of display state, harmless overhead)
         self.latest_control_x = 0.0
@@ -105,12 +107,34 @@ class ControlNode(Node):
         self.haply_state_sub = self.create_subscription(HaplyState, "/haply_state", self.haply_state_callback, 10)
         self.endpoint_reached_sub = self.create_subscription(Bool, "/study_endpoint_reached", self.endpoint_reached_callback, 10)
 
+    def calculate_force(self, control_output):
+        self.latest_control_x = control_output[0]
+        self.latest_control_y = control_output[1]
+
+        force_feedback_vector = Vector3()
+        force_feedback_vector.x = self.acceleration_to_force_factor * control_output[0]
+        force_feedback_vector.y = 0.0
+        force_feedback_vector.z = self.acceleration_to_force_factor * control_output[1]
+
+        force_feedback = HaplyControl()
+        force_feedback.use_position = False
+        force_feedback.target_position = Point()
+        force_feedback.force = force_feedback_vector
+
+        self.force_output_pub.publish(force_feedback)
+        self.get_logger().debug(f"Published force feedback: ({force_feedback_vector.x}, {force_feedback_vector.y}, {force_feedback_vector.z})")
+
+    def control_settings_to_default(self):
+        self.controller_initialized = None
+        self.control_iteration = -1
+        self.adapt_iteration = -1
+
     def initialize_controller(self):
         if self.start_point == []: 
-            self.controller_initialized = False
+            self.control_settings_to_default()
             return False
         if self.end_point == []: 
-            self.controller_initialized = False
+            self.control_settings_to_default()
             return False
         
         self.get_logger().debug(f"Start Controller Initialization")
@@ -226,6 +250,13 @@ class ControlNode(Node):
 
         if self.control_node_running:
             if self.controller_initialized:
+                
+                # for MPC, check that only every i^th time step is actually calculated
+                if self.use_mpc_controller == True:
+                    self.control_iteration = self.control_iteration + 1
+                    if self.control_iteration % self.mpc_control_every_i_th_iteration != 0:
+                        return
+                
                 self.current_point = [msg.x, msg.y]
                 self.get_logger().debug(f"Current point received: {self.current_point}")
                 control_output = self.controller.compute_control(self.current_point)
@@ -243,25 +274,16 @@ class ControlNode(Node):
         else:
             self.get_logger().debug("Waiting for Button A engagement, publishing zero active assistance force.")
 
-        # Update tracking variables
-        self.latest_control_x = control_output[0]
-        self.latest_control_y = control_output[1]
-
-        force_feedback_vector = Vector3()
-        force_feedback_vector.x = self.acceleration_to_force_factor * control_output[0]
-        force_feedback_vector.y = 0.0
-        force_feedback_vector.z = self.acceleration_to_force_factor * control_output[1]
-
-        force_feedback = HaplyControl()
-        force_feedback.use_position = False
-        force_feedback.target_position = Point()
-        force_feedback.force = force_feedback_vector
-
-        self.force_output_pub.publish(force_feedback)
-        self.get_logger().debug(f"Published force feedback: ({force_feedback_vector.x}, {force_feedback_vector.y}, {force_feedback_vector.z})")
+        self.calculate_force(control_output)
+        
 
     def estimation_kh_callback(self, msg: Float64MultiArray):
         self.get_logger().debug(f"Received estimated K_h")
+        
+        # for the adaptation, check that only every i^th time step is adapted
+        self.adapt_iteration = self.adapt_iteration + 1
+        if self.adapt_iteration % self.adapt_every_i_th_iterarion != 0:
+            return
 
         if self.control_node_running and self.controller_initialized:
             if self.controller_mode == "adaptive":

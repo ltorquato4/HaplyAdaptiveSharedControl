@@ -21,7 +21,7 @@ class MpcController(Controller):
         start_point: Sequence[float],
         end_point: Sequence[float],
         dt: float,
-        prediction_horizon: int = 10,
+        prediction_horizon: int = 5,
         max_control: tuple[float, float] = (1.0, 1.0),
         max_velocity: tuple[float, float] = (1.0, 1.0),
         x_bounds: tuple[float, float] | None = None,
