@@ -20,6 +20,12 @@ from control_node.state_feedback_controller.state_feedback_controller import (
 # Import the new debug visualizer logic
 from control_node.debug_visualizer import run_visualizer
 
+# Import pynput for tracking mouse states globally or during debug
+try:
+    from pynput import mouse
+except ImportError:
+    mouse = None
+
 
 class ControlNode(Node):
     def __init__(self):
@@ -66,25 +72,7 @@ class ControlNode(Node):
             str(self.log_level).upper(),
             LoggingSeverity.DEBUG,
         )
-
-        # ROS logger
         self.get_logger().set_level(severity)
-
-        # Python file logger
-        self.file_logger = logging.getLogger("control_node_file")
-        self.file_logger.setLevel(getattr(logging, str(self.log_level).upper(), logging.DEBUG))
-
-        # Avoid duplicate handlers if node is recreated
-        self.file_logger.handlers.clear()
-
-        file_handler = logging.FileHandler("control_node.log", mode="w")
-        file_handler.setFormatter(
-            logging.Formatter(
-                "%(asctime)s - %(levelname)s - %(message)s"
-            )
-        )
-
-        self.file_logger.addHandler(file_handler)
 
     def define_publishers(self):
         self.control_output_pub = self.create_publisher(Vector3, "/control/U_a", 10)
@@ -101,24 +89,32 @@ class ControlNode(Node):
         self.haply_state_sub = self.create_subscription(HaplyState, "/haply_state", self.haply_state_callback, 10)
         self.endpoint_reached_sub = self.create_subscription(Bool, "/study_endpoint_reached", self.endpoint_reached_callback, 10)
 
+    def get_or_declare_parameter(self, name, default_value):
+        if self.has_parameter(name):
+            return self.get_parameter(name).value
+        else:
+            return self.declare_parameter(name, default_value).value
+
     def define_control_problem_settings(self):
-        # Control Parameters
-        self.dt = self.declare_parameter("delta_time", 0.01).value
-        self.use_mpc_controller = self.declare_parameter("use_mpc_controller", True).value
-        self.controller_mode = "adaptive" if self.declare_parameter("adaptive_control_enabled", False).value else "fixed"
-        self.max_control_amplitude = self.declare_parameter("max_control_amplitude", 10.0).value
-        self.max_velocity_amplitude = self.declare_parameter("max_velocity_amplitude", 10.0).value
-        self.acceleration_to_force_factor = self.declare_parameter("acceleration_to_force_factor", 0.1).value
-        self.mpc_control_every_i_th_iteration = self.declare_parameter("mpc_control_every_i_th_iteration", 10).value
-        self.adapt_every_i_th_iterarion = self.declare_parameter("adapt_every_i_th_iterarion", 10).value
+        self.dt = self.get_or_declare_parameter("delta_time", 0.01)
+        self.use_mpc_controller = self.get_or_declare_parameter("use_mpc_controller", True)
+        
+        adaptive_enabled = self.get_or_declare_parameter("adaptive_control_enabled", False)
+        self.controller_mode = "adaptive" if adaptive_enabled else "fixed"
+        
+        self.max_control_amplitude = self.get_or_declare_parameter("max_control_amplitude", 10.0)
+        self.max_velocity_amplitude = self.get_or_declare_parameter("max_velocity_amplitude", 10.0)
+        self.acceleration_to_force_factor = self.get_or_declare_parameter("acceleration_to_force_factor", 0.1)
+        self.mpc_control_every_i_th_iteration = self.get_or_declare_parameter("mpc_control_every_i_th_iteration", 10)
+        self.adapt_every_i_th_iterarion = self.get_or_declare_parameter("adapt_every_i_th_iterarion", 10)
         self.controller: Controller = None
 
         # MPC specific Parameters
-        self.prediction_horizon = self.declare_parameter("prediction_horizon", 1).value
+        self.prediction_horizon = self.get_or_declare_parameter("prediction_horizon", 1)
 
         # GUI-Experiment parameters
-        self.x_bounds_limit = self.declare_parameter("x_bounds", 400.0).value
-        self.y_bounds_limit = self.declare_parameter("y_bounds", 700.0).value
+        self.x_bounds_limit = self.get_or_declare_parameter("x_bounds", 400.0)
+        self.y_bounds_limit = self.get_or_declare_parameter("y_bounds", 700.0)
 
     def calculate_force(self, control_output):
         self.latest_control_x = control_output[0]
@@ -138,11 +134,9 @@ class ControlNode(Node):
 
     def initialize_controller(self):
         if not self.start_point: 
-            self.control_node_settings_to_default()
             return False
         
         if not self.end_point: 
-            self.control_node_settings_to_default()
             return False
         
         self.get_logger().debug(f"Start Controller Initialization")
@@ -203,6 +197,7 @@ class ControlNode(Node):
                     ),
                 )
         self.get_logger().debug(f"Initialized controller: {type(self.controller).__name__} with start point {self.start_point} and end point {self.end_point} and mode {self.controller_mode}")
+        self.get_logger().debug(f"Controller characteristic: {self.controller.publish_control_parameter()}")
         self.controller_initialized = True
         return True
 
@@ -264,10 +259,12 @@ class ControlNode(Node):
                         return
                 
                 self.current_point = [msg.x, msg.y]
-                self.get_logger().debug(f"Current point received: {self.current_point}")
+                # self.get_logger().debug(f"Current point received: {self.current_point}")
                 control_output = self.controller.compute_control(self.current_point)
 
-                self.get_logger().debug(f"Control output: {control_output}")
+                if self.control_iteration % 17 != 0:
+                    self.get_logger().debug(f"Current point: {self.current_point}")
+                    self.get_logger().debug(f"Control output: {control_output}")
 
                 control_output_ros_msg = Vector3()
                 control_output_ros_msg.x = control_output[0]
@@ -275,10 +272,10 @@ class ControlNode(Node):
                 control_output_ros_msg.z = 0.0
 
                 self.control_output_pub.publish(control_output_ros_msg)
-            else:
-                self.get_logger().warn("Controller not initialized, publishing zero control output.")
-        else:
-            self.get_logger().debug("Waiting for Button A engagement, publishing zero active assistance force.")
+            # else:
+            #     self.get_logger().warn("Controller not initialized, publishing zero control output.")
+        # else:
+        #     self.get_logger().debug("Waiting for Button A engagement, publishing zero active assistance force.")
 
         self.calculate_force(control_output)
         
