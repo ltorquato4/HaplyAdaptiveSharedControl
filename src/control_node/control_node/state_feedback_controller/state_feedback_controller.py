@@ -29,8 +29,6 @@ class StateFeedbackController(Controller):
     def compute_control(self, current_point: Sequence[float]) -> list[float]:
         position = self._build_position(current_point)
         velocity = self._estimate_velocity(position)
-        print(f"Current position: {position}, Current velocity: {velocity}")
-        print(f"Start point: {self.experiment_start_point}, End point: {self.experiment_end_point}")
 
         e = position - self.experiment_end_point
         e_dot = velocity
@@ -61,3 +59,6 @@ class StateFeedbackController(Controller):
                 "K_d": np.diag(self.K_d).tolist(),
             }
         )
+    
+    def destroy(self):
+        return None
