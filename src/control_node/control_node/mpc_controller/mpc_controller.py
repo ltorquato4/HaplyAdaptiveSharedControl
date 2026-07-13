@@ -170,5 +170,5 @@ class MpcController(Controller):
         if hasattr(self, "u_a"):
             self.u_a = None
 
-        # 4. Invoke the parent placeholder safely just to preserve pattern hierarchy
-        del self
+        import gc
+        gc.collect()

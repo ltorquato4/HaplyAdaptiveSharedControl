@@ -1,5 +1,4 @@
 import threading
-import logging
 import rclpy
 from geometry_msgs.msg import Point, Vector3
 from haply_msgs.msg import HaplyControl, HaplyState
@@ -10,14 +9,9 @@ from std_msgs.msg import Bool, Float64MultiArray, String
 from control_node.controller_interface import Controller
 from control_node.mpc_controller.adaptive_mpc_controller import AdaptiveMpcController
 from control_node.mpc_controller.mpc_controller import MpcController
-from control_node.state_feedback_controller.adaptive_state_feedback_controller import (
-    AdaptiveStateFeedbackController,
-)
-from control_node.state_feedback_controller.state_feedback_controller import (
-    StateFeedbackController,
-)
+from control_node.state_feedback_controller.adaptive_state_feedback_controller import AdaptiveStateFeedbackController
+from control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
 
-# Import the new debug visualizer logic
 from control_node.debug_visualizer import run_visualizer
 
 
@@ -191,7 +185,6 @@ class ControlNode(Node):
                     ),
                 )
         self.get_logger().debug(f"Initialized controller: {type(self.controller).__name__} with start point {self.start_point} and end point {self.end_point} and mode {self.controller_mode}")
-        self.get_logger().debug(f"Controller characteristic: {self.controller.publish_control_parameter()}")
         self.controller_initialized = True
         return True
 
@@ -218,7 +211,7 @@ class ControlNode(Node):
     def start_point_callback(self, msg: Point):
         new_start = [msg.x, msg.y]
         
-        if self.start_point == new_start or self.controller_initialized:
+        if self.start_point == new_start:
             return
             
         self.start_point = new_start
@@ -229,7 +222,7 @@ class ControlNode(Node):
     def end_point_callback(self, msg: Point):
         new_end = [msg.x, msg.y]
         
-        if self.end_point == new_end or self.controller_initialized:
+        if self.end_point == new_end:
             return
 
         self.end_point = new_end
@@ -243,7 +236,8 @@ class ControlNode(Node):
     def current_point_callback(self, msg: Point):
         control_output = [0.0, 0.0]
 
-        if self.control_node_running or self.study_is_running:
+        # if self.control_node_running or self.study_is_running:
+        if self.study_is_running:    
             if self.controller_initialized:
                 
                 # for MPC, check that only every i^th time step is actually calculated
@@ -256,9 +250,9 @@ class ControlNode(Node):
                 # self.get_logger().debug(f"Current point received: {self.current_point}")
                 control_output = self.controller.compute_control(self.current_point)
 
-                if self.control_iteration % 17 != 0:
-                    self.get_logger().debug(f"Current point: {self.current_point}")
-                    self.get_logger().debug(f"Control output: {control_output}")
+                # if self.control_iteration % 17 != 0:
+                #     self.get_logger().debug(f"Current point: {self.current_point}")
+                #     self.get_logger().debug(f"Control output: {control_output}")
 
                 control_output_ros_msg = Vector3()
                 control_output_ros_msg.x = control_output[0]
@@ -311,14 +305,13 @@ class ControlNode(Node):
             
             if self.controller:
                 self.controller.destroy()
-                self.controller = None
+                del self.controller
+                self.get_logger().debug("Destroyed Controller")
                 
             self.control_node_settings_to_default()
             self.define_control_problem_settings()
             
-            if self.control_node_running:
-                self.get_logger().debug("Endpoint reached message received. Assistance control stopped.")
-                self.control_node_running = False
+            self.get_logger().debug("Endpoint reached message received. Assistance control stopped.")
 
     def study_is_running_callback(self, msg: Bool):
         new_study_is_running = msg.data

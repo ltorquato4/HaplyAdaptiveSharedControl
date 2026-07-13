@@ -97,3 +97,9 @@ class CostFunction:
         J += ca.mtimes([e_goal, self.P, e_goal.T])
 
         return J
+    
+    def destroy(self) -> None:
+        """Release CasADi weight matrices (R, Q, P) held by this instance."""
+        self.R = None
+        self.Q = None
+        self.P = None

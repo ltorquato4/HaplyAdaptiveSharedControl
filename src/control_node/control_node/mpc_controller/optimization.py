@@ -304,24 +304,29 @@ class Optimization:
 
         u_optimum = self._solve_nlp(solver, symbolic_problem.g, u_init, p_val)
 
+        del solver
+
         return u_optimum
 
     def destroy(self) -> None:
-        if hasattr(self, "state_dependencies"):
-            del self.state_dependencies
-            self.state_dependencies = StateDependencies()
+        """Release all CasADi-backed objects and free their resources.
 
-        del self.model_dependencies
-        self.model_dependencies = None
+        Idempotent: safe to call multiple times. Forces a garbage-collection
+        pass afterward since CasADi Function/solver objects are C++-backed
+        and won't release memory until every Python reference is gone.
+        """
+        import gc
 
-        del self.system_model
-        self.system_model = None
+        attrs = (
+            "state_dependencies",
+            "model_dependencies",
+            "system_model",
+            "constraints",
+            "cost_function",
+            "batch_predictor",
+        )
+        for attr in attrs:
+            if hasattr(self, attr):
+                setattr(self, attr, None)
 
-        del self.constraints
-        self.constraints = None
-
-        del self.cost_function
-        self.cost_function = None
-
-        del self.batch_predictor
-        self.batch_predictor = None
+        gc.collect()

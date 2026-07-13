@@ -101,3 +101,9 @@ class BatchPredictor:
             "A_bar": ca.DM(self._A_bar),
             "B_bar": ca.DM(self._B_bar),
         }
+
+    def destroy(self) -> None:
+        """Clear cached batch matrices and the system_model reference."""
+        self._A_bar = None
+        self._B_bar = None
+        self.system_model = None
