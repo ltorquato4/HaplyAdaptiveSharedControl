@@ -20,12 +20,6 @@ from control_node.state_feedback_controller.state_feedback_controller import (
 # Import the new debug visualizer logic
 from control_node.debug_visualizer import run_visualizer
 
-# Import pynput for tracking mouse states globally or during debug
-try:
-    from pynput import mouse
-except ImportError:
-    mouse = None
-
 
 class ControlNode(Node):
     def __init__(self):
