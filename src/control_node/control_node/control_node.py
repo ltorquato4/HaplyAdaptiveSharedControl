@@ -56,7 +56,7 @@ class ControlNode(Node):
         self.adapt_every_i_th_iterarion = self.declare_parameter("adapt_every_i_th_iterarion", 10).value
 
         # MPC specific Parameters
-        self.prediction_horizon = self.declare_parameter("prediction_horizon", 10).value
+        self.prediction_horizon = self.declare_parameter("prediction_horizon", 5).value
 
         # GUI-Experiment parameters
         self.x_bounds_limit = self.declare_parameter("x_bounds", 400.0).value
