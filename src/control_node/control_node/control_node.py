@@ -1,7 +1,4 @@
-import math
 import threading
-import pygame
-
 import rclpy
 from geometry_msgs.msg import Point, Vector3
 from haply_msgs.msg import HaplyControl, HaplyState
@@ -9,6 +6,7 @@ from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
 from std_msgs.msg import Bool, Float64MultiArray, String
 
+from control_node.controller_interface import Controller
 from control_node.mpc_controller.adaptive_mpc_controller import AdaptiveMpcController
 from control_node.mpc_controller.mpc_controller import MpcController
 from control_node.state_feedback_controller.adaptive_state_feedback_controller import (
@@ -18,51 +16,35 @@ from control_node.state_feedback_controller.state_feedback_controller import (
     StateFeedbackController,
 )
 
-
-def draw_arrow(surface, color, start, end, arrow_size=10):
-    """Helper function to draw an arrow using Pygame."""
-    pygame.draw.line(surface, color, start, end, 3)
-    
-    # Calculate the angle for the arrowhead
-    angle = math.atan2(end[1] - start[1], end[0] - start[0])
-    
-    # Calculate arrowhead points
-    p1 = (
-        end[0] - arrow_size * math.cos(angle - math.pi / 6),
-        end[1] - arrow_size * math.sin(angle - math.pi / 6)
-    )
-    p2 = (
-        end[0] - arrow_size * math.cos(angle + math.pi / 6),
-        end[1] - arrow_size * math.sin(angle + math.pi / 6)
-    )
-    
-    # Draw the arrowhead
-    if start != end:
-        pygame.draw.polygon(surface, color, [end, p1, p2])
+# Import the new debug visualizer logic
+from debug_visualizer import run_visualizer
 
 
 class ControlNode(Node):
     def __init__(self):
         super().__init__("control_node")
 
-        # Control Parameters
-        self.dt = self.declare_parameter("delta_time", 0.01).value
-        self.use_mpc_controller = self.declare_parameter("use_mpc_controller", True).value
-        self.controller_mode = "adaptive" if self.declare_parameter("adaptive_control_enabled", False).value else "fixed"
-        self.max_control_amplitude = self.declare_parameter("max_control_amplitude", 10.0).value
-        self.max_velocity_amplitude = self.declare_parameter("max_velocity_amplitude", 10.0).value
-        self.acceleration_to_force_factor = self.declare_parameter("acceleration_to_force_factor", 0.1).value
-        self.mpc_control_every_i_th_iteration = self.declare_parameter("mpc_control_every_i_th_iteration", 10).value
-        self.adapt_every_i_th_iterarion = self.declare_parameter("adapt_every_i_th_iterarion", 10).value
+        self.define_logger()
+        self.define_subscribers()
+        self.define_publishers()
+        self.control_node_settings_to_default()
+        self.define_control_problem_settings()
+        
+    def control_node_settings_to_default(self):
+        self.start_point: list[float] = []
+        self.end_point: list[float] = []
+        self.current_point: list[float] = []
+        self.controller_initialized = False
+        self.control_iteration = -1
+        self.adapt_iteration = -1
+        self.latest_control_x = 0.0
+        self.latest_control_y = 0.0
+        self.study_is_running: bool = False
+        self.control_node_running: bool = False
+        self.current_button_a_state: bool = False
+        self.endpoint_reached_flag: bool = False
 
-        # MPC specific Parameters
-        self.prediction_horizon = self.declare_parameter("prediction_horizon", 5).value
-
-        # GUI-Experiment parameters
-        self.x_bounds_limit = self.declare_parameter("x_bounds", 400.0).value
-        self.y_bounds_limit = self.declare_parameter("y_bounds", 700.0).value
-
-        # Logging
+    def define_logger(self):
         self.log_level = self.declare_parameter("log_level", "DEBUG").value
 
         log_levels = {
@@ -79,33 +61,39 @@ class ControlNode(Node):
         self.get_logger().info("Control node started.")
         self.get_logger().debug(f"Configuration: dt={self.dt}, use_mpc_controller={self.use_mpc_controller}, controller_mode={self.controller_mode}, prediction_horizon={self.prediction_horizon}")
 
-        self.study_running: bool = False
-        self.control_node_running: bool = False  # Activation state tracker
-        self.current_button_a_state: bool = False
-        self.endpoint_reached_flag: bool = False
-        
-        self.start_point: list[float] = []
-        self.end_point: list[float] = []
-        self.current_point: list[float] = []
-        self.control_settings_to_default()
-
-        # Pygame tracking variables (updated regardless of display state, harmless overhead)
-        self.latest_control_x = 0.0
-        self.latest_control_y = 0.0
-
-        # Publishers
+    def define_publishers(self):
         self.control_output_pub = self.create_publisher(Vector3, "/control/U_a", 10)
         self.control_parameter_pub = self.create_publisher(String, "/control/K_a", 10)
         self.force_output_pub = self.create_publisher(HaplyControl, "/haply_target", 10)
-
-        # Subscribers
+        
+    def define_subscribers(self):
         self.controller_mode_sub = self.create_subscription(String, "/study_controller_mode", self.controller_mode_callback, 10)
         self.start_point_sub = self.create_subscription(Point, "/study_start_point", self.start_point_callback, 10)
         self.end_point_sub = self.create_subscription(Point, "/study_end_point", self.end_point_callback, 10)
+        self.study_is_running_sub = self.create_subscription(Bool, "/study_is_running", self.study_is_running_callback, 10)
         self.current_point_sub = self.create_subscription(Point, "/experiment_cursor_position", self.current_point_callback, 10)
         self.estimation_kh_sub = self.create_subscription(Float64MultiArray, "/estimation/K_h", self.estimation_kh_callback, 10)
         self.haply_state_sub = self.create_subscription(HaplyState, "/haply_state", self.haply_state_callback, 10)
         self.endpoint_reached_sub = self.create_subscription(Bool, "/study_endpoint_reached", self.endpoint_reached_callback, 10)
+
+    def define_control_problem_settings(self):
+        # Control Parameters
+        self.dt = self.declare_parameter("delta_time", 0.01).value
+        self.use_mpc_controller = self.declare_parameter("use_mpc_controller", True).value
+        self.controller_mode = "adaptive" if self.declare_parameter("adaptive_control_enabled", False).value else "fixed"
+        self.max_control_amplitude = self.declare_parameter("max_control_amplitude", 10.0).value
+        self.max_velocity_amplitude = self.declare_parameter("max_velocity_amplitude", 10.0).value
+        self.acceleration_to_force_factor = self.declare_parameter("acceleration_to_force_factor", 0.1).value
+        self.mpc_control_every_i_th_iteration = self.declare_parameter("mpc_control_every_i_th_iteration", 10).value
+        self.adapt_every_i_th_iterarion = self.declare_parameter("adapt_every_i_th_iterarion", 10).value
+        self.controller: Controller = None
+
+        # MPC specific Parameters
+        self.prediction_horizon = self.declare_parameter("prediction_horizon", 1).value
+
+        # GUI-Experiment parameters
+        self.x_bounds_limit = self.declare_parameter("x_bounds", 400.0).value
+        self.y_bounds_limit = self.declare_parameter("y_bounds", 700.0).value
 
     def calculate_force(self, control_output):
         self.latest_control_x = control_output[0]
@@ -124,20 +112,21 @@ class ControlNode(Node):
         self.force_output_pub.publish(force_feedback)
         self.get_logger().debug(f"Published force feedback: ({force_feedback_vector.x}, {force_feedback_vector.y}, {force_feedback_vector.z})")
 
-    def control_settings_to_default(self):
-        self.controller_initialized = None
-        self.control_iteration = -1
-        self.adapt_iteration = -1
-
     def initialize_controller(self):
-        if self.start_point == []: 
-            self.control_settings_to_default()
+        if not self.start_point: 
+            self.control_node_settings_to_default()
             return False
-        if self.end_point == []: 
-            self.control_settings_to_default()
+        
+        if not self.end_point: 
+            self.control_node_settings_to_default()
             return False
         
         self.get_logger().debug(f"Start Controller Initialization")
+        
+        if self.controller:
+            self.controller.destroy()
+            del self.controller
+            self.controller = None
         
         if self.controller_mode == "adaptive":
             if self.use_mpc_controller:
@@ -193,6 +182,10 @@ class ControlNode(Node):
         self.controller_initialized = True
         return True
 
+    #######################
+    ###### Callbacks ######
+    #######################
+    
     def haply_state_callback(self, msg: HaplyState):
         self.current_button_a_state = msg.buttons.a
 
@@ -209,21 +202,34 @@ class ControlNode(Node):
     def endpoint_reached_callback(self, msg: Bool):
         if not self.endpoint_reached_flag and msg.data:
             self.endpoint_reached_flag = True
-            del self.controller
-            self.controller_initialized = False
+            
+            if self.controller:
+                self.controller.destroy()
+                self.controller = None
+                
+            self.control_node_settings_to_default()
+            self.define_control_problem_settings()
             
             if self.control_node_running:
                 self.get_logger().debug("Endpoint reached message received. Assistance control stopped.")
                 self.control_node_running = False
 
-    def study_running_callback(self, msg: Bool):
-        self.study_running = msg.data
-        self.get_logger().debug(f"Study running state changed to {self.study_running}")
+    def study_is_running_callback(self, msg: Bool):
+        new_study_is_running = msg.data
+        
+        if self.study_is_running == new_study_is_running and self.controller_initialized:
+            return
+        
+        self.study_is_running = new_study_is_running
+        self.get_logger().debug(f"Study running state changed to {self.study_is_running}")
 
     def controller_mode_callback(self, msg: String):
-        self.get_logger().debug("Message on /controller_mode")
-        self.controller_mode = msg.data.lower()
+        new_mode = msg.data.lower()
+        
+        if self.controller_mode == new_mode and self.controller_initialized:
+            return
 
+        self.controller_mode = new_mode
         self.get_logger().debug(f"Controller mode changed to {self.controller_mode}")
 
         if self.initialize_controller():
@@ -233,13 +239,23 @@ class ControlNode(Node):
             self.get_logger().debug("Published controller parameters.")
 
     def start_point_callback(self, msg: Point):
-        self.start_point = [msg.x, msg.y]
+        new_start = [msg.x, msg.y]
+        
+        if self.start_point == new_start and self.controller_initialized:
+            return
+            
+        self.start_point = new_start
         self.get_logger().debug(f"Start point updated: {self.start_point}")
         if not self.controller_initialized:
             self.initialize_controller()
 
     def end_point_callback(self, msg: Point):
-        self.end_point = [msg.x, msg.y]
+        new_end = [msg.x, msg.y]
+        
+        if self.end_point == new_end and self.controller_initialized:
+            return
+
+        self.end_point = new_end
         self.get_logger().debug(f"End point updated: {self.end_point}")
         if not self.controller_initialized:
             self.initialize_controller()
@@ -248,7 +264,7 @@ class ControlNode(Node):
         self.get_logger().debug("Message on /experiment_cursor_position")
         control_output = [0.0, 0.0]
 
-        if self.control_node_running:
+        if self.control_node_running or self.study_is_running:
             if self.controller_initialized:
                 
                 # for MPC, check that only every i^th time step is actually calculated
@@ -276,16 +292,14 @@ class ControlNode(Node):
 
         self.calculate_force(control_output)
         
-
     def estimation_kh_callback(self, msg: Float64MultiArray):
         self.get_logger().debug(f"Received estimated K_h")
         
-        # for the adaptation, check that only every i^th time step is adapted
         self.adapt_iteration = self.adapt_iteration + 1
         if self.adapt_iteration % self.adapt_every_i_th_iterarion != 0:
             return
 
-        if self.control_node_running and self.controller_initialized:
+        if (self.control_node_running or self.study_is_running) and self.controller_initialized:
             if self.controller_mode == "adaptive":
                 k_h = [[msg.data[0], msg.data[1]], [msg.data[2], msg.data[3]]]
                 self.get_logger().debug(f"Received K_h estimate: {k_h}")
@@ -313,63 +327,14 @@ def main(args=None):
         ros_thread = threading.Thread(target=executor.spin, daemon=True)
         ros_thread.start()
 
-        # Initialize Pygame
-        pygame.init()
-        width, height = 600, 600
-        screen = pygame.display.set_mode((width, height))
-        pygame.display.set_caption("Control Output Visualizer (DEBUG)")
-        clock = pygame.time.Clock()
-        font = pygame.font.SysFont(None, 24)
+        # Run the UI loop from our decoupled module
+        run_visualizer(node)
 
-        center = (width // 2, height // 2)
-        scale = 20.0 
-
-        running = True
-        try:
-            while running:
-                for event in pygame.event.get():
-                    if event.type == pygame.QUIT:
-                        running = False
-
-                screen.fill((30, 30, 30))
-                pygame.draw.line(screen, (70, 70, 70), (0, center[1]), (width, center[1]), 1)
-                pygame.draw.line(screen, (70, 70, 70), (center[0], 0), (center[0], height), 1)
-
-                current_x = node.latest_control_x
-                current_y = node.latest_control_y
-
-                end_x = (center[0] + current_x * scale, center[1])
-                end_y = (center[0], center[1] - current_y * scale)
-                end_sum = (center[0] + current_x * scale, center[1] - current_y * scale)
-
-                draw_arrow(screen, (255, 50, 50), center, end_x)          # Red X
-                draw_arrow(screen, (50, 255, 50), center, end_y)          # Green Y
-                draw_arrow(screen, (100, 150, 255), center, end_sum)      # Blue Sum
-
-                if current_x != 0 or current_y != 0:
-                    pygame.draw.line(screen, (100, 100, 100), end_x, end_sum, 1)
-                    pygame.draw.line(screen, (100, 100, 100), end_y, end_sum, 1)
-
-                text_x = font.render(f"X Control: {current_x:.2f}", True, (255, 50, 50))
-                text_y = font.render(f"Y Control: {current_y:.2f}", True, (50, 255, 50))
-                magnitude = math.sqrt(current_x**2 + current_y**2)
-                text_sum = font.render(f"Sum Mag: {magnitude:.2f}", True, (100, 150, 255))
-
-                screen.blit(text_x, (10, 10))
-                screen.blit(text_y, (10, 35))
-                screen.blit(text_sum, (10, 60))
-
-                pygame.display.flip()
-                clock.tick(60)
-
-        except KeyboardInterrupt:
-            pass
-        finally:
-            pygame.quit()
-            executor.shutdown()
-            node.destroy_node()
-            if rclpy.ok():
-                rclpy.shutdown()
+        # Cleanup after the visualizer window is closed
+        executor.shutdown()
+        node.destroy_node()
+        if rclpy.ok():
+            rclpy.shutdown()
 
     else:
         # Standard headless ROS execution
