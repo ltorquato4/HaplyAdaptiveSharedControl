@@ -79,6 +79,8 @@ sudo systemctl start haply-inverse-service.service
 | Haply GUI with Controller | `ros2 launch haply_study_gui study_gui.launch.py use_controller:=true` |
 | Haply GUI with Estimator | `ros2 launch haply_study_gui study_gui.launch.py use_estimator:=true` |
 | Mouse GUI with Controller and Estimator | `ros2 launch haply_study_gui study_gui_mouse.launch.py use_controller:=true use_estimator:=true` |
+| Mouse GUI with custom path YAML | `ros2 launch haply_study_gui study_gui_mouse.launch.py task_file:=/path/to/paths.yaml` |
+| Mouse GUI with adaptive and fixed blocks | `ros2 launch haply_study_gui study_gui_mouse.launch.py controller_modes:=adaptive,fixed` |
 | Haply GUI test launch | `ros2 launch haply_study_gui study_gui_haply_test.launch.py` |
 | GUI only, expecting an existing `/haply_state` publisher | `ros2 run haply_study_gui study_gui --ros-args -p source:=haply` |
 | Check live `/haply_state` messages | `ros2 run haply_study_gui test_haply_state_topic` |
@@ -90,9 +92,9 @@ The mouse launch starts `study_gui`, `experiment_mapper`, and
 Scenario Generator detects endpoint completion from the mapped cursor.
 
 The hardware launch starts `study_gui`, `haply_driver_node`,
-`experiment_mapper`, and `scenario_generator`. The default task points are
-inside the previous GUI dummy-test area, but they still need to be verified on
-the physical Haply workspace before subject testing.
+`experiment_mapper`, and `scenario_generator`. The default path geometry is
+loaded from the `study_orchestration` YAML config, but it still needs to be
+verified on the physical Haply workspace before subject testing.
 
 ## Interface
 

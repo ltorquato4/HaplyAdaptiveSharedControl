@@ -2,17 +2,26 @@
 
 from launch import LaunchDescription
 from launch.actions import (
+    DeclareLaunchArgument,
     EmitEvent,
     RegisterEventHandler,
     SetEnvironmentVariable,
 )
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
     """Build the launch description for hardware GUI testing."""
+    task_file = LaunchConfiguration("task_file")
+    controller_modes = LaunchConfiguration("controller_modes")
+    default_task_file = PathJoinSubstitution(
+        [FindPackageShare("study_orchestration"), "config", "default_tasks.yaml"]
+    )
+
     haply_driver = Node(
         package="haply_interface",
         executable="haply_driver_node",
@@ -31,6 +40,8 @@ def generate_launch_description():
         output="screen",
         parameters=[
             {
+                "task_file": task_file,
+                "controller_modes": controller_modes,
                 "endpoint_reached_radius": 0.01,
                 "inter_trial_delay_s": 1.0,
             }
@@ -82,6 +93,19 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "task_file",
+                default_value=default_task_file,
+                description="YAML file defining scenario path geometry.",
+            ),
+            DeclareLaunchArgument(
+                "controller_modes",
+                default_value="fixed",
+                description=(
+                    "Comma-separated controller modes: adaptive, fixed, "
+                    "or adaptive,fixed."
+                ),
+            ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
             haply_driver,

@@ -26,6 +26,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-pip \
     python3-pygame \
     python3-rosdep \
+    python3-yaml \
     software-properties-common \
     ros-${ROS_DISTRO}-builtin-interfaces \
     ros-${ROS_DISTRO}-geometry-msgs \

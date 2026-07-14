@@ -22,20 +22,41 @@ Subscribes:
 - `/study_is_running` (`std_msgs/Bool`)
 - `/experiment_cursor_position` (`geometry_msgs/Point`)
 
-The generator uses exactly five configured task points. By default they are:
+The generator loads path geometry from YAML. The default file is installed at
+`share/study_orchestration/config/default_tasks.yaml` and contains four chained
+rectangle-edge paths: lower right to upper right, upper right to upper left,
+upper left to lower left, and lower left back to lower right.
 
-| Point | x | y | z |
-|---|---:|---:|---:|
-| `P0` | `-0.08` | `-0.08` | `0.0` |
-| `P1` | `0.08` | `-0.08` | `0.0` |
-| `P2` | `0.08` | `0.08` | `0.0` |
-| `P3` | `-0.08` | `0.08` | `0.0` |
-| `P4` | `0.0` | `-0.15` | `0.0` |
+The YAML defines only start/end path geometry:
 
-Trials are chained as `P0 -> P1`, `P1 -> P2`, `P2 -> P3`, `P3 -> P4`, and
-`P4 -> P0`, so the start point of each trial is the endpoint of the previous
-trial. Each behavioral state runs all five segments before the next behavioral
-state starts.
+```yaml
+paths:
+  - start_point: [0.08, -0.08, 0.0]
+    end_point: [0.08, 0.08, 0.0]
+```
+
+The Scenario Generator expands those paths into task definitions internally.
+Behavioral phases are fixed in code as `aggressive`, `normal`, and `careful`.
+Controller modes are selected with the `controller_modes` parameter. The default
+is `fixed`, which creates 12 tasks: four paths for each of the three phases.
+If `controller_modes:=adaptive,fixed` is used, the rollout creates 24 tasks in
+mode-first order: all adaptive phase blocks, then all fixed phase blocks.
+
+Use a custom path file by passing `task_file` to the launch:
+
+```bash
+ros2 launch haply_study_gui study_gui_mouse.launch.py task_file:=/path/to/paths.yaml
+```
+
+Select controller modes without editing the YAML:
+
+```bash
+ros2 launch haply_study_gui study_gui_mouse.launch.py controller_modes:=adaptive,fixed
+```
+
+Mirrored paths should be added as explicit YAML path entries rather than
+generated in Python. Adding or removing paths changes the number of trials per
+phase block without code changes.
 
 The task-definition topics (`/study_start_point`, `/study_end_point`,
 `/study_phase`, and `/study_controller_mode`) are published when the task
@@ -47,7 +68,7 @@ generator publishes `/study_endpoint_reached=True`, waits
 `inter_trial_delay_s` seconds, then publishes the next start/end task and resets
 `/study_endpoint_reached=False`. The default inter-trial delay is `1.0` second.
 
-The default points are validated against the previous GUI dummy-test area:
+The default paths are validated against the previous GUI dummy-test area:
 
 - `workspace_x_min = -0.12`
 - `workspace_x_max = 0.12`
@@ -57,8 +78,7 @@ The default points are validated against the previous GUI dummy-test area:
 
 These bounds are task-frame defaults only. They are not a guarantee that the
 same points are physically comfortable or reachable on the Haply device. Verify
-the hardware range before subject testing and override the point parameters if
-needed.
+the hardware range before subject testing and override the path YAML if needed.
 
 ### `experiment_mapper`
 

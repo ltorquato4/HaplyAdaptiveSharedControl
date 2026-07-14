@@ -10,14 +10,20 @@ from launch.actions import (
 from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
-from launch.substitutions import LaunchConfiguration
+from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
 from launch_ros.actions import Node
+from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
     """Build the launch description for mouse-only GUI testing."""
     use_controller = LaunchConfiguration("use_controller")
     use_estimator = LaunchConfiguration("use_estimator")
+    task_file = LaunchConfiguration("task_file")
+    controller_modes = LaunchConfiguration("controller_modes")
+    default_task_file = PathJoinSubstitution(
+        [FindPackageShare("study_orchestration"), "config", "default_tasks.yaml"]
+    )
 
     scenario_generator = Node(
         package="study_orchestration",
@@ -26,6 +32,8 @@ def generate_launch_description():
         output="screen",
         parameters=[
             {
+                "task_file": task_file,
+                "controller_modes": controller_modes,
                 "endpoint_reached_radius": 0.01,
                 "inter_trial_delay_s": 1.0,
             }
@@ -98,6 +106,19 @@ def generate_launch_description():
                 "use_estimator",
                 default_value="false",
                 description="Start estimator_node with the mouse study GUI.",
+            ),
+            DeclareLaunchArgument(
+                "task_file",
+                default_value=default_task_file,
+                description="YAML file defining scenario path geometry.",
+            ),
+            DeclareLaunchArgument(
+                "controller_modes",
+                default_value="fixed",
+                description=(
+                    "Comma-separated controller modes: adaptive, fixed, "
+                    "or adaptive,fixed."
+                ),
             ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),

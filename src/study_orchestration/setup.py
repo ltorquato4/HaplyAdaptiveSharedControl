@@ -1,5 +1,7 @@
 """Package configuration for study orchestration nodes."""
 
+from glob import glob
+
 from setuptools import find_packages, setup
 
 package_name = "study_orchestration"
@@ -14,6 +16,7 @@ setup(
             ["resource/" + package_name],
         ),
         ("share/" + package_name, ["package.xml"]),
+        ("share/" + package_name + "/config", glob("config/*.yaml")),
     ],
     install_requires=["setuptools"],
     zip_safe=True,
