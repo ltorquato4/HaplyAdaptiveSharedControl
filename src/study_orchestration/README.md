@@ -33,6 +33,16 @@ The generator uses exactly three configured task points. By default they are:
 Trials are chained as `P0 -> P1`, `P1 -> P2`, and `P2 -> P0`, so the start
 point of each trial is the endpoint of the previous trial.
 
+The task-definition topics (`/study_start_point`, `/study_end_point`,
+`/study_phase`, and `/study_controller_mode`) are published when the task
+changes and use transient local QoS so late-starting nodes receive the latest
+task without requiring continuous republishing.
+
+When the mapped cursor reaches the current endpoint during a running trial, the
+generator publishes `/study_endpoint_reached=True`, waits
+`inter_trial_delay_s` seconds, then publishes the next start/end task and resets
+`/study_endpoint_reached=False`. The default inter-trial delay is `3.0` seconds.
+
 The default points are validated against the previous GUI dummy-test area:
 
 - `workspace_x_min = -0.10`

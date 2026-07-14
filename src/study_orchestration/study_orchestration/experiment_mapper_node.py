@@ -7,6 +7,7 @@ from geometry_msgs.msg import Point
 from haply_msgs.msg import HaplyState
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool
 
 from study_orchestration.mapper_logic import (
@@ -65,11 +66,19 @@ class ExperimentMapper(Node):
         self.anchor_pending = True
 
         self.cursor_pub = self.create_publisher(Point, "experiment_cursor_position", 10)
+        task_qos = self._task_qos()
         self.create_subscription(HaplyState, "haply_state", self._haply_state, 10)
         self.create_subscription(
-            Point, "study_start_point", self._study_start_point, 10
+            Point, "study_start_point", self._study_start_point, task_qos
         )
         self.create_subscription(Bool, "study_is_running", self._study_is_running, 10)
+
+    def _task_qos(self) -> QoSProfile:
+        return QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
 
     def _haply_state(self, msg: HaplyState) -> None:
         raw_position = self._from_point_msg(msg.position)

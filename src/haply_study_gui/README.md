@@ -10,8 +10,7 @@ The GUI is a visual instruction and experiment feedback publisher:
 
 - subscribes to `experiment_cursor_position` for live experiment cursor
   feedback
-- subscribes to `haply_state` for Haply button/status feedback when
-  `source=haply`
+- receives mapped cursor feedback from `experiment_cursor_position`
 - subscribes to `study_start_point`, `study_end_point`, `study_phase`, and
   `study_controller_mode` from the Scenario Generator
 - publishes `study_is_running`
@@ -19,6 +18,8 @@ The GUI is a visual instruction and experiment feedback publisher:
 - supports `source=mouse` for testing and `source=haply` for hardware input
 - publishes fake `haply_state` in mouse mode so the Experiment Mapper and
   Scenario Generator can be tested without hardware
+- starts each trial only when VerseGrip Button A, or the left mouse button in
+  mouse mode, is pressed while the mapped cursor is at the current start point
 - does not publish `haply_target`
 - does not own phase rollout, controller mode, or start/end point generation
 - does not own endpoint detection or trial rollout
@@ -34,15 +35,13 @@ The hardware launch starts `haply_interface/haply_driver_node`. That driver
 connects to the Haply Inverse SDK Service at `ws://localhost:10001` and
 publishes:
 
-- `haply_state` (`haply_msgs/HaplyState`) for combined Inverse3 position,
-  velocity, handle orientation, and button state
+- `haply_state` (`haply_msgs/HaplyState`) for raw Haply/VerseGrip state
 - `inverse3_state` (`haply_msgs/Inverse3State`) for Inverse3 position and
   velocity
-- `handle_state` (`haply_msgs/HandleState`) for VerseGrip orientation and
-  buttons
 
-The GUI receives the experiment cursor from `experiment_cursor_position`. It
-subscribes to `haply_state` when `source=haply` for button/status feedback.
+The GUI receives the experiment cursor from `experiment_cursor_position`.
+VerseGrip Button A (`haply_state.buttons.a`) is used only as the hardware
+drawing/start input; the left mouse button is the mouse-mode equivalent.
 
 ## Run
 
@@ -97,8 +96,11 @@ the physical Haply workspace before subject testing.
 
 The left box is the drawing workspace. The right panel shows the Behavioral
 State legend and run status. In mouse mode, move the mouse inside the workspace
-to move the blue cursor through the mapper. The Scenario Generator rolls out the
-next phase when the mapped cursor reaches the current endpoint.
+to move the blue cursor through the mapper. Press and hold the left mouse
+button, or VerseGrip Button A in hardware mode, at the start point to begin a
+trial. Releasing and pressing again during the same trial continues the existing
+drawn path. The Scenario Generator rolls out the next phase three seconds after
+the mapped cursor reaches the current endpoint.
 
 The participant-facing GUI does not show start/pause/reset buttons or
 coordinate text. Keyboard shortcuts remain available for test runs: `S` sets

@@ -21,6 +21,7 @@ def generate_launch_description():
         parameters=[
             {
                 "endpoint_reached_radius": 0.01,
+                "inter_trial_delay_s": 3.0,
             }
         ],
     )
@@ -51,7 +52,7 @@ def generate_launch_description():
                 "render_fps": 30.0,
                 "state_publish_hz": 100.0,
                 "mouse_simulation_hz": 100.0,
-                "auto_start": True,
+                "auto_start": False,
                 "endpoint_reached_radius": 0.01,
             }
         ],

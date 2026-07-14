@@ -2,17 +2,22 @@
 
 from launch import LaunchDescription
 from launch.actions import (
+    DeclareLaunchArgument,
     EmitEvent,
     RegisterEventHandler,
     SetEnvironmentVariable,
 )
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
     """Build the launch description for hardware-backed GUI runs."""
+    use_controller = LaunchConfiguration("use_controller")
+
     haply_driver = Node(
         package="haply_interface",
         executable="haply_driver_node",
@@ -32,6 +37,7 @@ def generate_launch_description():
         parameters=[
             {
                 "endpoint_reached_radius": 0.01,
+                "inter_trial_delay_s": 3.0,
             }
         ],
     )
@@ -51,6 +57,18 @@ def generate_launch_description():
                 "raw_x_max": 0.20,
                 "raw_second_min": -0.20,  # Haply z: allow movement below anchor
                 "raw_second_max": 0.20,
+            }
+        ],
+    )
+    controller = Node(
+        package="control_node",
+        executable="control_node",
+        name="control_node",
+        output="screen",
+        condition=IfCondition(use_controller),
+        parameters=[
+            {
+                "log_level": "INFO",
             }
         ],
     )
@@ -77,11 +95,17 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "use_controller",
+                default_value="false",
+                description="Start control_node and publish controller forces to Haply.",
+            ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
             haply_driver,
             experiment_mapper,
             scenario_generator,
+            controller,
             study_gui,
             RegisterEventHandler(
                 OnProcessExit(

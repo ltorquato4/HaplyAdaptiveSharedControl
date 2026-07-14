@@ -14,6 +14,7 @@ import rclpy  # noqa: E402
 from geometry_msgs.msg import Point  # noqa: E402
 from haply_msgs.msg import HandleButtons, HaplyState  # noqa: E402
 from rclpy.node import Node  # noqa: E402
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy  # noqa: E402
 from std_msgs.msg import Bool, String  # noqa: E402
 
 
@@ -127,22 +128,29 @@ class StudyGui(Node):
         self.is_drawing_line = False
         self.finished_line_this_frame = False
         self.drawn_line = []
+        self.trial_started = self.auto_start
         self.is_running = self.auto_start
         self.endpoint_reached = False
         self.trial_completion_latched = False
         self.running = True
 
         self.study_is_running_pub = self.create_publisher(Bool, "study_is_running", 10)
+        task_qos = self._task_qos()
 
         self.create_subscription(HaplyState, "haply_state", self._haply_state, 10)
         self.create_subscription(
             Point, "experiment_cursor_position", self._experiment_cursor_position, 10
         )
-        self.create_subscription(Point, "study_start_point", self._start_point, 10)
-        self.create_subscription(Point, "study_end_point", self._end_point, 10)
-        self.create_subscription(String, "study_phase", self._study_phase, 10)
         self.create_subscription(
-            String, "study_controller_mode", self._controller_mode, 10
+            Point, "study_start_point", self._start_point, task_qos
+        )
+        self.create_subscription(Point, "study_end_point", self._end_point, task_qos)
+        self.create_subscription(String, "study_phase", self._study_phase, task_qos)
+        self.create_subscription(
+            String, "study_controller_mode", self._controller_mode, task_qos
+        )
+        self.create_subscription(
+            Bool, "study_endpoint_reached", self._study_endpoint_reached, 10
         )
         if self.source == "mouse":
             self.mouse_state_pub = self.create_publisher(HaplyState, "haply_state", 10)
@@ -170,6 +178,13 @@ class StudyGui(Node):
         if self.source == "mouse":
             self.current_position = self._screen_to_world(pygame.mouse.get_pos())
             self.previous_mouse_position = self.current_position
+
+    def _task_qos(self) -> QoSProfile:
+        return QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
 
     def _load_font(self, size, bold=False):
         preferred = ["Inter", "Roboto", "Open Sans", "DejaVu Sans", "Arial"]
@@ -254,6 +269,18 @@ class StudyGui(Node):
                 f"Ignoring unknown study_controller_mode '{msg.data}'"
             )
 
+    def _study_endpoint_reached(self, msg):
+        if not msg.data:
+            if self.trial_completion_latched or self.endpoint_reached:
+                self._reset_drawn_path()
+            return
+
+        self.endpoint_reached = True
+        self.trial_completion_latched = True
+        self.is_running = False
+        self.is_drawing_line = False
+        self.finished_line_this_frame = False
+
     def _publish_study_state(self):
         running_msg = Bool()
         running_msg.data = bool(self.is_running)
@@ -294,28 +321,48 @@ class StudyGui(Node):
         self.previous_mouse_time = now
         self.mouse_state_pub.publish(msg)
 
-    def _update_line_drawing(self):
-        self.finished_line_this_frame = False
+    def _draw_input_pressed(self):
         if self.source == "mouse":
             mouse_pos = pygame.mouse.get_pos()
             self.current_position = self._screen_to_world(mouse_pos)
-            pressed = pygame.mouse.get_pressed(3)[0] and self._screen_pos_in_workspace(
+            return pygame.mouse.get_pressed(3)[0] and self._screen_pos_in_workspace(
                 mouse_pos
             )
-        else:
-            pressed = bool(self.current_buttons.a)
 
-        if pressed and not self.draw_button_pressed:
+        return bool(self.current_buttons.a)
+
+    def _at_start_position(self):
+        return self._is_near(
+            self.current_position,
+            self.start_point,
+            self.endpoint_reached_radius,
+        )
+
+    def _start_trial_if_ready(self, pressed):
+        if self.trial_started or self.trial_completion_latched:
+            return
+
+        if pressed and not self.draw_button_pressed and self._at_start_position():
+            self.trial_started = True
             self.is_running = True
-            self.drawn_line = []
             self._append_drawn_point(self.current_position, force=True)
             self.is_drawing_line = True
-        elif pressed and self.is_drawing_line:
-            self._append_drawn_point(self.current_position)
-        elif not pressed and self.draw_button_pressed and self.is_drawing_line:
-            self._append_drawn_point(self.current_position, force=True)
-            self.is_drawing_line = False
-            self.finished_line_this_frame = True
+
+    def _update_line_drawing(self):
+        self.finished_line_this_frame = False
+        pressed = self._draw_input_pressed()
+        self._start_trial_if_ready(pressed)
+
+        if self.trial_completion_latched:
+            self.draw_button_pressed = pressed
+            return
+
+        if not self.trial_started:
+            self.draw_button_pressed = pressed
+            return
+
+        self.is_drawing_line = True
+        self._append_drawn_point(self.current_position)
 
         self.draw_button_pressed = pressed
 
@@ -327,12 +374,11 @@ class StudyGui(Node):
         cursor_reached_endpoint = self._is_near(
             self.current_position, self.end_point, self.endpoint_reached_radius
         )
-        drawing_active = self.is_drawing_line or self.finished_line_this_frame
-        if cursor_reached_endpoint and drawing_active:
+        if cursor_reached_endpoint and self.trial_started:
             self._append_drawn_point(self.current_position, force=True)
         completed = (
             cursor_reached_endpoint
-            and drawing_active
+            and self.trial_started
             and self._drawn_line_connects_start_to_end()
         )
         self.endpoint_reached = completed
@@ -600,6 +646,8 @@ class StudyGui(Node):
         self.draw_button_pressed = False
         self.is_drawing_line = False
         self.finished_line_this_frame = False
+        self.trial_started = False
+        self.is_running = False
         self.endpoint_reached = False
         self.trial_completion_latched = False
 
