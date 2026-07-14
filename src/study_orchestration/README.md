@@ -68,7 +68,9 @@ Supported modes:
   `/haply_state` in task-frame coordinates.
 - `anchored_delta`: captures the current raw device pose when a trial starts
   and maps subsequent raw displacement onto the current `/study_start_point`.
-  This is the default for Haply hardware tests.
+  This is the default for Haply hardware tests. The physical position where the
+  participant starts the trial becomes the raw anchor for that trial, and the
+  mapped cursor begins at the task start point.
 
 Useful parameters:
 
@@ -76,6 +78,25 @@ Useful parameters:
 - `scale_x`, `scale_y`: scale raw displacement before publishing it
 - `invert_x`, `invert_y`: flip axis direction if hardware testing shows the
   physical motion is reversed relative to the GUI task frame
+- `use_z_as_y`: map the Haply vertical `z` axis to the task `y` axis. The
+  default Haply launch files set this to `True` for the 2-DoF study.
+- `clamp_raw`: clamp raw displacement relative to the captured anchor pose
+  before scaling.
+- `raw_x_min`, `raw_x_max`: left/right physical displacement limits used when
+  `clamp_raw=True`.
+- `raw_second_min`, `raw_second_max`: down/up physical displacement limits used
+  when `clamp_raw=True`. When `use_z_as_y=True`, these apply to raw `z`.
+
+The default Haply launch files use `scale_x=2.0` and `scale_y=2.0`, so a 10 cm
+physical movement maps to 20 cm of task movement. These parameters can be tuned
+in `study_gui.launch.py` and `study_gui_haply_test.launch.py` without rebuilding
+the workspace.
+
+In hardware mode, the mapper captures the raw Haply pose when
+`/study_is_running` becomes true and pairs that raw pose with the current
+`/study_start_point`. Releasing and pressing VerseGrip Button A during the same
+active trial does not recapture the anchor; the next task captures a new anchor
+when the next trial starts.
 
 ## Mouse Test Flow
 

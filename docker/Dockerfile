@@ -15,11 +15,18 @@ SHELL ["/bin/bash", "-o", "pipefail", "-c"]
 WORKDIR /workspaces/research-seminar
 
 RUN apt-get update && apt-get install -y --no-install-recommends \
+    curl \
     git \
+    gnupg \
+    lsb-release \
+    python3-ament-copyright \
+    python3-ament-flake8 \
+    python3-ament-pep257 \
     python3-colcon-common-extensions \
     python3-pip \
     python3-pygame \
     python3-rosdep \
+    software-properties-common \
     ros-${ROS_DISTRO}-builtin-interfaces \
     ros-${ROS_DISTRO}-geometry-msgs \
     ros-${ROS_DISTRO}-rclpy \
@@ -31,10 +38,13 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 RUN python3 -m pip install --no-cache-dir \
     casadi \
+    colcon-common-extensions \
     mypy \
     orjson \
     ruff \
     "websockets>=10.4,<12"
+
+RUN python3 -m pip install --no-cache-dir --upgrade --ignore-installed pytest
 
 RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then \
         rosdep init; \

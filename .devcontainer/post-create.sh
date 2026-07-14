@@ -7,6 +7,8 @@ set +u
 source /opt/ros/humble/setup.bash
 set -u
 
+rosdep update
+rosdep install --from-paths src --ignore-src -r -y --rosdistro humble
 colcon build --symlink-install
 
 grep -qxF "source /opt/ros/humble/setup.bash" ~/.bashrc \

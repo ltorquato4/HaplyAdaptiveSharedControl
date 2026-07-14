@@ -34,6 +34,14 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 ```
 
+For later WSL rebuilds, use the repository build helper so ROS Python
+entrypoints are generated with this workspace's `.venv`:
+
+```bash
+./build.sh haply_study_gui
+source install/setup.bash
+```
+
 ### Docker / Devcontainer
 
 With Docker Desktop running, use VS Code's **Dev Containers: Reopen in
@@ -46,6 +54,22 @@ You can also build the Docker image manually:
 
 ```bash
 docker build -f docker/Dockerfile -t research-seminar:humble .
+```
+
+To open an interactive Docker shell from the repository root without using the
+VS Code devcontainer UI, use the Compose service. This mounts your live
+workspace and keeps `build/`, `install/`, and `log/` in Docker volumes:
+
+```bash
+docker compose -f docker/compose.yaml run --rm --build research-seminar bash
+```
+
+Inside the container, rebuild and source the workspace before running ROS tests:
+
+```bash
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install
+source install/setup.bash
 ```
 
 Then run a smoke check without mounting the local workspace:
@@ -148,35 +172,56 @@ Use this WSL-owned hardware path:
    ros2 launch haply_study_gui study_gui_haply_test.launch.py
    ```
 
-### Workspace Mapping & Tuning
-
-The study mapping logic converts physical Haply movements into 2D screen coordinates using the following rules:
-
-- **Z-as-Y Mapping**: The Haply's vertical `z` axis is mapped to the screen's `y` axis (`use_z_as_y=True`), meaning vertical physical movement maps to vertical screen movement. The physical depth axis (`y`) is ignored for this 2-DoF study.
-- **Scaling**: Physical movements are scaled up by the mapper (e.g. `scale_x=2.0`, `scale_y=2.0`). A 10cm physical movement covers 20cm of task space.
-- **Physical Clamping**: The accessible physical workspace is clamped relative to the spot where the arm rested when the script launched (`clamp_raw=True`).
-  - To change left/right physical boundaries, edit `raw_x_min` and `raw_x_max`.
-  - To change down/up physical boundaries, edit `raw_second_min` and `raw_second_max`.
-
-These parameters can be tuned directly inside `study_gui.launch.py` and `study_gui_haply_test.launch.py` without rebuilding the workspace.
-
+   Until the hardware path is fixed, use the mouse test path instead:
+   ```bash
+   ros2 launch haply_study_gui study_gui_mouse.launch.py
+   ```
 
 ## ROS Workspace Commands
+
+When using the direct WSL virtual environment, run workspace builds through the
+root-level helper:
+
+```bash
+./build.sh
+```
+
+The helper sources ROS, activates `.venv`, and runs `colcon` through the venv
+Python. This matters because the system `colcon` executable is `/usr/bin/colcon`
+and generates ROS Python entrypoint scripts with a `#!/usr/bin/python3` shebang.
+The helper generates entrypoints that use this repository's `.venv`, so package
+dependencies such as `websockets` are imported from the expected environment.
 
 After changing a ROS package, rebuild it from the workspace root. Replace
 `haply_study_gui` with the package you changed:
 
 ```bash
-colcon build --symlink-install --packages-select haply_study_gui
+./build.sh haply_study_gui
 source install/setup.bash
 ```
 
-For a full workspace rebuild, omit `--packages-select`:
+For a full workspace rebuild, omit the package name:
 
 ```bash
-colcon build --symlink-install
+./build.sh
 source install/setup.bash
 ```
+
+Advanced `colcon build` arguments can still be passed directly by starting the
+arguments with an option:
+
+```bash
+./build.sh --packages-select haply_study_gui --event-handlers console_direct+
+```
+
+To verify a Python ROS executable is using the venv, check its first line after
+building:
+
+```bash
+head -n 1 install/haply_interface/lib/haply_interface/haply_driver_node
+```
+
+It should point at `.venv/bin/python`, not `/usr/bin/python3`.
 
 ## Manual Checks
 
@@ -198,3 +243,12 @@ ruff check --fix --force-exclude .
 
 The copied Haply interface under `src/haply_ros2_interface/` is excluded by tool
 configuration and should not be reformatted as project-owned code.
+
+## Troubleshooting
+
+If `./setup.sh` reports `Conflicting values set for option Signed-By` for
+`packages.ros.org/ros2/ubuntu`, the machine has duplicate ROS apt source
+definitions. The setup script normalizes this automatically by backing up ROS
+source files under `/etc/apt/sources.list.d/` and writing one canonical
+`/etc/apt/sources.list.d/ros2.list` entry that uses
+`/usr/share/keyrings/ros-archive-keyring.gpg`.

@@ -16,7 +16,37 @@ if ! command -v sudo >/dev/null 2>&1; then
   exit 1
 fi
 
+backup_ros_apt_sources() {
+  local backup_suffix
+
+  backup_suffix="$(date +%Y%m%d%H%M%S)"
+
+  sudo mkdir -p /etc/apt/sources.list.d
+
+  while IFS= read -r -d "" existing_source; do
+    [[ -n "${existing_source}" ]] || continue
+    if sudo grep -qi "packages.ros.org/ros2/ubuntu" "${existing_source}"; then
+      sudo mv "${existing_source}" "${existing_source}.bak.${backup_suffix}"
+    fi
+  done < <(sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -name "*.list" -o -name "*.sources" \) -print0)
+}
+
+write_ros_apt_source() {
+  local keyring="/usr/share/keyrings/ros-archive-keyring.gpg"
+  local source_file="/etc/apt/sources.list.d/ros2.list"
+
+  sudo mkdir -p /usr/share/keyrings /etc/apt/sources.list.d
+
+  sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+    -o "${keyring}"
+
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=${keyring}] http://packages.ros.org/ros2/ubuntu ${UBUNTU_CODENAME} main" \
+    | sudo tee "${source_file}" >/dev/null
+}
+
 cd "${WORKSPACE_DIR}"
+
+backup_ros_apt_sources
 
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
@@ -30,12 +60,8 @@ sudo apt-get install -y --no-install-recommends \
 
 sudo add-apt-repository -y universe
 
-if [[ ! -f /etc/apt/sources.list.d/ros2.list ]]; then
-  sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-    -o /usr/share/keyrings/ros-archive-keyring.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu ${UBUNTU_CODENAME} main" \
-    | sudo tee /etc/apt/sources.list.d/ros2.list >/dev/null
-fi
+backup_ros_apt_sources
+write_ros_apt_source
 
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
@@ -78,13 +104,14 @@ source "/opt/ros/${ROS_DISTRO}/setup.bash"
 set -u
 
 rosdep install --from-paths src --ignore-src -r -y --rosdistro "${ROS_DISTRO}"
-python3 -m colcon build --symlink-install
+"${WORKSPACE_DIR}/build.sh"
 
 BASHRC="${HOME}/.bashrc"
 LOCAL_BIN_LINE='export PATH="$HOME/.local/bin:$PATH"'
 VENV_SOURCE_LINE="if [ -f ${VENV_DIR}/bin/activate ]; then source ${VENV_DIR}/bin/activate; fi"
 ROS_SOURCE_LINE="source /opt/ros/${ROS_DISTRO}/setup.bash"
 WORKSPACE_SOURCE_LINE="if [ -f ${WORKSPACE_DIR}/install/setup.bash ]; then source ${WORKSPACE_DIR}/install/setup.bash; fi"
+BUILD_ALIAS_LINE="alias rs-build='${WORKSPACE_DIR}/build.sh'"
 
 grep -qxF "${LOCAL_BIN_LINE}" "${BASHRC}" \
   || echo "${LOCAL_BIN_LINE}" >> "${BASHRC}"
@@ -94,6 +121,8 @@ grep -qxF "${ROS_SOURCE_LINE}" "${BASHRC}" \
   || echo "${ROS_SOURCE_LINE}" >> "${BASHRC}"
 grep -qxF "${WORKSPACE_SOURCE_LINE}" "${BASHRC}" \
   || echo "${WORKSPACE_SOURCE_LINE}" >> "${BASHRC}"
+grep -qxF "${BUILD_ALIAS_LINE}" "${BASHRC}" \
+  || echo "${BUILD_ALIAS_LINE}" >> "${BASHRC}"
 
 git config --global --add safe.directory "${WORKSPACE_DIR}"
 
@@ -102,3 +131,8 @@ echo "Setup complete. Open a new WSL shell or run:"
 echo "  source ${VENV_DIR}/bin/activate"
 echo "  source /opt/ros/${ROS_DISTRO}/setup.bash"
 echo "  source ${WORKSPACE_DIR}/install/setup.bash"
+echo
+echo "For later venv-safe rebuilds, run:"
+echo "  ${WORKSPACE_DIR}/build.sh <package_name>"
+echo "or, after opening a new shell:"
+echo "  rs-build <package_name>"
