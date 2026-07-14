@@ -112,6 +112,7 @@ def validate_scenario_paths(
     paths: list[ScenarioPath],
     bounds: WorkspaceBounds,
     min_segment_length: float,
+    expected_count: int = 5,
 ) -> None:
     """Validate scenario path definitions."""
     if not paths:
