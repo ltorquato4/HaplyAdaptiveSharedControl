@@ -24,6 +24,7 @@ class ScenarioGenerator(Node):
     """Own phase rollout, task points, controller mode, and endpoint detection."""
 
     PHASES = ("aggressive", "normal", "careful")
+    POINT_COUNT = 5
 
     def __init__(self):
         """Create publishers, subscriptions, and validate the configured task."""
@@ -33,11 +34,17 @@ class ScenarioGenerator(Node):
         self.declare_parameter("point_0_y", -0.08)
         self.declare_parameter("point_0_z", 0.0)
         self.declare_parameter("point_1_x", 0.08)
-        self.declare_parameter("point_1_y", 0.08)
+        self.declare_parameter("point_1_y", -0.08)
         self.declare_parameter("point_1_z", 0.0)
         self.declare_parameter("point_2_x", 0.08)
-        self.declare_parameter("point_2_y", -0.08)
+        self.declare_parameter("point_2_y", 0.08)
         self.declare_parameter("point_2_z", 0.0)
+        self.declare_parameter("point_3_x", -0.08)
+        self.declare_parameter("point_3_y", 0.08)
+        self.declare_parameter("point_3_z", 0.0)
+        self.declare_parameter("point_4_x", 0.0)
+        self.declare_parameter("point_4_y", -0.15)
+        self.declare_parameter("point_4_z", 0.0)
         self.declare_parameter("workspace_x_min", -0.12)
         self.declare_parameter("workspace_x_max", 0.12)
         self.declare_parameter("workspace_y_min", -0.15)
@@ -45,7 +52,7 @@ class ScenarioGenerator(Node):
         self.declare_parameter("min_segment_length", 0.10)
         self.declare_parameter("endpoint_reached_radius", 0.01)
         self.declare_parameter("min_phase_duration_s", 0.8)
-        self.declare_parameter("inter_trial_delay_s", 3.0)
+        self.declare_parameter("inter_trial_delay_s", 1.0)
         self.declare_parameter("publish_hz", 10.0)
         self.declare_parameter("initial_segment_index", 0)
         self.declare_parameter("controller_modes", "adaptive,fixed")
@@ -58,7 +65,12 @@ class ScenarioGenerator(Node):
             y_max=float(self.get_parameter("workspace_y_max").value),
         )
         self.min_segment_length = float(self.get_parameter("min_segment_length").value)
-        validate_task_points(self.points, self.bounds, self.min_segment_length)
+        validate_task_points(
+            self.points,
+            self.bounds,
+            self.min_segment_length,
+            expected_count=self.POINT_COUNT,
+        )
 
         self.endpoint_reached_radius = float(
             self.get_parameter("endpoint_reached_radius").value
@@ -72,8 +84,10 @@ class ScenarioGenerator(Node):
         self.controller_modes = self._parse_modes(
             str(self.get_parameter("controller_modes").value)
         )
-        self.segment_index = int(self.get_parameter("initial_segment_index").value) % 3
-        self.phase_index = self.segment_index % len(self.PHASES)
+        self.segment_index = int(
+            self.get_parameter("initial_segment_index").value
+        ) % len(self.points)
+        self.phase_index = self._phase_index_for_segment(self.segment_index)
         self.mode_index = self.segment_index % len(self.controller_modes)
         self.is_running = False
         self.cursor_position: StudyPoint | None = None
@@ -83,14 +97,10 @@ class ScenarioGenerator(Node):
         self.rollout_due_time: float | None = None
 
         task_qos = self._task_qos()
-        self.start_pub = self.create_publisher(
-            Point, "study_start_point", task_qos
-        )
+        self.start_pub = self.create_publisher(Point, "study_start_point", task_qos)
         self.end_pub = self.create_publisher(Point, "study_end_point", task_qos)
         self.phase_pub = self.create_publisher(String, "study_phase", task_qos)
-        self.mode_pub = self.create_publisher(
-            String, "study_controller_mode", task_qos
-        )
+        self.mode_pub = self.create_publisher(String, "study_controller_mode", task_qos)
         self.endpoint_pub = self.create_publisher(Bool, "study_endpoint_reached", 10)
 
         self.create_subscription(Bool, "study_is_running", self._is_running, 10)
@@ -117,8 +127,12 @@ class ScenarioGenerator(Node):
                 y=float(self.get_parameter(f"point_{index}_y").value),
                 z=float(self.get_parameter(f"point_{index}_z").value),
             )
-            for index in range(3)
+            for index in range(self.POINT_COUNT)
         ]
+
+    def _phase_index_for_segment(self, segment_index: int) -> int:
+        cycle_index = segment_index // len(self.points)
+        return cycle_index % len(self.PHASES)
 
     def _parse_modes(self, value: str) -> list[str]:
         modes = [mode.strip().lower() for mode in value.split(",")]
@@ -182,14 +196,14 @@ class ScenarioGenerator(Node):
         )
 
     def _rollout_next_segment(self) -> None:
-        self.segment_index = (self.segment_index + 1) % len(self.points)
-        self.phase_index = (self.phase_index + 1) % len(self.PHASES)
+        self.segment_index += 1
+        self.phase_index = self._phase_index_for_segment(self.segment_index)
         self.mode_index = (self.mode_index + 1) % len(self.controller_modes)
         self.last_rollout_time = time.monotonic()
         self.rollout_due_time = None
         self.get_logger().info(
             "Scenario rollout: "
-            f"segment={self.segment_index}, "
+            f"segment={self.segment_index % len(self.points)}, "
             f"phase={self.PHASES[self.phase_index]}, "
             f"mode={self.controller_modes[self.mode_index]}"
         )

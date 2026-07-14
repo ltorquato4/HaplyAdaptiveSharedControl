@@ -1,7 +1,8 @@
-from study_orchestration import scenario_generator_node
+from std_msgs.msg import Bool
 from study_orchestration.scenario_generator_node import ScenarioGenerator
 from study_orchestration.scenario_logic import StudyPoint
-from std_msgs.msg import Bool
+
+from study_orchestration import scenario_generator_node
 
 
 class FakePublisher:
@@ -23,6 +24,8 @@ def _generator():
         StudyPoint(0.0, 0.0, 0.0),
         StudyPoint(1.0, 0.0, 0.0),
         StudyPoint(1.0, 1.0, 0.0),
+        StudyPoint(0.0, 1.0, 0.0),
+        StudyPoint(-1.0, 0.0, 0.0),
     ]
     node.endpoint_reached_radius = 0.1
     node.min_phase_duration_s = 0.0
@@ -106,3 +109,20 @@ def test_scenario_rolls_out_after_delay_and_resets_endpoint(monkeypatch):
     assert node.start_pub.messages[-1].x == 1.0
     assert node.end_pub.messages[-1].y == 1.0
     assert node.endpoint_pub.messages[-1].data is False
+
+
+def test_phase_advances_after_all_five_segments():
+    node = _generator()
+    node.phase_index = 0
+
+    for expected_segment in range(1, 5):
+        node._rollout_next_segment()
+        assert node.segment_index == expected_segment
+        assert node.phase_index == 0
+
+    node._rollout_next_segment()
+
+    assert node.segment_index == 5
+    assert node.phase_index == 1
+    assert node.start_pub.messages[-1].x == 0.0
+    assert node.end_pub.messages[-1].x == 1.0

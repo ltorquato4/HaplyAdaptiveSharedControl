@@ -2,17 +2,23 @@
 
 from launch import LaunchDescription
 from launch.actions import (
+    DeclareLaunchArgument,
     EmitEvent,
     RegisterEventHandler,
     SetEnvironmentVariable,
 )
+from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
+from launch.substitutions import LaunchConfiguration
 from launch_ros.actions import Node
 
 
 def generate_launch_description():
     """Build the launch description for mouse-only GUI testing."""
+    use_controller = LaunchConfiguration("use_controller")
+    use_estimator = LaunchConfiguration("use_estimator")
+
     scenario_generator = Node(
         package="study_orchestration",
         executable="scenario_generator",
@@ -21,7 +27,7 @@ def generate_launch_description():
         parameters=[
             {
                 "endpoint_reached_radius": 0.01,
-                "inter_trial_delay_s": 3.0,
+                "inter_trial_delay_s": 1.0,
             }
         ],
     )
@@ -36,6 +42,25 @@ def generate_launch_description():
             }
         ],
     )
+    controller = Node(
+        package="control_node",
+        executable="control_node",
+        name="control_node",
+        output="screen",
+        condition=IfCondition(use_controller),
+        parameters=[
+            {
+                "log_level": "INFO",
+            }
+        ],
+    )
+    estimator = Node(
+        package="estimator_node",
+        executable="estimator_node",
+        name="estimator_node",
+        output="screen",
+        condition=IfCondition(use_estimator),
+    )
     study_gui = Node(
         package="haply_study_gui",
         executable="study_gui",
@@ -49,6 +74,10 @@ def generate_launch_description():
         parameters=[
             {
                 "source": "mouse",
+                "width": 1280,
+                "height": 720,
+                "side_panel_width": 300,
+                "workspace_padding": 52,
                 "render_fps": 30.0,
                 "state_publish_hz": 100.0,
                 "mouse_simulation_hz": 100.0,
@@ -60,11 +89,23 @@ def generate_launch_description():
 
     return LaunchDescription(
         [
+            DeclareLaunchArgument(
+                "use_controller",
+                default_value="false",
+                description="Start control_node with the mouse study GUI.",
+            ),
+            DeclareLaunchArgument(
+                "use_estimator",
+                default_value="false",
+                description="Start estimator_node with the mouse study GUI.",
+            ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
             study_gui,
             experiment_mapper,
             scenario_generator,
+            controller,
+            estimator,
             RegisterEventHandler(
                 OnProcessExit(
                     target_action=study_gui,

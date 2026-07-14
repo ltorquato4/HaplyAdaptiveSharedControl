@@ -17,6 +17,7 @@ from launch_ros.actions import Node
 def generate_launch_description():
     """Build the launch description for hardware-backed GUI runs."""
     use_controller = LaunchConfiguration("use_controller")
+    use_estimator = LaunchConfiguration("use_estimator")
 
     haply_driver = Node(
         package="haply_interface",
@@ -37,7 +38,7 @@ def generate_launch_description():
         parameters=[
             {
                 "endpoint_reached_radius": 0.01,
-                "inter_trial_delay_s": 3.0,
+                "inter_trial_delay_s": 1.0,
             }
         ],
     )
@@ -50,10 +51,10 @@ def generate_launch_description():
             {
                 "mapping_mode": "anchored_delta",
                 "use_z_as_y": True,
-                "scale_x": 2.0,        # physical 10 cm -> task 20 cm
+                "scale_x": 2.0,  # physical 10 cm -> task 20 cm
                 "scale_y": 2.0,
                 "clamp_raw": True,
-                "raw_x_min": -0.20,    # Haply x: +/-20 cm left/right
+                "raw_x_min": -0.20,  # Haply x: +/-20 cm left/right
                 "raw_x_max": 0.20,
                 "raw_second_min": -0.20,  # Haply z: allow movement below anchor
                 "raw_second_max": 0.20,
@@ -72,6 +73,13 @@ def generate_launch_description():
             }
         ],
     )
+    estimator = Node(
+        package="estimator_node",
+        executable="estimator_node",
+        name="estimator_node",
+        output="screen",
+        condition=IfCondition(use_estimator),
+    )
     study_gui = Node(
         package="haply_study_gui",
         executable="study_gui",
@@ -85,6 +93,10 @@ def generate_launch_description():
         parameters=[
             {
                 "source": "haply",
+                "width": 1280,
+                "height": 720,
+                "side_panel_width": 300,
+                "workspace_padding": 52,
                 "render_fps": 100.0,
                 "state_publish_hz": 100.0,
                 "auto_start": False,
@@ -98,7 +110,12 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "use_controller",
                 default_value="false",
-                description="Start control_node and publish controller forces to Haply.",
+                description="Start control_node with the study GUI.",
+            ),
+            DeclareLaunchArgument(
+                "use_estimator",
+                default_value="false",
+                description="Start estimator_node with the study GUI.",
             ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
@@ -106,6 +123,7 @@ def generate_launch_description():
             experiment_mapper,
             scenario_generator,
             controller,
+            estimator,
             study_gui,
             RegisterEventHandler(
                 OnProcessExit(

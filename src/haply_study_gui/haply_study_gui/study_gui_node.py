@@ -60,10 +60,10 @@ class StudyGui(Node):
         """Create ROS interfaces and initialize the Pygame window."""
         super().__init__("study_gui")
 
-        self.declare_parameter("width", 960)
-        self.declare_parameter("height", 540)
-        self.declare_parameter("side_panel_width", 220)
-        self.declare_parameter("workspace_padding", 36)
+        self.declare_parameter("width", 1280)
+        self.declare_parameter("height", 720)
+        self.declare_parameter("side_panel_width", 300)
+        self.declare_parameter("workspace_padding", 52)
         self.declare_parameter("render_fps", 100.0)
         self.declare_parameter("state_publish_hz", 100.0)
         self.declare_parameter("source", "haply")
@@ -170,11 +170,11 @@ class StudyGui(Node):
         self.frame = pygame.Surface((self.width, self.height)).convert()
         self.draw_target = self.frame
         self.clock = pygame.time.Clock()
-        self.title_font = self._load_font(16, bold=True)
-        self.body_font = self._load_font(18)
-        self.label_font = self._load_font(14)
-        self.pill_font = self._load_font(15, bold=True)
-        self.icon_font = self._load_font(13, bold=True)
+        self.title_font = self._load_font(22, bold=True)
+        self.body_font = self._load_font(23)
+        self.label_font = self._load_font(17)
+        self.pill_font = self._load_font(20, bold=True)
+        self.icon_font = self._load_font(17, bold=True)
         if self.source == "mouse":
             self.current_position = self._screen_to_world(pygame.mouse.get_pos())
             self.previous_mouse_position = self.current_position
@@ -342,7 +342,7 @@ class StudyGui(Node):
         if self.trial_started or self.trial_completion_latched:
             return
 
-        if pressed and not self.draw_button_pressed and self._at_start_position():
+        if pressed and self._at_start_position():
             self.trial_started = True
             self.is_running = True
             self._append_drawn_point(self.current_position, force=True)
@@ -407,12 +407,12 @@ class StudyGui(Node):
 
         if len(self.drawn_line) >= 2:
             points = [self._world_to_canvas(point) for point in self.drawn_line]
-            pygame.draw.lines(self.draw_target, self.PATH, False, points, 4)
+            pygame.draw.lines(self.draw_target, self.PATH, False, points, 6)
 
         self._draw_target_marker(sx, sy)
         self._draw_endpoint_marker(ex, ey)
-        pygame.draw.circle(self.draw_target, self.BLUE, (cx, cy), 7)
-        pygame.draw.circle(self.draw_target, self.DARK_BLUE, (cx, cy), 7, 1)
+        pygame.draw.circle(self.draw_target, self.BLUE, (cx, cy), 10)
+        pygame.draw.circle(self.draw_target, self.DARK_BLUE, (cx, cy), 10, 2)
 
     def _draw_side_panel(self):
         panel = self._side_panel_rect()
@@ -431,15 +431,15 @@ class StudyGui(Node):
 
     def _draw_behavioral_state_legend(self):
         card = self._side_card_rect()
-        x = card.x + 18
-        y = card.y + 18
+        x = card.x + 24
+        y = card.y + 24
 
         title = self.title_font.render("Behavioral State", True, self.TEXT)
         self.draw_target.blit(title, (x, y))
 
-        y += 34
+        y += 44
         for index, color_name in enumerate(["red", "yellow", "green"]):
-            pill = pygame.Rect(x, y + (index * 42), card.width - 36, 32)
+            pill = pygame.Rect(x, y + (index * 56), card.width - 48, 42)
             self._draw_state_pill(pill, color_name)
 
     def _draw_state_pill(self, rect, color_name):
@@ -472,15 +472,15 @@ class StudyGui(Node):
             border_radius=16,
         )
 
-        dot_center = (rect.x + 18, rect.centery)
-        pygame.draw.circle(self.draw_target, fill, dot_center, 7)
+        dot_center = (rect.x + 23, rect.centery)
+        pygame.draw.circle(self.draw_target, fill, dot_center, 10)
 
         icon = self.icon_font.render(config["icon"], True, self.SURFACE)
         icon_rect = icon.get_rect(center=dot_center)
         self.draw_target.blit(icon, icon_rect)
 
         label = self.pill_font.render(config["behavior"].capitalize(), True, text_color)
-        label_rect = label.get_rect(midleft=(rect.x + 34, rect.centery))
+        label_rect = label.get_rect(midleft=(rect.x + 46, rect.centery))
         self.draw_target.blit(label, label_rect)
 
     def _blend_color(self, color, target, amount):
@@ -491,33 +491,33 @@ class StudyGui(Node):
 
     def _legend_rect(self):
         card = self._side_card_rect()
-        return pygame.Rect(card.x, card.y, card.width, 178)
+        return pygame.Rect(card.x, card.y, card.width, 230)
 
     def _draw_target_marker(self, x, y):
-        pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), 9)
-        pygame.draw.circle(self.draw_target, self.TEXT, (x, y), 9, 2)
+        pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), 13)
+        pygame.draw.circle(self.draw_target, self.TEXT, (x, y), 13, 3)
 
     def _draw_endpoint_marker(self, x, y):
-        radius = 11
+        radius = 16
         pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), radius)
-        pygame.draw.circle(self.draw_target, self.TEXT, (x, y), radius, 2)
-        pygame.draw.line(self.draw_target, self.TEXT, (x - 5, y - 5), (x + 5, y + 5), 2)
-        pygame.draw.line(self.draw_target, self.TEXT, (x - 5, y + 5), (x + 5, y - 5), 2)
+        pygame.draw.circle(self.draw_target, self.TEXT, (x, y), radius, 3)
+        pygame.draw.line(self.draw_target, self.TEXT, (x - 7, y - 7), (x + 7, y + 7), 3)
+        pygame.draw.line(self.draw_target, self.TEXT, (x - 7, y + 7), (x + 7, y - 7), 3)
 
     def _draw_status_text(self):
         card = self._side_card_rect()
-        x = card.x + 18
+        x = card.x + 24
         y = self._legend_rect().bottom + 18
 
         title = self.title_font.render("Run Status", True, self.TEXT)
         self.draw_target.blit(title, (x, y))
 
         for index, (label, value) in enumerate(self._status_rows()):
-            row_y = y + 34 + (index * 36)
+            row_y = y + 44 + (index * 46)
             label_text = self.label_font.render(label, True, self.MUTED_TEXT)
             value_text = self.body_font.render(value, True, self.TEXT)
             self.draw_target.blit(label_text, (x, row_y))
-            self.draw_target.blit(value_text, (x + 78, row_y - 3))
+            self.draw_target.blit(value_text, (x + 98, row_y - 4))
 
     def _status_rows(self):
         state = "running" if self.is_running else "ready"
@@ -588,7 +588,7 @@ class StudyGui(Node):
 
     def _side_card_rect(self):
         panel = self._side_panel_rect()
-        padding = 14
+        padding = 18
         return pygame.Rect(
             panel.x + padding,
             panel.y + padding,

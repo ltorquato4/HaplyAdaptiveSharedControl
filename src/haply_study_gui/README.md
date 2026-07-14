@@ -76,14 +76,18 @@ sudo systemctl start haply-inverse-service.service
 | Purpose | Command |
 | --- | --- |
 | Haply GUI with Mapper and Scenario Generator | `ros2 launch haply_study_gui study_gui.launch.py` |
+| Haply GUI with Controller | `ros2 launch haply_study_gui study_gui.launch.py use_controller:=true` |
+| Haply GUI with Estimator | `ros2 launch haply_study_gui study_gui.launch.py use_estimator:=true` |
+| Mouse GUI with Controller and Estimator | `ros2 launch haply_study_gui study_gui_mouse.launch.py use_controller:=true use_estimator:=true` |
 | Haply GUI test launch | `ros2 launch haply_study_gui study_gui_haply_test.launch.py` |
 | GUI only, expecting an existing `/haply_state` publisher | `ros2 run haply_study_gui study_gui --ros-args -p source:=haply` |
 | Check live `/haply_state` messages | `ros2 run haply_study_gui test_haply_state_topic` |
 
 The mouse launch starts `study_gui`, `experiment_mapper`, and
-`scenario_generator`. The GUI publishes fake `/haply_state`, the mapper
-publishes `/experiment_cursor_position`, and the Scenario Generator detects
-endpoint completion from the mapped cursor.
+`scenario_generator`. It can also start `control_node` and `estimator_node` with
+`use_controller:=true` and `use_estimator:=true`. The GUI publishes fake
+`/haply_state`, the mapper publishes `/experiment_cursor_position`, and the
+Scenario Generator detects endpoint completion from the mapped cursor.
 
 The hardware launch starts `study_gui`, `haply_driver_node`,
 `experiment_mapper`, and `scenario_generator`. The default task points are
@@ -99,7 +103,7 @@ State legend and run status. In mouse mode, move the mouse inside the workspace
 to move the blue cursor through the mapper. Press and hold the left mouse
 button, or VerseGrip Button A in hardware mode, at the start point to begin a
 trial. Releasing and pressing again during the same trial continues the existing
-drawn path. The Scenario Generator rolls out the next phase three seconds after
+drawn path. The Scenario Generator rolls out the next phase one second after
 the mapped cursor reaches the current endpoint.
 
 The participant-facing GUI does not show start/pause/reset buttons or

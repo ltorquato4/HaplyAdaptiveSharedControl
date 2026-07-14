@@ -34,14 +34,17 @@ def validate_task_points(
     points: list[StudyPoint],
     bounds: WorkspaceBounds,
     min_segment_length: float,
+    expected_count: int = 5,
 ) -> None:
-    """Validate exactly three chained task points.
+    """Validate the configured chained task points.
 
     Raises:
         ValueError: if the configured points are unsafe for the task frame.
     """
-    if len(points) != 3:
-        raise ValueError("scenario_generator requires exactly three task points")
+    if len(points) != expected_count:
+        raise ValueError(
+            f"scenario_generator requires exactly {expected_count} task points"
+        )
 
     for index, point in enumerate(points):
         if not bounds.x_min <= point.x <= bounds.x_max:
@@ -49,7 +52,7 @@ def validate_task_points(
         if not bounds.y_min <= point.y <= bounds.y_max:
             raise ValueError(f"point_{index}_y={point.y} is outside workspace bounds")
 
-    for index in range(3):
+    for index in range(expected_count):
         start, end = chained_segment(points, index)
         segment_length = distance(start, end)
         if segment_length < min_segment_length:
@@ -62,7 +65,7 @@ def validate_task_points(
 def chained_segment(
     points: list[StudyPoint], segment_index: int
 ) -> tuple[StudyPoint, StudyPoint]:
-    """Return the start/end pair for a chained three-point rollout."""
+    """Return the start/end pair for a chained point rollout."""
     normalized_index = segment_index % len(points)
     return points[normalized_index], points[(normalized_index + 1) % len(points)]
 

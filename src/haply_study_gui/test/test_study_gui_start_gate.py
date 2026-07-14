@@ -1,8 +1,7 @@
 from geometry_msgs.msg import Point
 from haply_msgs.msg import HandleButtons
-from std_msgs.msg import Bool
-
 from haply_study_gui.study_gui_node import StudyGui
+from std_msgs.msg import Bool
 
 
 def _point(x, y):
@@ -44,21 +43,13 @@ def test_button_a_away_from_start_does_not_start_trial():
     assert gui.drawn_line == []
 
 
-def test_button_a_must_be_pressed_at_start_radius():
+def test_button_a_held_while_entering_start_radius_starts_trial():
     gui = _gui()
     gui.current_position = _point(0.5, 0.0)
     gui.current_buttons.a = True
     gui._update_line_drawing()
 
     gui.current_position = _point(0.05, 0.0)
-    gui._update_line_drawing()
-
-    assert not gui.trial_started
-    assert not gui.is_running
-
-    gui.current_buttons.a = False
-    gui._update_line_drawing()
-    gui.current_buttons.a = True
     gui._update_line_drawing()
 
     assert gui.trial_started
