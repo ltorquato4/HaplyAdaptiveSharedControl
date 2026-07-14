@@ -122,7 +122,7 @@ class MpcController(Controller):
         self.u_init = self._shift_warm_start(u_optimum)
 
         u_command = np.clip(
-            u_optimum[:2], -np.asarray(self.max_control), np.asarray(self.max_control)
+            -u_optimum[:2], -np.asarray(self.max_control), np.asarray(self.max_control)
         )
         self.u_a = u_command
 
