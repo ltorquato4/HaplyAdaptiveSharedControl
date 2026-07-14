@@ -44,7 +44,7 @@ RUN python3 -m pip install --no-cache-dir \
     ruff \
     "websockets>=10.4,<12"
 
-RUN python3 -m pip install --no-cache-dir --upgrade --ignore-installed pytest
+RUN python3 -m pip install --no-cache-dir --upgrade --ignore-installed "pytest<8"
 
 RUN if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then \
         rosdep init; \
