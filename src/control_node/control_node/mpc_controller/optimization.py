@@ -66,7 +66,7 @@ class Optimization:
         # 1. Setup the problem and solver exactly ONCE during initialization
         self.symbolic_problem = self._setup_nlp_problem()
         
-        # 2. Give the solver a unique name tied to this object instance to prevent CasADi caching bugs
+        # 2. Give the solver a unique name tied to this object instance
         solver_name = f"mpc_solver_{id(self)}"
         self.solver = self._create_solver(self.symbolic_problem, solver_name)
 
@@ -120,7 +120,6 @@ class Optimization:
         }
 
         opts = {"ipopt.print_level": 0, "print_time": 0}
-        
         return ca.nlpsol(solver_name, "ipopt", nlp, opts)
 
     def _get_disturbance_sequence_vector(self) -> np.ndarray:
@@ -160,11 +159,20 @@ class Optimization:
             self.state_dependencies.goal_state, self.state_dimension
         )
 
+        # Fetch current dynamic weights from the cost function
+        current_weights = np.array([
+            self.cost_function.weight_comfort,
+            self.cost_function.weight_trajectory,
+            self.cost_function.weight_goal
+        ], dtype=float)
+
+        # Append weights to the parameter vector
         p_val = np.concatenate(
             [
                 x0_val,
                 z_sequence_val,
                 goal_state_val,
+                current_weights
             ]
         )
 
@@ -184,6 +192,11 @@ class Optimization:
         x0 = ca.MX.sym("x0", state_dimension)
         z_sequence = ca.MX.sym("z_seq", prediction_horizon * state_dimension)
         goal_state = ca.MX.sym("goal_state", state_dimension)
+        
+        # Define weights as symbolic parameters so they can change without recompiling
+        w_comfort = ca.MX.sym("w_comfort", 1)
+        w_trajectory = ca.MX.sym("w_trajectory", 1)
+        w_goal = ca.MX.sym("w_goal", 1)
 
         x_pred = self._predict_state_trajectory(
             x0, u, z_sequence, state_dimension, prediction_horizon
@@ -198,9 +211,12 @@ class Optimization:
             u,
             x_ref_full,
             goal_state,
+            sym_weights=(w_comfort, w_trajectory, w_goal)
         )
         g = self.constraints.get_symbolic_constraints(x_pred, u)
-        p = ca.vertcat(x0, z_sequence, goal_state)
+        
+        # Include weights in parameter vector p
+        p = ca.vertcat(x0, z_sequence, goal_state, w_comfort, w_trajectory, w_goal)
 
         return SymbolicProblem(u=u, x_pred=x_pred, J_total=J_total, g=g, p=p)
 
@@ -234,6 +250,7 @@ class Optimization:
 
         u_init, p_val = self._prepare_optimization_inputs()
 
+        # Use the pre-compiled solver rather than re-creating it on every step
         u_optimum = self._solve_nlp(self.solver, self.symbolic_problem.g, u_init, p_val)
 
         return u_optimum

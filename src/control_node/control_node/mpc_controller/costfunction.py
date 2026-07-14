@@ -76,25 +76,38 @@ class CostFunction:
         u,
         reference_trajectory,
         goal_state=None,
+        sym_weights=None,
     ):
         J = 0
 
         prediction_horizon = int(x_predicted.shape[0])
         u_sequence = self._reshape_control_sequence(u, prediction_horizon)
 
+        # Use symbolic weights if provided, otherwise fallback to numerical matrices
+        if sym_weights is not None:
+            w_comfort, w_traj, w_goal = sym_weights
+            # Wrap lists in ca.vcat() so CasADi treats them as symbolic vectors
+            R = ca.diag(ca.vcat([w_comfort * 0.01, w_comfort * 0.01]))
+            Q = ca.diag(ca.vcat([w_traj * 10.0, 0.0, w_traj * 10.0, 0.0]))
+            P = ca.diag(ca.vcat([w_goal * 100.0, w_goal * 10.0, w_goal * 100.0, w_goal * 10.0]))
+        else:
+            R = self.R
+            Q = self.Q
+            P = self.P
+
         for k in range(prediction_horizon):
             e_track = x_predicted[k, :] - reference_trajectory[k, :]
             uk = u_sequence[k, :]
 
-            J += ca.mtimes([e_track, self.Q, e_track.T])
-            J += ca.mtimes([uk, self.R, uk.T])
+            J += ca.mtimes([e_track, Q, e_track.T])
+            J += ca.mtimes([uk, R, uk.T])
 
         final_goal_state = (
             goal_state if goal_state is not None else reference_trajectory[-1, :]
         )
         goal_T = final_goal_state.T
         e_goal = x_predicted[k, :] - goal_T
-        J += ca.mtimes([e_goal, self.P, e_goal.T])
+        J += ca.mtimes([e_goal, P, e_goal.T])
 
         return J
     
