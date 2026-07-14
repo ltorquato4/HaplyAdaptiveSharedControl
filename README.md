@@ -48,6 +48,21 @@ You can also build the Docker image manually:
 docker build -f docker/Dockerfile -t research-seminar:humble .
 ```
 
+To open an interactive Docker shell from the repository root without using the
+VS Code devcontainer UI:
+
+```bash
+docker compose -f docker/compose.yaml run --rm research-seminar bash
+```
+
+Inside the container, rebuild and source the workspace before running ROS tests:
+
+```bash
+source /opt/ros/humble/setup.bash
+colcon build --symlink-install
+source install/setup.bash
+```
+
 Then run a smoke check without mounting the local workspace:
 
 ```bash
