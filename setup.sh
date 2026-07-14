@@ -56,6 +56,7 @@ sudo apt-get install -y --no-install-recommends \
   lsb-release \
   python3-pip \
   python3-venv \
+  python3-yaml \
   software-properties-common
 
 sudo add-apt-repository -y universe

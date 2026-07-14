@@ -5,6 +5,7 @@
 import time
 
 import rclpy
+from ament_index_python.packages import get_package_share_directory
 from geometry_msgs.msg import Point
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
@@ -14,37 +15,20 @@ from std_msgs.msg import Bool, String
 from study_orchestration.scenario_logic import (
     StudyPoint,
     WorkspaceBounds,
-    chained_segment,
     endpoint_reached,
-    validate_task_points,
+    load_scenario_tasks,
+    parse_controller_modes,
 )
 
 
 class ScenarioGenerator(Node):
     """Own phase rollout, task points, controller mode, and endpoint detection."""
 
-    PHASES = ("aggressive", "normal", "careful")
-    POINT_COUNT = 5
-
     def __init__(self):
         """Create publishers, subscriptions, and validate the configured task."""
         super().__init__("scenario_generator")
 
-        self.declare_parameter("point_0_x", -0.08)
-        self.declare_parameter("point_0_y", -0.08)
-        self.declare_parameter("point_0_z", 0.0)
-        self.declare_parameter("point_1_x", 0.08)
-        self.declare_parameter("point_1_y", -0.08)
-        self.declare_parameter("point_1_z", 0.0)
-        self.declare_parameter("point_2_x", 0.08)
-        self.declare_parameter("point_2_y", 0.08)
-        self.declare_parameter("point_2_z", 0.0)
-        self.declare_parameter("point_3_x", -0.08)
-        self.declare_parameter("point_3_y", 0.08)
-        self.declare_parameter("point_3_z", 0.0)
-        self.declare_parameter("point_4_x", 0.0)
-        self.declare_parameter("point_4_y", -0.15)
-        self.declare_parameter("point_4_z", 0.0)
+        self.declare_parameter("task_file", self._default_task_file())
         self.declare_parameter("workspace_x_min", -0.12)
         self.declare_parameter("workspace_x_max", 0.12)
         self.declare_parameter("workspace_y_min", -0.15)
@@ -54,10 +38,9 @@ class ScenarioGenerator(Node):
         self.declare_parameter("min_phase_duration_s", 0.8)
         self.declare_parameter("inter_trial_delay_s", 1.0)
         self.declare_parameter("publish_hz", 10.0)
-        self.declare_parameter("initial_segment_index", 0)
-        self.declare_parameter("controller_modes", "adaptive,fixed")
+        self.declare_parameter("initial_task_index", 0)
+        self.declare_parameter("controller_modes", "fixed")
 
-        self.points = self._read_task_points()
         self.bounds = WorkspaceBounds(
             x_min=float(self.get_parameter("workspace_x_min").value),
             x_max=float(self.get_parameter("workspace_x_max").value),
@@ -65,11 +48,14 @@ class ScenarioGenerator(Node):
             y_max=float(self.get_parameter("workspace_y_max").value),
         )
         self.min_segment_length = float(self.get_parameter("min_segment_length").value)
-        validate_task_points(
-            self.points,
+        self.controller_modes = parse_controller_modes(
+            str(self.get_parameter("controller_modes").value)
+        )
+        self.tasks = load_scenario_tasks(
+            str(self.get_parameter("task_file").value),
             self.bounds,
             self.min_segment_length,
-            expected_count=self.POINT_COUNT,
+            self.controller_modes,
         )
 
         self.endpoint_reached_radius = float(
@@ -81,14 +67,9 @@ class ScenarioGenerator(Node):
         self.inter_trial_delay_s = max(
             0.0, float(self.get_parameter("inter_trial_delay_s").value)
         )
-        self.controller_modes = self._parse_modes(
-            str(self.get_parameter("controller_modes").value)
+        self.task_index = int(self.get_parameter("initial_task_index").value) % len(
+            self.tasks
         )
-        self.segment_index = int(
-            self.get_parameter("initial_segment_index").value
-        ) % len(self.points)
-        self.phase_index = self._phase_index_for_segment(self.segment_index)
-        self.mode_index = self.segment_index % len(self.controller_modes)
         self.is_running = False
         self.cursor_position: StudyPoint | None = None
         self.endpoint_latched = False
@@ -113,31 +94,16 @@ class ScenarioGenerator(Node):
         self._publish_task_definition()
         self._publish_endpoint_state(False)
 
+    def _default_task_file(self) -> str:
+        share_dir = get_package_share_directory("study_orchestration")
+        return f"{share_dir}/config/default_tasks.yaml"
+
     def _task_qos(self) -> QoSProfile:
         return QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             reliability=ReliabilityPolicy.RELIABLE,
         )
-
-    def _read_task_points(self) -> list[StudyPoint]:
-        return [
-            StudyPoint(
-                x=float(self.get_parameter(f"point_{index}_x").value),
-                y=float(self.get_parameter(f"point_{index}_y").value),
-                z=float(self.get_parameter(f"point_{index}_z").value),
-            )
-            for index in range(self.POINT_COUNT)
-        ]
-
-    def _phase_index_for_segment(self, segment_index: int) -> int:
-        cycle_index = segment_index // len(self.points)
-        return cycle_index % len(self.PHASES)
-
-    def _parse_modes(self, value: str) -> list[str]:
-        modes = [mode.strip().lower() for mode in value.split(",")]
-        modes = [mode for mode in modes if mode in ("adaptive", "fixed")]
-        return modes or ["adaptive", "fixed"]
 
     def _is_running(self, msg: Bool) -> None:
         was_running = self.is_running
@@ -154,7 +120,7 @@ class ScenarioGenerator(Node):
 
     def _tick(self) -> None:
         if self._rollout_delay_elapsed():
-            self._rollout_next_segment()
+            self._rollout_next_task()
             return
 
         if self.rollout_due_time is not None:
@@ -164,7 +130,7 @@ class ScenarioGenerator(Node):
         reached = self._current_endpoint_reached()
         self._publish_endpoint_state(reached)
         if reached:
-            self._schedule_next_segment()
+            self._schedule_next_task()
 
     def _rollout_delay_elapsed(self) -> bool:
         return (
@@ -180,58 +146,57 @@ class ScenarioGenerator(Node):
         if elapsed_s < self.min_phase_duration_s:
             return False
 
-        start, end = chained_segment(self.points, self.segment_index)
+        task = self.tasks[self.task_index]
         if not self.start_gate_reached:
             self.start_gate_reached = endpoint_reached(
                 self.cursor_position,
-                start,
+                task.start_point,
                 self.endpoint_reached_radius,
             )
             return False
 
         return endpoint_reached(
             self.cursor_position,
-            end,
+            task.end_point,
             self.endpoint_reached_radius,
         )
 
-    def _rollout_next_segment(self) -> None:
-        self.segment_index += 1
-        self.phase_index = self._phase_index_for_segment(self.segment_index)
-        self.mode_index = (self.mode_index + 1) % len(self.controller_modes)
+    def _rollout_next_task(self) -> None:
+        self.task_index = (self.task_index + 1) % len(self.tasks)
         self.last_rollout_time = time.monotonic()
         self.rollout_due_time = None
+        task = self.tasks[self.task_index]
         self.get_logger().info(
             "Scenario rollout: "
-            f"segment={self.segment_index % len(self.points)}, "
-            f"phase={self.PHASES[self.phase_index]}, "
-            f"mode={self.controller_modes[self.mode_index]}"
+            f"task={self.task_index}, "
+            f"phase={task.phase}, "
+            f"mode={task.controller_mode}"
         )
         self.endpoint_latched = False
         self.start_gate_reached = False
         self._publish_task_definition()
         self._publish_endpoint_state(False)
 
-    def _schedule_next_segment(self) -> None:
+    def _schedule_next_task(self) -> None:
         self.endpoint_latched = True
         self.rollout_due_time = time.monotonic() + self.inter_trial_delay_s
         self.start_gate_reached = False
         self.get_logger().info(
             "Endpoint reached; waiting "
-            f"{self.inter_trial_delay_s:.2f}s before next segment"
+            f"{self.inter_trial_delay_s:.2f}s before next task"
         )
 
     def _publish_task_definition(self) -> None:
-        start, end = chained_segment(self.points, self.segment_index)
-        self.start_pub.publish(self._to_point_msg(start))
-        self.end_pub.publish(self._to_point_msg(end))
+        task = self.tasks[self.task_index]
+        self.start_pub.publish(self._to_point_msg(task.start_point))
+        self.end_pub.publish(self._to_point_msg(task.end_point))
 
         phase_msg = String()
-        phase_msg.data = self.PHASES[self.phase_index]
+        phase_msg.data = task.phase
         self.phase_pub.publish(phase_msg)
 
         mode_msg = String()
-        mode_msg.data = self.controller_modes[self.mode_index]
+        mode_msg.data = task.controller_mode
         self.mode_pub.publish(mode_msg)
 
     def _publish_endpoint_state(self, endpoint_reached_value: bool) -> None:
