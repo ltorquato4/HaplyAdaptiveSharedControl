@@ -172,18 +172,10 @@ Use this WSL-owned hardware path:
    ros2 launch haply_study_gui study_gui_haply_test.launch.py
    ```
 
-### Workspace Mapping & Tuning
-
-The study mapping logic converts physical Haply movements into 2D screen coordinates using the following rules:
-
-- **Z-as-Y Mapping**: The Haply's vertical `z` axis is mapped to the screen's `y` axis (`use_z_as_y=True`), meaning vertical physical movement maps to vertical screen movement. The physical depth axis (`y`) is ignored for this 2-DoF study.
-- **Scaling**: Physical movements are scaled up by the mapper (e.g. `scale_x=2.0`, `scale_y=2.0`). A 10cm physical movement covers 20cm of task space.
-- **Physical Clamping**: The accessible physical workspace is clamped relative to the spot where the arm rested when the script launched (`clamp_raw=True`).
-  - To change left/right physical boundaries, edit `raw_x_min` and `raw_x_max`.
-  - To change down/up physical boundaries, edit `raw_second_min` and `raw_second_max`.
-
-These parameters can be tuned directly inside `study_gui.launch.py` and `study_gui_haply_test.launch.py` without rebuilding the workspace.
-
+   Until the hardware path is fixed, use the mouse test path instead:
+   ```bash
+   ros2 launch haply_study_gui study_gui_mouse.launch.py
+   ```
 
 ## ROS Workspace Commands
 
@@ -251,3 +243,12 @@ ruff check --fix --force-exclude .
 
 The copied Haply interface under `src/haply_ros2_interface/` is excluded by tool
 configuration and should not be reformatted as project-owned code.
+
+## Troubleshooting
+
+If `./setup.sh` reports `Conflicting values set for option Signed-By` for
+`packages.ros.org/ros2/ubuntu`, the machine has duplicate ROS apt source
+definitions. The setup script normalizes this automatically by backing up ROS
+source files under `/etc/apt/sources.list.d/` and writing one canonical
+`/etc/apt/sources.list.d/ros2.list` entry that uses
+`/usr/share/keyrings/ros-archive-keyring.gpg`.

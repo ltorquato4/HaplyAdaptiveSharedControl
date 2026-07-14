@@ -16,7 +16,37 @@ if ! command -v sudo >/dev/null 2>&1; then
   exit 1
 fi
 
+backup_ros_apt_sources() {
+  local backup_suffix
+
+  backup_suffix="$(date +%Y%m%d%H%M%S)"
+
+  sudo mkdir -p /etc/apt/sources.list.d
+
+  while IFS= read -r -d "" existing_source; do
+    [[ -n "${existing_source}" ]] || continue
+    if sudo grep -qi "packages.ros.org/ros2/ubuntu" "${existing_source}"; then
+      sudo mv "${existing_source}" "${existing_source}.bak.${backup_suffix}"
+    fi
+  done < <(sudo find /etc/apt/sources.list.d -maxdepth 1 -type f \( -name "*.list" -o -name "*.sources" \) -print0)
+}
+
+write_ros_apt_source() {
+  local keyring="/usr/share/keyrings/ros-archive-keyring.gpg"
+  local source_file="/etc/apt/sources.list.d/ros2.list"
+
+  sudo mkdir -p /usr/share/keyrings /etc/apt/sources.list.d
+
+  sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
+    -o "${keyring}"
+
+  echo "deb [arch=$(dpkg --print-architecture) signed-by=${keyring}] http://packages.ros.org/ros2/ubuntu ${UBUNTU_CODENAME} main" \
+    | sudo tee "${source_file}" >/dev/null
+}
+
 cd "${WORKSPACE_DIR}"
+
+backup_ros_apt_sources
 
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
@@ -30,12 +60,8 @@ sudo apt-get install -y --no-install-recommends \
 
 sudo add-apt-repository -y universe
 
-if [[ ! -f /etc/apt/sources.list.d/ros2.list ]]; then
-  sudo curl -sSL https://raw.githubusercontent.com/ros/rosdistro/master/ros.key \
-    -o /usr/share/keyrings/ros-archive-keyring.gpg
-  echo "deb [arch=$(dpkg --print-architecture) signed-by=/usr/share/keyrings/ros-archive-keyring.gpg] http://packages.ros.org/ros2/ubuntu ${UBUNTU_CODENAME} main" \
-    | sudo tee /etc/apt/sources.list.d/ros2.list >/dev/null
-fi
+backup_ros_apt_sources
+write_ros_apt_source
 
 sudo apt-get update
 sudo apt-get install -y --no-install-recommends \
