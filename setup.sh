@@ -78,13 +78,14 @@ source "/opt/ros/${ROS_DISTRO}/setup.bash"
 set -u
 
 rosdep install --from-paths src --ignore-src -r -y --rosdistro "${ROS_DISTRO}"
-python3 -m colcon build --symlink-install
+"${WORKSPACE_DIR}/build.sh"
 
 BASHRC="${HOME}/.bashrc"
 LOCAL_BIN_LINE='export PATH="$HOME/.local/bin:$PATH"'
 VENV_SOURCE_LINE="if [ -f ${VENV_DIR}/bin/activate ]; then source ${VENV_DIR}/bin/activate; fi"
 ROS_SOURCE_LINE="source /opt/ros/${ROS_DISTRO}/setup.bash"
 WORKSPACE_SOURCE_LINE="if [ -f ${WORKSPACE_DIR}/install/setup.bash ]; then source ${WORKSPACE_DIR}/install/setup.bash; fi"
+BUILD_ALIAS_LINE="alias rs-build='${WORKSPACE_DIR}/build.sh'"
 
 grep -qxF "${LOCAL_BIN_LINE}" "${BASHRC}" \
   || echo "${LOCAL_BIN_LINE}" >> "${BASHRC}"
@@ -94,6 +95,8 @@ grep -qxF "${ROS_SOURCE_LINE}" "${BASHRC}" \
   || echo "${ROS_SOURCE_LINE}" >> "${BASHRC}"
 grep -qxF "${WORKSPACE_SOURCE_LINE}" "${BASHRC}" \
   || echo "${WORKSPACE_SOURCE_LINE}" >> "${BASHRC}"
+grep -qxF "${BUILD_ALIAS_LINE}" "${BASHRC}" \
+  || echo "${BUILD_ALIAS_LINE}" >> "${BASHRC}"
 
 git config --global --add safe.directory "${WORKSPACE_DIR}"
 
@@ -102,3 +105,8 @@ echo "Setup complete. Open a new WSL shell or run:"
 echo "  source ${VENV_DIR}/bin/activate"
 echo "  source /opt/ros/${ROS_DISTRO}/setup.bash"
 echo "  source ${WORKSPACE_DIR}/install/setup.bash"
+echo
+echo "For later venv-safe rebuilds, run:"
+echo "  ${WORKSPACE_DIR}/build.sh <package_name>"
+echo "or, after opening a new shell:"
+echo "  rs-build <package_name>"

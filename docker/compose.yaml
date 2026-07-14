@@ -12,10 +12,20 @@ services:
       DISPLAY: ${DISPLAY}
       QT_X11_NO_MITSHM: "1"
       ROS_DOMAIN_ID: ${ROS_DOMAIN_ID:-0}
+      WORKSPACE_DIR: /workspaces/research-seminar
       SDL_AUDIODRIVER: dummy
       AUDIODEV: null
       PYGAME_HIDE_SUPPORT_PROMPT: "1"
     volumes:
+      - ..:/workspaces/research-seminar:cached
+      - research-seminar-build:/workspaces/research-seminar/build
+      - research-seminar-install:/workspaces/research-seminar/install
+      - research-seminar-log:/workspaces/research-seminar/log
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
     stdin_open: true
     tty: true
+
+volumes:
+  research-seminar-build:
+  research-seminar-install:
+  research-seminar-log:

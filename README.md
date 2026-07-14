@@ -34,6 +34,14 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 ```
 
+For later WSL rebuilds, use the repository build helper so ROS Python
+entrypoints are generated with this workspace's `.venv`:
+
+```bash
+./build.sh haply_study_gui
+source install/setup.bash
+```
+
 ### Docker / Devcontainer
 
 With Docker Desktop running, use VS Code's **Dev Containers: Reopen in
@@ -49,10 +57,11 @@ docker build -f docker/Dockerfile -t research-seminar:humble .
 ```
 
 To open an interactive Docker shell from the repository root without using the
-VS Code devcontainer UI:
+VS Code devcontainer UI, use the Compose service. This mounts your live
+workspace and keeps `build/`, `install/`, and `log/` in Docker volumes:
 
 ```bash
-docker compose -f docker/compose.yaml run --rm research-seminar bash
+docker compose -f docker/compose.yaml run --rm --build research-seminar bash
 ```
 
 Inside the container, rebuild and source the workspace before running ROS tests:
@@ -178,20 +187,49 @@ These parameters can be tuned directly inside `study_gui.launch.py` and `study_g
 
 ## ROS Workspace Commands
 
+When using the direct WSL virtual environment, run workspace builds through the
+root-level helper:
+
+```bash
+./build.sh
+```
+
+The helper sources ROS, activates `.venv`, and runs `colcon` through the venv
+Python. This matters because the system `colcon` executable is `/usr/bin/colcon`
+and generates ROS Python entrypoint scripts with a `#!/usr/bin/python3` shebang.
+The helper generates entrypoints that use this repository's `.venv`, so package
+dependencies such as `websockets` are imported from the expected environment.
+
 After changing a ROS package, rebuild it from the workspace root. Replace
 `haply_study_gui` with the package you changed:
 
 ```bash
-colcon build --symlink-install --packages-select haply_study_gui
+./build.sh haply_study_gui
 source install/setup.bash
 ```
 
-For a full workspace rebuild, omit `--packages-select`:
+For a full workspace rebuild, omit the package name:
 
 ```bash
-colcon build --symlink-install
+./build.sh
 source install/setup.bash
 ```
+
+Advanced `colcon build` arguments can still be passed directly by starting the
+arguments with an option:
+
+```bash
+./build.sh --packages-select haply_study_gui --event-handlers console_direct+
+```
+
+To verify a Python ROS executable is using the venv, check its first line after
+building:
+
+```bash
+head -n 1 install/haply_interface/lib/haply_interface/haply_driver_node
+```
+
+It should point at `.venv/bin/python`, not `/usr/bin/python3`.
 
 ## Manual Checks
 
