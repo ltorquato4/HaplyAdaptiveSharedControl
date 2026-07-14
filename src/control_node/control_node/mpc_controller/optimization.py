@@ -43,12 +43,7 @@ class SymbolicProblem:
 
 
 class Optimization:
-    """MPC optimization orchestrator for symbolic setup and solve workflow.
-
-    The class assembles CasADi symbols, creates the NLP solver, prepares
-    runtime parameters, solves for the optimal input sequence, and computes
-    the predicted trajectory from the optimized control inputs.
-    """
+    """MPC optimization orchestrator for symbolic setup and solve workflow."""
 
     def __init__(
         self,
@@ -57,15 +52,6 @@ class Optimization:
         state_dimension: int = 4,
         input_dimension: int = 2,
     ) -> None:
-        """Store model and state dependencies.
-
-        Args:
-            model_dependencies: Pre-built helper class instances.
-            state_dependencies: Runtime values for initial state, references,
-                and optional warm-start vectors.
-            state_dimension: State dimension for optimization.
-            input_dimension: Input dimension for optimization.
-        """
         self.model_dependencies = model_dependencies
         self.state_dependencies = state_dependencies or StateDependencies()
         self.state_dimension = state_dimension
@@ -77,11 +63,17 @@ class Optimization:
         self.batch_predictor = model_dependencies.batch_predictor
         self.prediction_horizon = self.batch_predictor.N
 
+        # 1. Setup the problem and solver exactly ONCE during initialization
+        self.symbolic_problem = self._setup_nlp_problem()
+        
+        # 2. Give the solver a unique name tied to this object instance to prevent CasADi caching bugs
+        solver_name = f"mpc_solver_{id(self)}"
+        self.solver = self._create_solver(self.symbolic_problem, solver_name)
+
     @staticmethod
     def _coerce_state_vector(
         state: np.ndarray | None, state_dimension: int
     ) -> np.ndarray:
-        """Expand a 2D position into [x, vx, y, vy] or validate a 4D state."""
         if state is None:
             raise ValueError("state must be provided")
 
@@ -100,16 +92,6 @@ class Optimization:
     def _build_reference_trajectory(
         self, x0: ca.MX, goal_state: ca.MX, prediction_horizon: int
     ) -> ca.MX:
-        """Build a straight-line reference trajectory from start to goal.
-
-        Args:
-            x0: Initial state symbol.
-            goal_state: Goal state symbol.
-            prediction_horizon: Prediction horizon.
-
-        Returns:
-            Reference state trajectory of shape (prediction_horizon, 4).
-        """
         if prediction_horizon <= 0:
             raise ValueError("prediction_horizon must be positive")
 
@@ -127,15 +109,7 @@ class Optimization:
 
         return ca.vertcat(*rows)
 
-    def _create_solver(self, symbolic_problem: SymbolicProblem) -> ca.Function:
-        """Create CasADi NLP solver.
-
-        Args:
-            symbolic_problem: Symbolic problem definition.
-
-        Returns:
-            Configured NLP solver.
-        """
+    def _create_solver(self, symbolic_problem: SymbolicProblem, solver_name: str) -> ca.Function:
         g_concat = ca.vertcat(*symbolic_problem.g)
 
         nlp = {
@@ -146,10 +120,10 @@ class Optimization:
         }
 
         opts = {"ipopt.print_level": 0, "print_time": 0}
-        return ca.nlpsol("solver", "ipopt", nlp, opts)
+        
+        return ca.nlpsol(solver_name, "ipopt", nlp, opts)
 
     def _get_disturbance_sequence_vector(self) -> np.ndarray:
-        """Return flattened disturbance sequence or a zero fallback vector."""
         prediction_horizon = self.prediction_horizon
         state_dimension = self.state_dimension
 
@@ -166,18 +140,6 @@ class Optimization:
         state_dimension: int,
         prediction_horizon: int,
     ) -> ca.MX:
-        """Predict state trajectory using batch matrices.
-
-        Args:
-            x0: Initial state symbol.
-            u: Input sequence symbol.
-            z_seq: Disturbance sequence symbol.
-            state_dimension: State dimension.
-            prediction_horizon: Prediction horizon.
-
-        Returns:
-            Predicted state trajectory of shape (prediction_horizon, state_dimension).
-        """
         batch_matrices = self.batch_predictor.get_batch_matrices_casadi()
         A_bar = batch_matrices["A_bar"]
         B_bar = batch_matrices["B_bar"]
@@ -186,11 +148,6 @@ class Optimization:
         return ca.reshape(x_pred_flat, state_dimension, prediction_horizon).T
 
     def _prepare_optimization_inputs(self) -> tuple[np.ndarray, np.ndarray]:
-        """Prepare initial guess and parameter values.
-
-        Returns:
-            Tuple of (u_init, p_val).
-        """
         prediction_horizon = self.prediction_horizon
 
         x0_val = self._coerce_state_vector(
@@ -220,11 +177,6 @@ class Optimization:
         return u_init, p_val
 
     def _setup_nlp_problem(self) -> SymbolicProblem:
-        """Setup symbolic NLP problem components.
-
-        Returns:
-                Symbolic NLP components packed in a dataclass.
-        """
         prediction_horizon = self.prediction_horizon
         state_dimension, input_dimension = self.state_dimension, self.input_dimension
 
@@ -259,17 +211,6 @@ class Optimization:
         u_init: np.ndarray,
         p_val: np.ndarray,
     ) -> np.ndarray:
-        """Solve the NLP problem.
-
-        Args:
-                solver: CasADi solver instance.
-                g: Constraint expressions.
-                u_init: Initial input guess.
-                p_val: Parameter vector.
-
-        Returns:
-                Optimal input sequence.
-        """
         n_constraints = int(ca.vertcat(*g).shape[0])
 
         sol = solver(
@@ -286,35 +227,18 @@ class Optimization:
         self.state_dependencies = state_dependencies
 
     def solve(self) -> np.ndarray:
-        """Solve the MPC optimization problem using CasADi.
-
-        Returns:
-                Optimal input sequence.
-        """
         if self.state_dependencies.x0 is None:
             raise ValueError("Initial state x0 must be set in state_dependencies")
         if self.state_dependencies.goal_state is None:
             raise ValueError("Goal state must be set in state_dependencies")
 
-        symbolic_problem = self._setup_nlp_problem()
-
-        solver = self._create_solver(symbolic_problem)
-
         u_init, p_val = self._prepare_optimization_inputs()
 
-        u_optimum = self._solve_nlp(solver, symbolic_problem.g, u_init, p_val)
-
-        del solver
+        u_optimum = self._solve_nlp(self.solver, self.symbolic_problem.g, u_init, p_val)
 
         return u_optimum
 
     def destroy(self) -> None:
-        """Release all CasADi-backed objects and free their resources.
-
-        Idempotent: safe to call multiple times. Forces a garbage-collection
-        pass afterward since CasADi Function/solver objects are C++-backed
-        and won't release memory until every Python reference is gone.
-        """
         import gc
 
         attrs = (
@@ -324,6 +248,8 @@ class Optimization:
             "constraints",
             "cost_function",
             "batch_predictor",
+            "solver",
+            "symbolic_problem"
         )
         for attr in attrs:
             if hasattr(self, attr):
