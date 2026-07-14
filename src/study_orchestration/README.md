@@ -22,23 +22,37 @@ Subscribes:
 - `/study_is_running` (`std_msgs/Bool`)
 - `/experiment_cursor_position` (`geometry_msgs/Point`)
 
-The generator uses exactly three configured task points. By default they are:
+The generator uses exactly five configured task points. By default they are:
 
 | Point | x | y | z |
 |---|---:|---:|---:|
-| `P0` | `-0.08` | `-0.20` | `0.0` |
+| `P0` | `-0.08` | `-0.08` | `0.0` |
 | `P1` | `0.08` | `-0.08` | `0.0` |
-| `P2` | `0.08` | `-0.20` | `0.0` |
+| `P2` | `0.08` | `0.08` | `0.0` |
+| `P3` | `-0.08` | `0.08` | `0.0` |
+| `P4` | `0.0` | `-0.15` | `0.0` |
 
-Trials are chained as `P0 -> P1`, `P1 -> P2`, and `P2 -> P0`, so the start
-point of each trial is the endpoint of the previous trial.
+Trials are chained as `P0 -> P1`, `P1 -> P2`, `P2 -> P3`, `P3 -> P4`, and
+`P4 -> P0`, so the start point of each trial is the endpoint of the previous
+trial. Each behavioral state runs all five segments before the next behavioral
+state starts.
+
+The task-definition topics (`/study_start_point`, `/study_end_point`,
+`/study_phase`, and `/study_controller_mode`) are published when the task
+changes and use transient local QoS so late-starting nodes receive the latest
+task without requiring continuous republishing.
+
+When the mapped cursor reaches the current endpoint during a running trial, the
+generator publishes `/study_endpoint_reached=True`, waits
+`inter_trial_delay_s` seconds, then publishes the next start/end task and resets
+`/study_endpoint_reached=False`. The default inter-trial delay is `1.0` second.
 
 The default points are validated against the previous GUI dummy-test area:
 
-- `workspace_x_min = -0.10`
-- `workspace_x_max = 0.10`
-- `workspace_y_min = -0.25`
-- `workspace_y_max = -0.03`
+- `workspace_x_min = -0.12`
+- `workspace_x_max = 0.12`
+- `workspace_y_min = -0.15`
+- `workspace_y_max = 0.15`
 - `min_segment_length = 0.10`
 
 These bounds are task-frame defaults only. They are not a guarantee that the
@@ -92,11 +106,12 @@ physical movement maps to 20 cm of task movement. These parameters can be tuned
 in `study_gui.launch.py` and `study_gui_haply_test.launch.py` without rebuilding
 the workspace.
 
-In hardware mode, the mapper captures the raw Haply pose when
-`/study_is_running` becomes true and pairs that raw pose with the current
-`/study_start_point`. Releasing and pressing VerseGrip Button A during the same
-active trial does not recapture the anchor; the next task captures a new anchor
-when the next trial starts.
+In hardware mode, the mapper creates a pretrial preview anchor as soon as it has
+both the raw Haply pose and the current `/study_start_point`. This lets the GUI
+show a mapped cursor before the trial starts. When `/study_is_running` becomes
+true, the mapper locks that anchor for the active trial. Releasing and pressing
+VerseGrip Button A during the same active trial does not recapture the anchor;
+the next task captures a new anchor when the next trial starts.
 
 ## Mouse Test Flow
 
@@ -110,7 +125,6 @@ cursor to detect when the endpoint is reached.
 
 `ros2 launch haply_study_gui study_gui.launch.py`
 
-The Haply driver publishes real `/haply_state`. The mapper anchors the current
-raw Haply pose to the current task start point when the study starts, then
-publishes mapped task-frame cursor updates for the GUI, Scenario Generator,
+The Haply driver publishes real `/haply_state`. The mapper publishes pretrial
+and active mapped task-frame cursor updates for the GUI, Scenario Generator,
 Controller, Estimator, and Logger.

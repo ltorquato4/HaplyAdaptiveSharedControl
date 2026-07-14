@@ -50,37 +50,47 @@ Container** command. VS Code builds the image from
 `build/`, `install/`, and `log/` in Docker volumes, builds the ROS workspace,
 and sources ROS/workspace setup files for new terminals.
 
-You can also build the Docker image manually:
-
-```bash
-docker build -f docker/Dockerfile -t research-seminar:humble .
-```
-
 To open an interactive Docker shell from the repository root without using the
-VS Code devcontainer UI, use the Compose service. This mounts your live
-workspace and keeps `build/`, `install/`, and `log/` in Docker volumes:
+VS Code devcontainer UI, use the Compose service. This builds or refreshes the
+image when needed, mounts your live workspace, and keeps `build/`, `install/`,
+and `log/` in Docker volumes:
 
 ```bash
 docker compose -f docker/compose.yaml run --rm --build research-seminar bash
 ```
 
-Inside the container, rebuild and source the workspace before running ROS tests:
+Here `research-seminar` is the Compose service name. The image built for that
+service is tagged as `research-seminar:humble` by `docker/compose.yaml`.
+
+If the image is already built and you only want to open a new shell, omit
+`--build`:
+
+```bash
+docker compose -f docker/compose.yaml run --rm research-seminar bash
+```
+
+### Test The Setup
+
+From either a VS Code devcontainer terminal or the Compose container shell, run
+the container checks directly in that terminal:
 
 ```bash
 source /opt/ros/humble/setup.bash
 colcon build --symlink-install
 source install/setup.bash
+ruff --version
+mypy --version
+ros2 pkg list | grep haply_study_gui
 ```
 
-Then run a smoke check without mounting the local workspace:
+From a host terminal, after building the image, you can also check the image
+without mounting the local workspace. Run this from WSL or PowerShell, not from
+inside the container:
 
 ```bash
 docker run --rm research-seminar:humble \
   bash -lc "ruff --version && mypy --version && ros2 pkg list | grep haply_study_gui"
 ```
-
-The local `.venv` is ignored by Docker and is not used inside the image or
-devcontainer.
 
 Package-specific launch commands are documented in each package README under
 [`src/`](src/).
@@ -162,19 +172,19 @@ Use this WSL-owned hardware path:
 
 5. Launch the study GUI:
 
-   For official study runs (requires pressing Spacebar to start the trial):
+   For official study runs with GUI, mapper, and scenario generator:
    ```bash
    ros2 launch haply_study_gui study_gui.launch.py
    ```
 
-   For hardware testing and parameter tuning (starts automatically):
+   To include the controller and/or estimator:
    ```bash
-   ros2 launch haply_study_gui study_gui_haply_test.launch.py
+   ros2 launch haply_study_gui study_gui.launch.py use_controller:=true use_estimator:=true
    ```
 
-   Until the hardware path is fixed, use the mouse test path instead:
+   Until the hardware path is fixed, use the mouse test path instead, can also be tested with controller and estimator:
    ```bash
-   ros2 launch haply_study_gui study_gui_mouse.launch.py
+   ros2 launch haply_study_gui study_gui_mouse.launch.py use_controller:=true use_estimator:=true
    ```
 
 ## ROS Workspace Commands

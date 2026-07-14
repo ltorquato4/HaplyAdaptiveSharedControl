@@ -32,6 +32,7 @@ def generate_launch_description():
         parameters=[
             {
                 "endpoint_reached_radius": 0.01,
+                "inter_trial_delay_s": 1.0,
             }
         ],
     )
@@ -44,10 +45,10 @@ def generate_launch_description():
             {
                 "mapping_mode": "anchored_delta",
                 "use_z_as_y": True,
-                "scale_x": 2.0,        # physical 10 cm -> task 20 cm
+                "scale_x": 2.0,  # physical 10 cm -> task 20 cm
                 "scale_y": 2.0,
                 "clamp_raw": True,
-                "raw_x_min": -0.20,    # Haply x: +/-20 cm left/right
+                "raw_x_min": -0.20,  # Haply x: +/-20 cm left/right
                 "raw_x_max": 0.20,
                 "raw_second_min": -0.20,  # Haply z: allow movement below anchor
                 "raw_second_max": 0.20,
@@ -67,9 +68,13 @@ def generate_launch_description():
         parameters=[
             {
                 "source": "haply",
+                "width": 1280,
+                "height": 720,
+                "side_panel_width": 300,
+                "workspace_padding": 52,
                 "render_fps": 100.0,
                 "state_publish_hz": 100.0,
-                "auto_start": True,
+                "auto_start": False,
                 "endpoint_reached_radius": 0.01,
             }
         ],

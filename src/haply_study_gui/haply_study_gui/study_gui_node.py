@@ -14,6 +14,7 @@ import rclpy  # noqa: E402
 from geometry_msgs.msg import Point  # noqa: E402
 from haply_msgs.msg import HandleButtons, HaplyState  # noqa: E402
 from rclpy.node import Node  # noqa: E402
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy  # noqa: E402
 from std_msgs.msg import Bool, String  # noqa: E402
 
 
@@ -59,10 +60,10 @@ class StudyGui(Node):
         """Create ROS interfaces and initialize the Pygame window."""
         super().__init__("study_gui")
 
-        self.declare_parameter("width", 960)
-        self.declare_parameter("height", 540)
-        self.declare_parameter("side_panel_width", 220)
-        self.declare_parameter("workspace_padding", 36)
+        self.declare_parameter("width", 1280)
+        self.declare_parameter("height", 720)
+        self.declare_parameter("side_panel_width", 300)
+        self.declare_parameter("workspace_padding", 52)
         self.declare_parameter("render_fps", 100.0)
         self.declare_parameter("state_publish_hz", 100.0)
         self.declare_parameter("source", "haply")
@@ -127,22 +128,29 @@ class StudyGui(Node):
         self.is_drawing_line = False
         self.finished_line_this_frame = False
         self.drawn_line = []
+        self.trial_started = self.auto_start
         self.is_running = self.auto_start
         self.endpoint_reached = False
         self.trial_completion_latched = False
         self.running = True
 
         self.study_is_running_pub = self.create_publisher(Bool, "study_is_running", 10)
+        task_qos = self._task_qos()
 
         self.create_subscription(HaplyState, "haply_state", self._haply_state, 10)
         self.create_subscription(
             Point, "experiment_cursor_position", self._experiment_cursor_position, 10
         )
-        self.create_subscription(Point, "study_start_point", self._start_point, 10)
-        self.create_subscription(Point, "study_end_point", self._end_point, 10)
-        self.create_subscription(String, "study_phase", self._study_phase, 10)
         self.create_subscription(
-            String, "study_controller_mode", self._controller_mode, 10
+            Point, "study_start_point", self._start_point, task_qos
+        )
+        self.create_subscription(Point, "study_end_point", self._end_point, task_qos)
+        self.create_subscription(String, "study_phase", self._study_phase, task_qos)
+        self.create_subscription(
+            String, "study_controller_mode", self._controller_mode, task_qos
+        )
+        self.create_subscription(
+            Bool, "study_endpoint_reached", self._study_endpoint_reached, 10
         )
         if self.source == "mouse":
             self.mouse_state_pub = self.create_publisher(HaplyState, "haply_state", 10)
@@ -162,14 +170,21 @@ class StudyGui(Node):
         self.frame = pygame.Surface((self.width, self.height)).convert()
         self.draw_target = self.frame
         self.clock = pygame.time.Clock()
-        self.title_font = self._load_font(16, bold=True)
-        self.body_font = self._load_font(18)
-        self.label_font = self._load_font(14)
-        self.pill_font = self._load_font(15, bold=True)
-        self.icon_font = self._load_font(13, bold=True)
+        self.title_font = self._load_font(22, bold=True)
+        self.body_font = self._load_font(23)
+        self.label_font = self._load_font(17)
+        self.pill_font = self._load_font(20, bold=True)
+        self.icon_font = self._load_font(17, bold=True)
         if self.source == "mouse":
             self.current_position = self._screen_to_world(pygame.mouse.get_pos())
             self.previous_mouse_position = self.current_position
+
+    def _task_qos(self) -> QoSProfile:
+        return QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
 
     def _load_font(self, size, bold=False):
         preferred = ["Inter", "Roboto", "Open Sans", "DejaVu Sans", "Arial"]
@@ -254,6 +269,18 @@ class StudyGui(Node):
                 f"Ignoring unknown study_controller_mode '{msg.data}'"
             )
 
+    def _study_endpoint_reached(self, msg):
+        if not msg.data:
+            if self.trial_completion_latched or self.endpoint_reached:
+                self._reset_drawn_path()
+            return
+
+        self.endpoint_reached = True
+        self.trial_completion_latched = True
+        self.is_running = False
+        self.is_drawing_line = False
+        self.finished_line_this_frame = False
+
     def _publish_study_state(self):
         running_msg = Bool()
         running_msg.data = bool(self.is_running)
@@ -294,28 +321,48 @@ class StudyGui(Node):
         self.previous_mouse_time = now
         self.mouse_state_pub.publish(msg)
 
-    def _update_line_drawing(self):
-        self.finished_line_this_frame = False
+    def _draw_input_pressed(self):
         if self.source == "mouse":
             mouse_pos = pygame.mouse.get_pos()
             self.current_position = self._screen_to_world(mouse_pos)
-            pressed = pygame.mouse.get_pressed(3)[0] and self._screen_pos_in_workspace(
+            return pygame.mouse.get_pressed(3)[0] and self._screen_pos_in_workspace(
                 mouse_pos
             )
-        else:
-            pressed = bool(self.current_buttons.a)
 
-        if pressed and not self.draw_button_pressed:
+        return bool(self.current_buttons.a)
+
+    def _at_start_position(self):
+        return self._is_near(
+            self.current_position,
+            self.start_point,
+            self.endpoint_reached_radius,
+        )
+
+    def _start_trial_if_ready(self, pressed):
+        if self.trial_started or self.trial_completion_latched:
+            return
+
+        if pressed and self._at_start_position():
+            self.trial_started = True
             self.is_running = True
-            self.drawn_line = []
             self._append_drawn_point(self.current_position, force=True)
             self.is_drawing_line = True
-        elif pressed and self.is_drawing_line:
-            self._append_drawn_point(self.current_position)
-        elif not pressed and self.draw_button_pressed and self.is_drawing_line:
-            self._append_drawn_point(self.current_position, force=True)
-            self.is_drawing_line = False
-            self.finished_line_this_frame = True
+
+    def _update_line_drawing(self):
+        self.finished_line_this_frame = False
+        pressed = self._draw_input_pressed()
+        self._start_trial_if_ready(pressed)
+
+        if self.trial_completion_latched:
+            self.draw_button_pressed = pressed
+            return
+
+        if not self.trial_started:
+            self.draw_button_pressed = pressed
+            return
+
+        self.is_drawing_line = True
+        self._append_drawn_point(self.current_position)
 
         self.draw_button_pressed = pressed
 
@@ -327,12 +374,11 @@ class StudyGui(Node):
         cursor_reached_endpoint = self._is_near(
             self.current_position, self.end_point, self.endpoint_reached_radius
         )
-        drawing_active = self.is_drawing_line or self.finished_line_this_frame
-        if cursor_reached_endpoint and drawing_active:
+        if cursor_reached_endpoint and self.trial_started:
             self._append_drawn_point(self.current_position, force=True)
         completed = (
             cursor_reached_endpoint
-            and drawing_active
+            and self.trial_started
             and self._drawn_line_connects_start_to_end()
         )
         self.endpoint_reached = completed
@@ -361,12 +407,12 @@ class StudyGui(Node):
 
         if len(self.drawn_line) >= 2:
             points = [self._world_to_canvas(point) for point in self.drawn_line]
-            pygame.draw.lines(self.draw_target, self.PATH, False, points, 4)
+            pygame.draw.lines(self.draw_target, self.PATH, False, points, 6)
 
         self._draw_target_marker(sx, sy)
         self._draw_endpoint_marker(ex, ey)
-        pygame.draw.circle(self.draw_target, self.BLUE, (cx, cy), 7)
-        pygame.draw.circle(self.draw_target, self.DARK_BLUE, (cx, cy), 7, 1)
+        pygame.draw.circle(self.draw_target, self.BLUE, (cx, cy), 10)
+        pygame.draw.circle(self.draw_target, self.DARK_BLUE, (cx, cy), 10, 2)
 
     def _draw_side_panel(self):
         panel = self._side_panel_rect()
@@ -385,15 +431,15 @@ class StudyGui(Node):
 
     def _draw_behavioral_state_legend(self):
         card = self._side_card_rect()
-        x = card.x + 18
-        y = card.y + 18
+        x = card.x + 24
+        y = card.y + 24
 
         title = self.title_font.render("Behavioral State", True, self.TEXT)
         self.draw_target.blit(title, (x, y))
 
-        y += 34
+        y += 44
         for index, color_name in enumerate(["red", "yellow", "green"]):
-            pill = pygame.Rect(x, y + (index * 42), card.width - 36, 32)
+            pill = pygame.Rect(x, y + (index * 56), card.width - 48, 42)
             self._draw_state_pill(pill, color_name)
 
     def _draw_state_pill(self, rect, color_name):
@@ -426,15 +472,15 @@ class StudyGui(Node):
             border_radius=16,
         )
 
-        dot_center = (rect.x + 18, rect.centery)
-        pygame.draw.circle(self.draw_target, fill, dot_center, 7)
+        dot_center = (rect.x + 23, rect.centery)
+        pygame.draw.circle(self.draw_target, fill, dot_center, 10)
 
         icon = self.icon_font.render(config["icon"], True, self.SURFACE)
         icon_rect = icon.get_rect(center=dot_center)
         self.draw_target.blit(icon, icon_rect)
 
         label = self.pill_font.render(config["behavior"].capitalize(), True, text_color)
-        label_rect = label.get_rect(midleft=(rect.x + 34, rect.centery))
+        label_rect = label.get_rect(midleft=(rect.x + 46, rect.centery))
         self.draw_target.blit(label, label_rect)
 
     def _blend_color(self, color, target, amount):
@@ -445,33 +491,33 @@ class StudyGui(Node):
 
     def _legend_rect(self):
         card = self._side_card_rect()
-        return pygame.Rect(card.x, card.y, card.width, 178)
+        return pygame.Rect(card.x, card.y, card.width, 230)
 
     def _draw_target_marker(self, x, y):
-        pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), 9)
-        pygame.draw.circle(self.draw_target, self.TEXT, (x, y), 9, 2)
+        pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), 13)
+        pygame.draw.circle(self.draw_target, self.TEXT, (x, y), 13, 3)
 
     def _draw_endpoint_marker(self, x, y):
-        radius = 11
+        radius = 16
         pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), radius)
-        pygame.draw.circle(self.draw_target, self.TEXT, (x, y), radius, 2)
-        pygame.draw.line(self.draw_target, self.TEXT, (x - 5, y - 5), (x + 5, y + 5), 2)
-        pygame.draw.line(self.draw_target, self.TEXT, (x - 5, y + 5), (x + 5, y - 5), 2)
+        pygame.draw.circle(self.draw_target, self.TEXT, (x, y), radius, 3)
+        pygame.draw.line(self.draw_target, self.TEXT, (x - 7, y - 7), (x + 7, y + 7), 3)
+        pygame.draw.line(self.draw_target, self.TEXT, (x - 7, y + 7), (x + 7, y - 7), 3)
 
     def _draw_status_text(self):
         card = self._side_card_rect()
-        x = card.x + 18
+        x = card.x + 24
         y = self._legend_rect().bottom + 18
 
         title = self.title_font.render("Run Status", True, self.TEXT)
         self.draw_target.blit(title, (x, y))
 
         for index, (label, value) in enumerate(self._status_rows()):
-            row_y = y + 34 + (index * 36)
+            row_y = y + 44 + (index * 46)
             label_text = self.label_font.render(label, True, self.MUTED_TEXT)
             value_text = self.body_font.render(value, True, self.TEXT)
             self.draw_target.blit(label_text, (x, row_y))
-            self.draw_target.blit(value_text, (x + 78, row_y - 3))
+            self.draw_target.blit(value_text, (x + 98, row_y - 4))
 
     def _status_rows(self):
         state = "running" if self.is_running else "ready"
@@ -542,7 +588,7 @@ class StudyGui(Node):
 
     def _side_card_rect(self):
         panel = self._side_panel_rect()
-        padding = 14
+        padding = 18
         return pygame.Rect(
             panel.x + padding,
             panel.y + padding,
@@ -600,6 +646,8 @@ class StudyGui(Node):
         self.draw_button_pressed = False
         self.is_drawing_line = False
         self.finished_line_this_frame = False
+        self.trial_started = False
+        self.is_running = False
         self.endpoint_reached = False
         self.trial_completion_latched = False
 
