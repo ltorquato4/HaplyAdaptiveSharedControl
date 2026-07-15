@@ -119,9 +119,9 @@ def main():
     mpc_0.destroy()
 
     # 3. Run Test Case: MPC on Alternative Starting Point
-    mpc_1 = MpcController(START_POINT_ALT, END_POINT, DT)
-    run_compute_control_test(loggers["mpc_compute_1"], mpc_1, START_POINT_ALT, END_POINT)
-    mpc_1.destroy()
+    mpc_0 = MpcController(START_POINT_ALT, END_POINT, DT)
+    run_compute_control_test(loggers["mpc_compute_1"], mpc_0, START_POINT_ALT, END_POINT)
+    mpc_0.destroy()
 
     # Note: To run state feedback or adaptive test suites in the future, 
     # simply initialize them here and pass them into the runners:

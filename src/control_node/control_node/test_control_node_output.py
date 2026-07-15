@@ -1,5 +1,9 @@
+import sys
 import math
 import pygame
+import rclpy
+from rclpy.node import Node
+from geometry_msgs.msg import Vector3
 
 def draw_arrow(surface, color, start, end, arrow_size=10):
     """Helper function to draw an arrow using Pygame."""
@@ -23,8 +27,29 @@ def draw_arrow(surface, color, start, end, arrow_size=10):
         pygame.draw.polygon(surface, color, [end, p1, p2])
 
 
-def run_visualizer(node):
-    """Runs the Pygame debugging visualization window."""
+class TestControlNodeOutput(Node):
+    def __init__(self):
+        super().__init__("test_control_node_output")
+        self.control_sub = self.create_subscription(
+            Vector3, 
+            "/control/U_a", 
+            self.control_callback, 
+            10
+        )
+        self.latest_control_x = 0.0
+        self.latest_control_y = 0.0
+        self.get_logger().info("Visualizer Node initialized and listening on /control/U_a")
+
+    def control_callback(self, msg: Vector3):
+        self.latest_control_x = msg.x
+        self.latest_control_y = msg.y
+
+
+def main(args=None):
+    rclpy.init(args=args)
+    node = TestControlNodeOutput()
+
+    # Initialize Pygame
     pygame.init()
     width, height = 600, 600
     screen = pygame.display.set_mode((width, height))
@@ -35,13 +60,21 @@ def run_visualizer(node):
     center = (width // 2, height // 2)
     scale = 20.0 
 
-    running = True
     try:
-        while running:
+        while rclpy.ok():
+            # 1. Process ROS 2 callbacks
+            rclpy.spin_once(node, timeout_sec=0.001)
+
+            # 2. Process Pygame event queue
             for event in pygame.event.get():
                 if event.type == pygame.QUIT:
-                    running = False
+                    rclpy.shutdown()
+                    break
 
+            if not rclpy.ok():
+                break
+
+            # 3. Render
             screen.fill((30, 30, 30))
             pygame.draw.line(screen, (70, 70, 70), (0, center[1]), (width, center[1]), 1)
             pygame.draw.line(screen, (70, 70, 70), (center[0], 0), (center[0], height), 1)
@@ -73,7 +106,13 @@ def run_visualizer(node):
             pygame.display.flip()
             clock.tick(60)
 
-    except KeyboardInterrupt:
+    except (KeyboardInterrupt, SystemExit):
         pass
     finally:
         pygame.quit()
+        if rclpy.ok():
+            node.destroy_node()
+            rclpy.shutdown()
+
+if __name__ == "__main__":
+    main()

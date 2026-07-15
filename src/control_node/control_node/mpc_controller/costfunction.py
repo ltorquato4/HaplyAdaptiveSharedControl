@@ -2,7 +2,7 @@ import casadi as ca
 import numpy as np
 
 WEIGHT_COMFORT = 1
-WEIGHT_TRAJECTORY = 1
+WEIGHT_TRAJECTORY = 10
 WEIGHT_GOAL = 1
 
 
@@ -48,9 +48,9 @@ class CostFunction:
         self.P = ca.diag(
             [
                 self.weight_goal * 100.0,  # x
-                self.weight_goal * 10.0,  # vx
+                self.weight_goal * 1.000,  # vx
                 self.weight_goal * 100.0,  # y
-                self.weight_goal * 10.0,  # vy
+                self.weight_goal * 1.000,  # vy
             ]
         )
 
