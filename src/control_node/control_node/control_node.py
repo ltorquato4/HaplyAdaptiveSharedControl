@@ -22,6 +22,8 @@ class ControlNode(Node):
         self.control_node_settings_to_default()
         self.define_control_problem_settings()
 
+        self.kill_node: bool = False
+
         self.get_logger().info("Control node started.")
         self.get_logger().debug(f"Configuration: dt={self.dt}, use_mpc_controller={self.use_mpc_controller}, controller_mode={self.controller_mode}, prediction_horizon={self.prediction_horizon}")
         
@@ -240,6 +242,7 @@ class ControlNode(Node):
                 self.controller.destroy()
                 del self.controller
                 self.get_logger().debug("Destroyed Controller")
+                self.kill_node = True
                 
             self.control_node_settings_to_default()
             self.define_control_problem_settings()
@@ -265,3 +268,26 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
+
+# def main(args=None):
+#     rclpy.init(args=args)
+    
+#     while rclpy.ok():
+#         node = ControlNode()
+        
+#         try:
+#             while rclpy.ok() and not node.get_kill_node_flag():
+#                 rclpy.spin_once(node, timeout_sec=0.1)
+                
+#             if node.get_kill_node_flag():
+#                 node.destroy_node()
+#                 continue
+#             else:
+#                 node.destroy_node()
+#                 break
+#         except KeyboardInterrupt:
+#             node.destroy_node()
+#             break
+
+#     if rclpy.ok():
+#         rclpy.shutdown()
