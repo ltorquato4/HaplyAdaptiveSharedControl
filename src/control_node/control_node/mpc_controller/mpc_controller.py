@@ -27,8 +27,8 @@ class MpcController(Controller):
         x_bounds: tuple[float, float] | None = None,
         y_bounds: tuple[float, float] | None = None,
         weight_comfort: float = 1.0,
-        weight_trajectory: float = 1.0,
-        weight_goal: float = 1.0,
+        weight_trajectory: float = 10.0,
+        weight_goal: float = 10.0,
     ) -> None:
         super().__init__(start_point, end_point, dt)
         self.prediction_horizon = prediction_horizon
@@ -80,6 +80,8 @@ class MpcController(Controller):
             ),
             state_dimension=4,
             input_dimension=2,
+            start_point=self.experiment_start_point, 
+            end_point=self.experiment_end_point,  
         )
 
     def _build_initial_state(self, current_point: Sequence[float]) -> np.ndarray:

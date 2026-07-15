@@ -22,8 +22,6 @@ class ControlNode(Node):
         self.control_node_settings_to_default()
         self.define_control_problem_settings()
 
-        self.kill_node: bool = False
-
         self.get_logger().info("Control node started.")
         self.get_logger().debug(f"Configuration: dt={self.dt}, use_mpc_controller={self.use_mpc_controller}, controller_mode={self.controller_mode}, prediction_horizon={self.prediction_horizon}")
         
@@ -82,7 +80,7 @@ class ControlNode(Node):
             return self.declare_parameter(name, default_value).value
 
     def define_control_problem_settings(self):
-        self.dt = self.get_or_declare_parameter("delta_time", 0.01)
+        self.dt = self.get_or_declare_parameter("delta_time", 0.1)
         self.use_mpc_controller = self.get_or_declare_parameter("use_mpc_controller", True)
         
         adaptive_enabled = self.get_or_declare_parameter("adaptive_control_enabled", False)
@@ -91,11 +89,11 @@ class ControlNode(Node):
         self.max_control_amplitude = self.get_or_declare_parameter("max_control_amplitude", 10.0)
         self.max_velocity_amplitude = self.get_or_declare_parameter("max_velocity_amplitude", 10.0)
         self.acceleration_to_force_factor = self.get_or_declare_parameter("acceleration_to_force_factor", 0.1)
-        self.mpc_control_every_i_th_iteration = self.get_or_declare_parameter("mpc_control_every_i_th_iteration", 15)
-        self.adapt_every_i_th_iterarion = self.get_or_declare_parameter("adapt_every_i_th_iterarion", 10)
+        self.mpc_control_every_i_th_iteration = self.get_or_declare_parameter("mpc_control_every_i_th_iteration", 1)
+        self.adapt_every_i_th_iterarion = self.get_or_declare_parameter("adapt_every_i_th_iterarion", 3)
         self.controller: Controller = None
 
-        self.prediction_horizon = self.get_or_declare_parameter("prediction_horizon", 10)
+        self.prediction_horizon = self.get_or_declare_parameter("prediction_horizon", 5)
         self.x_bounds_limit = self.get_or_declare_parameter("x_bounds", 0.10)
         self.y_bounds_limit = self.get_or_declare_parameter("y_bounds", 0.10)
 
@@ -149,8 +147,8 @@ class ControlNode(Node):
                     prediction_horizon=int(self.prediction_horizon),
                     max_control=(self.max_control_amplitude, self.max_control_amplitude),
                     max_velocity=(self.max_velocity_amplitude, self.max_velocity_amplitude),
-                    x_bounds=(0.0, self.x_bounds_limit),
-                    y_bounds=(0.0, self.y_bounds_limit),
+                    x_bounds=(-self.x_bounds_limit, self.x_bounds_limit),
+                    y_bounds=(-self.y_bounds_limit, self.y_bounds_limit),
                 )
             else:
                 self.controller = StateFeedbackController(
@@ -162,9 +160,6 @@ class ControlNode(Node):
         self.get_logger().debug(f"params start_node {self.start_point}, end_point {self.end_point}")
         self.controller_initialized = True
         return True
-
-    def get_kill_node_flag(self):
-        return self.kill_node
 
     def controller_mode_callback(self, msg: String):
         new_mode = msg.data.lower()
@@ -245,7 +240,6 @@ class ControlNode(Node):
                 self.controller.destroy()
                 del self.controller
                 self.get_logger().debug("Destroyed Controller")
-                self.kill_node = True
                 
             self.control_node_settings_to_default()
             self.define_control_problem_settings()
@@ -271,26 +265,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
-# def main(args=None):
-#     rclpy.init(args=args)
-    
-#     while rclpy.ok():
-#         node = ControlNode()
-        
-#         try:
-#             while rclpy.ok() and not node.get_kill_node_flag():
-#                 rclpy.spin_once(node, timeout_sec=0.1)
-                
-#             if node.get_kill_node_flag():
-#                 node.destroy_node()
-#                 continue
-#             else:
-#                 node.destroy_node()
-#                 break
-#         except KeyboardInterrupt:
-#             node.destroy_node()
-#             break
-
-#     if rclpy.ok():
-#         rclpy.shutdown()

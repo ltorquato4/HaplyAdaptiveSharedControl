@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+from typing import Sequence
 
 import casadi as ca
 import numpy as np
@@ -51,11 +52,17 @@ class Optimization:
         state_dependencies: StateDependencies | None = None,
         state_dimension: int = 4,
         input_dimension: int = 2,
+        start_point: Sequence[float] = (0.0, 0.0),
+        end_point: Sequence[float] = (0.0, 0.0),
     ) -> None:
         self.model_dependencies = model_dependencies
         self.state_dependencies = state_dependencies or StateDependencies()
         self.state_dimension = state_dimension
         self.input_dimension = input_dimension
+
+        # Save true, static start and end points of the path
+        self.start_point = start_point
+        self.end_point = end_point
 
         self.system_model = model_dependencies.system_model
         self.constraints = model_dependencies.constraints
@@ -95,20 +102,48 @@ class Optimization:
         if prediction_horizon <= 0:
             raise ValueError("prediction_horizon must be positive")
 
-        x_start = x0[0]
-        y_start = x0[2]
-        x_goal = goal_state[0]
-        y_goal = goal_state[2]
+        # True start and end coordinates of the global path segment
+        x_start = self.start_point[0]
+        y_start = self.start_point[1]
+        x_goal = self.end_point[0]
+        y_goal = self.end_point[1]
+
+        # 1. Vector of the global path line: V = End - Start
+        V_x = x_goal - x_start
+        V_y = y_goal - y_start
+        V_lensq = V_x**2 + V_y**2 + 1e-8  # Small epsilon to avoid division by zero
+
+        # 2. Vector from Start to current position: W = Current - Start
+        W_x = x0[0] - x_start
+        W_y = x0[2] - y_start
+
+        # 3. Project current position onto path: t_current = (W dot V) / (V dot V)
+        t_current = (W_x * V_x + W_y * V_y) / V_lensq
+        t_current = ca.fmax(0.0, ca.fmin(1.0, t_current))  # Keep progress bound to [0, 1]
+
+        # 4. Step velocity calculation
+        # To avoid over-saturating actuators, step forward at a percentage of max velocity
+        dt = self.system_model.dt
+        v_max = min(self.constraints.v_max_x, self.constraints.v_max_y)
+        v_target = v_max * 0.8  # Target velocity (e.g., 80% of constraint limits)
+
+        # Convert velocity (m/s) to progress velocity per second along our path
+        path_length = ca.sqrt(V_lensq)
+        t_step = (v_target * dt) / path_length
 
         rows = []
         for step in range(prediction_horizon):
-            alpha = 0.0 if prediction_horizon == 1 else step / (prediction_horizon - 1)
-            x_ref = x_start + alpha * (x_goal - x_start)
-            y_ref = y_start + alpha * (y_goal - y_start)
+            # Generate forward step points on the path starting from current projection
+            t_step_k = t_current + step * t_step
+            t_step_k = ca.fmax(0.0, ca.fmin(1.0, t_step_k))
+
+            x_ref = x_start + t_step_k * V_x
+            y_ref = y_start + t_step_k * V_y
+
             rows.append(ca.horzcat(x_ref, 0, y_ref, 0))
 
         return ca.vertcat(*rows)
-
+    
     def _create_solver(self, symbolic_problem: SymbolicProblem, solver_name: str) -> ca.Function:
         g_concat = ca.vertcat(*symbolic_problem.g)
 
