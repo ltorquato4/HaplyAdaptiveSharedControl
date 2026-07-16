@@ -90,7 +90,7 @@ class ControlNode(Node):
         
         self.max_control_amplitude = self.get_or_declare_parameter("max_control_amplitude", 10.0)
         self.max_velocity_amplitude = self.get_or_declare_parameter("max_velocity_amplitude", 10.0)
-        self.acceleration_to_force_factor = self.get_or_declare_parameter("acceleration_to_force_factor", 0.1)
+        self.acceleration_to_force_factor = self.get_or_declare_parameter("acceleration_to_force_factor", 0.2)
         self.mpc_control_every_i_th_iteration = self.get_or_declare_parameter("mpc_control_every_i_th_iteration", 1)
         self.adapt_every_i_th_iterarion = self.get_or_declare_parameter("adapt_every_i_th_iterarion", 3)
         self.controller: Controller = None

@@ -33,24 +33,24 @@ class CostFunction:
 
         self.R = ca.diag(
             [
-                self.weight_comfort * 0.01,  # ux
-                self.weight_comfort * 0.01,  # uy
+                self.weight_comfort,        # ux
+                self.weight_comfort,        # uy
             ]
         )
         self.Q = ca.diag(
             [
-                self.weight_trajectory * 10.0,  # x
-                0,  # vx
-                self.weight_trajectory * 10.0,  # y
-                0,  # vy
+                self.weight_trajectory,     # x
+                0,                          # vx
+                self.weight_trajectory,     # y
+                0,                          # vy
             ]
         )
         self.P = ca.diag(
             [
-                self.weight_goal * 100.0,  # x
-                self.weight_goal * 1.000,  # vx
-                self.weight_goal * 100.0,  # y
-                self.weight_goal * 1.000,  # vy
+                self.weight_goal,           # x
+                self.weight_goal * 100.0,   # vx
+                self.weight_goal,           # y
+                self.weight_goal * 100.0,   # vy
             ]
         )
 

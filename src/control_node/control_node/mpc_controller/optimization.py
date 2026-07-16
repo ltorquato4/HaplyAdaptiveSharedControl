@@ -70,10 +70,8 @@ class Optimization:
         self.batch_predictor = model_dependencies.batch_predictor
         self.prediction_horizon = self.batch_predictor.N
 
-        # 1. Setup the problem and solver exactly ONCE during initialization
         self.symbolic_problem = self._setup_nlp_problem()
         
-        # 2. Give the solver a unique name tied to this object instance
         solver_name = f"mpc_solver_{id(self)}"
         self.solver = self._create_solver(self.symbolic_problem, solver_name)
 
