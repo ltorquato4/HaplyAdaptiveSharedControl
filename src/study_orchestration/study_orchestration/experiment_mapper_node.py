@@ -38,6 +38,7 @@ class ExperimentMapper(Node):
         self.declare_parameter("raw_x_max", 0.10)
         self.declare_parameter("raw_second_min", 0.0)
         self.declare_parameter("raw_second_max", 0.15)
+        self.declare_parameter("publish_hz", 100.0)
 
         self.mapping_mode = (
             str(self.get_parameter("mapping_mode").value).strip().lower()
@@ -71,11 +72,24 @@ class ExperimentMapper(Node):
         self.trial_anchor_locked = False
 
         self.cursor_pub = self.create_publisher(Point, "experiment_cursor_position", 10)
+        task_qos = self._task_qos()
         self.create_subscription(HaplyState, "haply_state", self._haply_state, 10)
         self.create_subscription(
-            Point, "study_start_point", self._study_start_point, 10
+            Point, "study_start_point", self._study_start_point, task_qos
         )
         self.create_subscription(Bool, "study_is_running", self._study_is_running, 10)
+        publish_hz = max(float(self.get_parameter("publish_hz").value), 1.0)
+        self.publish_timer = self.create_timer(
+            1.0 / publish_hz,
+            self._publish_latest_cursor,
+        )
+
+    def _task_qos(self) -> QoSProfile:
+        return QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
 
     def _haply_state(self, msg: HaplyState) -> None:
         self.latest_raw_position = self._from_point_msg(msg.position)
@@ -90,6 +104,7 @@ class ExperimentMapper(Node):
         ):
             self.study_start_point = next_start_point
             self.anchor_pending = True
+            self.trial_anchor_locked = False
         self._capture_anchor_if_ready()
 
     def _study_is_running(self, msg: Bool) -> None:
@@ -98,8 +113,8 @@ class ExperimentMapper(Node):
 
         if self.is_running and not was_running:
             self._capture_anchor_if_ready()
-        elif not self.is_running:
-            self.anchor_pending = True
+            if self.anchored_mapper.is_ready:
+                self.trial_anchor_locked = True
 
     def _capture_anchor_if_ready(self) -> None:
         if (
@@ -125,6 +140,19 @@ class ExperimentMapper(Node):
             f"task_start=({self.study_start_point.x:.4f}, "
             f"{self.study_start_point.y:.4f})"
         )
+
+    def _publish_latest_cursor(self) -> None:
+        if self.latest_raw_position is None:
+            return
+
+        if self.mapping_mode == "identity":
+            self._publish_cursor(map_identity(self.latest_raw_position))
+            return
+
+        self._capture_anchor_if_ready()
+        mapped_position = self.anchored_mapper.map_position(self.latest_raw_position)
+        if mapped_position is not None:
+            self._publish_cursor(mapped_position)
 
     def _publish_cursor(self, position: TaskPoint) -> None:
         msg = Point()
