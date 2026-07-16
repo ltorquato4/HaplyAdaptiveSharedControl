@@ -30,6 +30,15 @@ To launch the headless control processor alongside the interactive Pygame-based 
 ros2 launch control_node control_debug_launch.py
 ```
 
+### Launch Debug Visulizer
+
+If you wish to only launch the interactive Pygame-based debug visualizer:
+
+```bash
+ros2 run control_node test_control_node_output
+```
+
+
 ---
 
 ## 2. Core Controller Schemes
@@ -81,7 +90,7 @@ In `adaptive` mode, controllers adapt in real-time to human haptic inputs:
 * **`/experiment_cursor_position`** (`geometry_msgs/Point`) — High-frequency feed of haptic hand coordinates.
 
 
-* **`/estimation/K_h`** (`std_msgs/Float64MultiArray`) — Estimated $2 \times 2$ stiffness matrix of the human operator.
+* **`/estimation/K_h`** (`std_msgs/Float64MultiArray`) — Estimated stiffness matrix of the human operator.
 
 
 * **`/haply_state`** (`haply_msgs/HaplyState`) — Listens to physical button presses (holding Button A activates assistive control).

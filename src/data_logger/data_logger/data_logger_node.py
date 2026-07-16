@@ -38,9 +38,9 @@ class DataLoggerNode(Node):
 
         self.config = LoggerConfig()
 
+        # Track running state solely on study_is_running
+        self.study_is_running = False
         self.recording = False
-        self.current_button_a_state = False
-        self.endpoint_reached_flag = False
         
         self.latest = {}
         self.flush_counter = 0
@@ -61,7 +61,6 @@ class DataLoggerNode(Node):
         self.get_logger().info("Data logger ready.")
 
     def _message_to_debug_value(self, msg):
-
         if hasattr(msg, "data"):
             return msg.data
 
@@ -88,7 +87,6 @@ class DataLoggerNode(Node):
         }
 
     def _resolve_log_level(self, log_level_name):
-
         log_levels = {
             "debug": LoggingSeverity.DEBUG,
             "info": LoggingSeverity.INFO,
@@ -97,9 +95,7 @@ class DataLoggerNode(Node):
             "error": LoggingSeverity.ERROR,
             "fatal": LoggingSeverity.FATAL,
         }
-
         normalized = str(log_level_name).strip().lower()
-
         return log_levels.get(normalized, LoggingSeverity.DEBUG)
 
     def fieldnames(self):
@@ -134,37 +130,24 @@ class DataLoggerNode(Node):
         self.latest = {}
 
     def start_recording(self):
-
         if self.recording:
             return
 
         self.reset_state()
-
         trial_id, filepath = self.csv_logger.start()
-
         self.recording = True
-
-        self.get_logger().info(
-            f"Button A pressed! Started trial {trial_id}: {filepath}"
-        )
+        self.get_logger().info(f"Study started! Recording trial {trial_id}: {filepath}")
 
     def stop_recording(self):
-
         if not self.recording:
             return
 
         self.csv_logger.stop()
-
         self.recording = False
-
         self.reset_state()
-
-        self.get_logger().info(
-            "Endpoint reached message received. Data logging stopped."
-        )
+        self.get_logger().info("Study stopped. Data logging stopped.")
 
     def setup_subscribers(self):
-
         self.create_subscription(
             Bool,
             "/study_is_running",
@@ -253,6 +236,19 @@ class DataLoggerNode(Node):
         self._log_received_message("/study_is_running", msg)
         self.latest["study_running"] = msg.data
 
+        new_study_is_running = msg.data
+        if self.study_is_running == new_study_is_running:
+            return
+
+        self.study_is_running = new_study_is_running
+        self.get_logger().debug(f"Study is running state changed: {self.study_is_running}")
+
+        # Start or Stop logging based solely on the study_is_running value
+        if self.study_is_running:
+            self.start_recording()
+        else:
+            self.stop_recording()
+
     def phase_callback(self, msg):
         self._log_received_message("/study_phase", msg)
         self.latest["study_phase"] = msg.data
@@ -292,31 +288,19 @@ class DataLoggerNode(Node):
     def endpoint_callback(self, msg):
         self._log_received_message("/study_endpoint_reached", msg)
         self.latest["endpoint_reached"] = msg.data
-
-        if not self.endpoint_reached_flag and msg.data:
-            self.endpoint_reached_flag = True
-            
-            if self.recording:
-                self.stop_recording()
+        # Endpoint reached trigger is ignored for logging control, only tracked in row values.
 
     def haply_callback(self, msg):
         self._log_received_message("/haply_state", msg)
         self.latest["haply"] = msg
-        self.current_button_a_state = msg.buttons.a
-
-        if not self.endpoint_reached_flag and self.current_button_a_state:
-            if not self.recording:
-                self.start_recording()
-                
-        elif self.endpoint_reached_flag and not self.current_button_a_state:
-            self.endpoint_reached_flag = False
+        # Button A interactions are completely ignored for managing log state.
 
     def write_row(self):
-        if not self.recording:
+        # Prevent writing any rows if the study is not actively running
+        if not self.recording or not self.study_is_running:
             return
 
         row = {}
-
         row["timestamp"] = self.get_clock().now().nanoseconds * 1e-9
         row["study_running"] = self.latest.get("study_running")
         row["study_phase"] = self.latest.get("study_phase")
@@ -370,7 +354,6 @@ class DataLoggerNode(Node):
         self.get_logger().debug(f"saved csv row: {saved_row}")
 
         self.flush_counter += 1
-
         if self.flush_counter >= self.config.flush_interval:
             self.csv_logger.flush()
             self.flush_counter = 0

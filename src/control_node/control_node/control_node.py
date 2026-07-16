@@ -22,8 +22,6 @@ class ControlNode(Node):
         self.control_node_settings_to_default()
         self.define_control_problem_settings()
 
-        self.kill_node: bool = False
-
         self.get_logger().info("Control node started.")
         self.get_logger().debug(f"Configuration: dt={self.dt}, use_mpc_controller={self.use_mpc_controller}, controller_mode={self.controller_mode}, prediction_horizon={self.prediction_horizon}")
         
@@ -72,8 +70,6 @@ class ControlNode(Node):
         self.study_is_running_sub = self.create_subscription(Bool, "/study_is_running", self.study_is_running_callback, 10)
         self.current_point_sub = self.create_subscription(Point, "/experiment_cursor_position", self.current_point_callback, 10)
         self.estimation_kh_sub = self.create_subscription(Float64MultiArray, "/estimation/K_h", self.estimation_kh_callback, 10)
-        self.haply_state_sub = self.create_subscription(HaplyState, "/haply_state", self.haply_state_callback, 10)
-        self.endpoint_reached_sub = self.create_subscription(Bool, "/study_endpoint_reached", self.endpoint_reached_callback, 10)
 
     def get_or_declare_parameter(self, name, default_value):
         if self.has_parameter(name):
@@ -195,22 +191,21 @@ class ControlNode(Node):
     def current_point_callback(self, msg: Point):
         control_output = [0.0, 0.0]
 
-        if self.study_is_running:    
-            if self.controller_initialized:
-                if self.use_mpc_controller:
-                    self.control_iteration += 1
-                    if self.control_iteration % self.mpc_control_every_i_th_iteration != 0:
-                        return
-                
-                self.current_point = [msg.x, msg.y]
-                control_output = self.controller.compute_control(self.current_point)
-                if self.control_iteration % 17 == 0:  
-                    self.get_logger().debug(f"Control Output: {control_output}")
-                control_output_ros_msg = Vector3()
-                control_output_ros_msg.x = control_output[0]
-                control_output_ros_msg.y = control_output[1]
-                control_output_ros_msg.z = 0.0
-                self.control_output_pub.publish(control_output_ros_msg)
+        if self.study_is_running and self.controller_initialized:
+            if self.use_mpc_controller:
+                self.control_iteration += 1
+                if self.control_iteration % self.mpc_control_every_i_th_iteration != 0:
+                    return
+            
+            self.current_point = [msg.x, msg.y]
+            control_output = self.controller.compute_control(self.current_point)
+            if self.control_iteration % 17 == 0:  
+                self.get_logger().debug(f"Control Output: {control_output}")
+            control_output_ros_msg = Vector3()
+            control_output_ros_msg.x = control_output[0]
+            control_output_ros_msg.y = control_output[1]
+            control_output_ros_msg.z = 0.0
+            self.control_output_pub.publish(control_output_ros_msg)
 
         self.calculate_force(control_output)
         
@@ -219,7 +214,7 @@ class ControlNode(Node):
         if self.adapt_iteration % self.adapt_every_i_th_iterarion != 0:
             return
 
-        if (self.control_node_running or self.study_is_running) and self.controller_initialized:
+        if self.study_is_running and self.controller_initialized:
             if self.adapt_iteration % 27 == 0:
                 self.get_logger().debug(f"Adaptation K_h: {msg.data}")
             if self.controller_mode == "adaptive":
@@ -230,36 +225,22 @@ class ControlNode(Node):
                 control_parameter_msg.data = self.controller.publish_control_parameter()
                 self.control_parameter_pub.publish(control_parameter_msg)
 
-    def haply_state_callback(self, msg: HaplyState):
-        self.current_button_a_state = msg.buttons.a
-        if not self.endpoint_reached_flag and self.current_button_a_state:
-            if not self.control_node_running:
-                self.get_logger().debug("Button A pressed! Assistance control activated.")
-                self.control_node_running = True
-                if not self.controller_initialized:
-                    self.controller_initialized = self.initialize_controller()
-        elif self.endpoint_reached_flag and not self.current_button_a_state:
-            self.endpoint_reached_flag = False
-
-    def endpoint_reached_callback(self, msg: Bool):
-        if not self.endpoint_reached_flag and msg.data:
-            self.endpoint_reached_flag = True
-            self.get_logger().debug("Endpoint reached! Assistance control deactivated.")
+    def study_is_running_callback(self, msg: Bool):
+        new_study_is_running = msg.data
+        
+        if self.study_is_running == new_study_is_running:
+            return
+        
+        self.study_is_running = new_study_is_running
+        self.get_logger().debug(f"Study is running: {self.study_is_running}")
+        
+        if not self.study_is_running:
             if self.controller:
                 self.controller.destroy()
                 del self.controller
-                self.get_logger().debug("Destroyed Controller")
-                self.kill_node = True
                 
             self.control_node_settings_to_default()
             self.define_control_problem_settings()
-
-    def study_is_running_callback(self, msg: Bool):
-        new_study_is_running = msg.data
-        if self.study_is_running == new_study_is_running:
-            return
-        self.study_is_running = new_study_is_running
-        self.get_logger().debug(f"Study is running: {self.study_is_running}")
 
 
 def main(args=None):
@@ -276,26 +257,3 @@ def main(args=None):
 
 if __name__ == "__main__":
     main()
-
-# def main(args=None):
-#     rclpy.init(args=args)
-    
-#     while rclpy.ok():
-#         node = ControlNode()
-        
-#         try:
-#             while rclpy.ok() and not node.get_kill_node_flag():
-#                 rclpy.spin_once(node, timeout_sec=0.1)
-                
-#             if node.get_kill_node_flag():
-#                 node.destroy_node()
-#                 continue
-#             else:
-#                 node.destroy_node()
-#                 break
-#         except KeyboardInterrupt:
-#             node.destroy_node()
-#             break
-
-#     if rclpy.ok():
-#         rclpy.shutdown()

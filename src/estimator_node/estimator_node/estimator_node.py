@@ -45,55 +45,21 @@ class RLSEstimatorNode(Node):
         self.prev_time = None
 
         self.initialized = False
-        self.estimator_running = False
-
-        self.current_button_a_state = False
-        self.endpoint_reached = False
+        self.study_is_running = False
 
         self.rls = RLSEstimator()
 
         self.create_subscription(Point, "/experiment_cursor_position", self.cursor_callback, 10)
         self.create_subscription(Point, "/study_end_point", self.goal_callback, 10)
         self.create_subscription(Point, "/study_start_point", self.start_callback, 10)
-        self.create_subscription(HaplyState, "/haply_state", self.haply_state_callback, 10)
-        self.create_subscription(Bool, "/study_endpoint_reached", self.endpoint_reached_callback, 10,)
+        self.study_is_running_sub = self.create_subscription(Bool, "/study_is_running", self.study_is_running_callback, 10)
 
         self.kh_pub = self.create_publisher(Float64MultiArray, "/estimation/K_h", 10)
         self.uh_pub = self.create_publisher(Vector3, "/estimation/u_h", 10)
 
         self.timer = self.create_timer(0.01, self.update_estimator)
 
-        self.get_logger().info("RLS Estimator node started.")
-
-    def haply_state_callback(self, msg: HaplyState):
-        """Activate estimator when Button A is pressed."""
-        self.current_button_a_state = msg.buttons.a
-
-        if not self.endpoint_reached and self.current_button_a_state:
-            if not self.estimator_running:
-
-                self.estimator_running = True
-
-                self.prev_time = None
-                self.prev_pos = None
-                self.prev_vel = None
-
-                self.get_logger().debug("Button A pressed! Estimator activated.")
-                
-        elif self.endpoint_reached and not self.current_button_a_state:
-            self.endpoint_reached = False
-
-    def endpoint_reached_callback(self, msg: Bool):
-        """Stop estimator when endpoint is reached."""
-        if not self.endpoint_reached and msg.data:
-            self.endpoint_reached = True
-        
-            if self.estimator_running:
-
-                self.estimator_running = False
-
-                self.get_logger().debug( "Endpoint reached message received. Estimator stopped." )
-                
+        self.get_logger().info("RLS Estimator node started.")                
 
     def start_callback(self, msg):
 
@@ -119,7 +85,7 @@ class RLSEstimatorNode(Node):
 
     def update_estimator(self):
 
-        if not self.estimator_running:
+        if not self.study_is_running:
             return
 
         if self.cursor is None:
@@ -230,6 +196,15 @@ class RLSEstimatorNode(Node):
         self.prev_pos = pos
         self.prev_vel = vel
         self.prev_time = now
+
+    def study_is_running_callback(self, msg: Bool):
+        new_study_is_running = msg.data
+        
+        if self.study_is_running == new_study_is_running:
+            return
+        
+        self.study_is_running = new_study_is_running
+        self.get_logger().debug(f"Study is running: {self.study_is_running}")
 
 
 def main(args=None):
