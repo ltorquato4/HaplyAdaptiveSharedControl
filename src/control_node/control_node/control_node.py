@@ -168,6 +168,7 @@ class ControlNode(Node):
         if self.controller_mode == new_mode:
             return
         self.controller_mode = new_mode
+        self.get_logger().debug(f"Updated controller mode: {self.controller_mode}")
         if self.initialize_controller():
             control_parameter_msg = String()
             control_parameter_msg.data = self.controller.publish_control_parameter()
@@ -178,6 +179,7 @@ class ControlNode(Node):
         if self.start_point == new_start:
             return
         self.start_point = new_start
+        self.get_logger().debug(f"Updated start point: {self.start_point}")
         if not self.controller_initialized:
             self.initialize_controller()
 
@@ -186,6 +188,7 @@ class ControlNode(Node):
         if self.end_point == new_end:
             return
         self.end_point = new_end
+        self.get_logger().debug(f"Updated end point: {self.end_point}")
         if not self.controller_initialized:
             self.initialize_controller()
 
@@ -201,7 +204,8 @@ class ControlNode(Node):
                 
                 self.current_point = [msg.x, msg.y]
                 control_output = self.controller.compute_control(self.current_point)
-
+                if self.control_iteration % 17 == 0:  
+                    self.get_logger().debug(f"Control Output: {control_output}")
                 control_output_ros_msg = Vector3()
                 control_output_ros_msg.x = control_output[0]
                 control_output_ros_msg.y = control_output[1]
@@ -216,6 +220,8 @@ class ControlNode(Node):
             return
 
         if (self.control_node_running or self.study_is_running) and self.controller_initialized:
+            if self.adapt_iteration % 27 == 0:
+                self.get_logger().debug(f"Adaptation K_h: {msg.data}")
             if self.controller_mode == "adaptive":
                 k_h = [[msg.data[0], msg.data[1]], [msg.data[2], msg.data[3]]]
                 self.controller.adapt(k_h)
@@ -238,6 +244,7 @@ class ControlNode(Node):
     def endpoint_reached_callback(self, msg: Bool):
         if not self.endpoint_reached_flag and msg.data:
             self.endpoint_reached_flag = True
+            self.get_logger().debug("Endpoint reached! Assistance control deactivated.")
             if self.controller:
                 self.controller.destroy()
                 del self.controller
@@ -252,6 +259,7 @@ class ControlNode(Node):
         if self.study_is_running == new_study_is_running:
             return
         self.study_is_running = new_study_is_running
+        self.get_logger().debug(f"Study is running: {self.study_is_running}")
 
 
 def main(args=None):

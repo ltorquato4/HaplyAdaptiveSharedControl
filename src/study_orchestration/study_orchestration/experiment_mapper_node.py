@@ -118,7 +118,7 @@ class ExperimentMapper(Node):
 
         self.anchor_pending = False
 
-        self.get_logger().info(
+        self.get_logger().debug(
             "Captured mapper anchor: "
             f"raw=({self.latest_raw_position.x:.4f}, "
             f"{self.latest_raw_position.y:.4f}), "
