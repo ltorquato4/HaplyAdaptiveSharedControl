@@ -39,7 +39,7 @@ ros2 launch control_node control_debug_launch.py
 * **Optimization Engine:** Formulated using **CasADi** and resolved using the **IPOPT** interior-point solver.
 
 
-* **Predictive Pipeline:** Uses a discrete state-space double integrator model ($x_{k+1} = A x_k + B u_k + z_k$) mapped over a configurable prediction horizon.
+* **Predictive Pipeline:** Uses a discrete state-space double integrator model ($x_{k+1} = A x_k + B u_k $) mapped over a configurable prediction horizon.
 
 
 * **Cost Function Formulation:** Automatically balances human *Comfort* (minimizing control input authority), *Trajectory tracking* (closeness to path boundaries), and *Goal seeking* (terminal state convergence).
