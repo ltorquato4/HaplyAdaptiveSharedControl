@@ -12,7 +12,6 @@ Ensure your workspace includes `haply_msgs`. Install Python packages:
 
 ```bash
 pip install casadi pygame
-
 ```
 
 ### Build the Package
@@ -21,7 +20,6 @@ pip install casadi pygame
 cd ~/ros2_ws
 colcon build --packages-select control_node
 source install/setup.bash
-
 ```
 
 ### Launch Control Node & Debug Visualizer
