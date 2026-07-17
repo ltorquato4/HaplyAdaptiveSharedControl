@@ -47,10 +47,7 @@ boundaries, topics, and fault-handling path.
 - Owns the current task definition through the randomized start and end points.
 - Defines each phase's Behavioral State: aggressive, normal, or careful.
 - Defines each phase's controller mode: adaptive or fixed.
-- Publishes start/end points to GUI, Experiment Mapper, Controller, Estimator,
-  and Logger. The default task uses exactly three points chained as
-  `P0 -> P1`, `P1 -> P2`, and `P2 -> P0`, so each start point is the previous
-  endpoint.
+- Publishes start/end points to GUI, Experiment Mapper, Controller, Estimator and Logger. The tasks are read from a config file in the `study_orchestration/config` folder.
 - Publishes `/study_phase` to GUI and Logger.
 - Publishes `/study_controller_mode` to GUI, Controller, and Logger.
 - Subscribes to `/experiment_cursor_position` to compute progress and endpoint
