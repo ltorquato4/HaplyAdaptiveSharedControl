@@ -1,4 +1,4 @@
-"""Launch the study GUI with mouse input, mapper, and scenario generator."""
+"""Launch the study GUI with mouse input, mapper, scenario generator, estimator, and data logger."""
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -18,9 +18,11 @@ from launch_ros.substitutions import FindPackageShare
 def generate_launch_description():
     """Build the launch description for mouse-only GUI testing."""
     use_controller = LaunchConfiguration("use_controller")
-    use_estimator = LaunchConfiguration("use_estimator")
     task_file = LaunchConfiguration("task_file")
     controller_modes = LaunchConfiguration("controller_modes")
+    log_level = LaunchConfiguration("log_level")
+    save_directory = LaunchConfiguration("save_directory")
+
     default_task_file = PathJoinSubstitution(
         [FindPackageShare("study_orchestration"), "config", "default_tasks.yaml"]
     )
@@ -39,6 +41,7 @@ def generate_launch_description():
             }
         ],
     )
+
     experiment_mapper = Node(
         package="study_orchestration",
         executable="experiment_mapper",
@@ -50,6 +53,7 @@ def generate_launch_description():
             }
         ],
     )
+
     controller = Node(
         package="control_node",
         executable="control_node",
@@ -62,13 +66,32 @@ def generate_launch_description():
             }
         ],
     )
-    estimator = Node(
+
+    estimator_node = Node(
         package="estimator_node",
         executable="estimator_node",
         name="estimator_node",
         output="screen",
-        condition=IfCondition(use_estimator),
+        parameters=[
+            {
+                "log_level": log_level,
+            }
+        ],
     )
+
+    data_logger_node = Node(
+        package="data_logger",
+        executable="data_logger_node",
+        name="data_logger_node",
+        output="screen",
+        parameters=[
+            {
+                "save_directory": save_directory,
+                "log_level": log_level,
+            }
+        ],
+    )
+
     study_gui = Node(
         package="haply_study_gui",
         executable="study_gui",
@@ -103,11 +126,6 @@ def generate_launch_description():
                 description="Start control_node with the mouse study GUI.",
             ),
             DeclareLaunchArgument(
-                "use_estimator",
-                default_value="false",
-                description="Start estimator_node with the mouse study GUI.",
-            ),
-            DeclareLaunchArgument(
                 "task_file",
                 default_value=default_task_file,
                 description="YAML file defining scenario path geometry.",
@@ -120,13 +138,24 @@ def generate_launch_description():
                     "or adaptive,fixed."
                 ),
             ),
+            DeclareLaunchArgument(
+                "log_level",
+                default_value="INFO",
+                description="Logging level for the nodes (DEBUG, INFO, WARN, ERROR).",
+            ),
+            DeclareLaunchArgument(
+                "save_directory",
+                default_value="./logs",
+                description="Directory path where trial CSV files will be saved.",
+            ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
             study_gui,
             experiment_mapper,
             scenario_generator,
             controller,
-            estimator,
+            estimator_node,
+            data_logger_node,
             RegisterEventHandler(
                 OnProcessExit(
                     target_action=study_gui,
