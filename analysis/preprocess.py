@@ -4,22 +4,20 @@ from pathlib import Path
 
 def preprocess_directory(input_dir, output_dir):
     """
-    Scans a directory for CSV files, discards data where the study is not running,
-    and saves the cleaned data to an output directory.
+    Scans a directory for CSV files, discards non-running study data,
+    and normalizes time across all files based on the first file's timestamp.
     """
     input_path = Path(input_dir)
     output_path = Path(output_dir)
     
-    # Ensure the input directory exists
     if not input_path.is_dir():
         print(f"Error: The input directory '{input_dir}' does not exist.")
         return
     
-    # Create the output directory if it doesn't exist
     output_path.mkdir(parents=True, exist_ok=True)
     
-    # Find all CSV files in the input directory
-    csv_files = list(input_path.glob("*.csv"))
+    # Sort files to ensure the "first" file is processed first consistently
+    csv_files = sorted(list(input_path.glob("*.csv")))
     
     if not csv_files:
         print(f"No CSV files found in '{input_dir}'.")
@@ -29,12 +27,12 @@ def preprocess_directory(input_dir, output_dir):
     
     total_initial_rows = 0
     total_kept_rows = 0
+    global_start_time = None
     
     for file_path in csv_files:
         print(f"Processing: {file_path.name}")
         
         try:
-            # Read the CSV data
             df = pd.read_csv(file_path)
             initial_rows = len(df)
             total_initial_rows += initial_rows
@@ -44,10 +42,26 @@ def preprocess_directory(input_dir, output_dir):
                 filtered_df = df[
                     (df['study_running'] == True) | 
                     (df['study_running'].astype(str).str.strip().str.lower() == 'true')
-                ]
+                ].copy() # .copy() prevents SettingWithCopyWarning when modifying time later
             else:
-                print(f"  -> Warning: 'study_running' column not found in {file_path.name}. Skipping filtering.")
-                filtered_df = df
+                print(f"  -> Warning: 'study_running' column not found in {file_path.name}.")
+                filtered_df = df.copy()
+            
+            if filtered_df.empty:
+                print("  -> No valid running data found. Skipping.")
+                continue
+
+            # Hardcoded check for the 'timestamp' column
+            if 'timestamp' not in filtered_df.columns:
+                print("  -> Warning: Column 'timestamp' not found. Cannot normalize time.")
+            else:
+                # Capture the global start time from the very first valid row of the first file
+                if global_start_time is None:
+                    global_start_time = filtered_df['timestamp'].iloc[0]
+                    print(f"  -> [Time Sync] Global start time set to: {global_start_time}")
+                
+                # Apply the global start time offset to this file
+                filtered_df['timestamp'] = filtered_df['timestamp'] - global_start_time
             
             kept_rows = len(filtered_df)
             total_kept_rows += kept_rows
@@ -63,6 +77,8 @@ def preprocess_directory(input_dir, output_dir):
             
     print("\n--- Processing Summary ---")
     print(f"Files processed: {len(csv_files)}")
+    if global_start_time is not None:
+        print(f"Global Start Time (t=0): {global_start_time}")
     print(f"Total initial rows: {total_initial_rows}")
     print(f"Total discarded rows: {total_initial_rows - total_kept_rows}")
     print(f"Total kept rows: {total_kept_rows}")
