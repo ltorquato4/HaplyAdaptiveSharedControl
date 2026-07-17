@@ -27,8 +27,7 @@ def parse_mpc_json(df):
             w_trajectory.append(data.get('weight_trajectory', np.nan))
             w_goal.append(data.get('weight_goal', np.nan))
             
-            # Extract matrices and grab the first diagonal element (e.g., X-axis cost)
-            # Expand this if you want to plot index 1, 2, etc. (Y, Z axes)
+            # Extract matrices and grab the first diagonal element
             Q = data.get('Q', [])
             R = data.get('R', [])
             P = data.get('P', [])
@@ -68,7 +67,7 @@ def plot_heuristic_weights(trajectories, title_suffix, filename, output_dir):
     plt.figure(figsize=(10, 6))
     
     for idx, df in enumerate(trajectories):
-        # Use solid lines for single trajectory, semi-transparent for multiple
+        # Use solid lines if there's only one trajectory, otherwise make them semi-transparent
         alpha_val = 1.0 if len(trajectories) == 1 else 0.3
         
         # Only add labels for the first trajectory to avoid legend clutter
@@ -84,8 +83,7 @@ def plot_heuristic_weights(trajectories, title_suffix, filename, output_dir):
     plt.xlabel("Timestamp")
     plt.ylabel("Weight Value")
     plt.grid(True)
-    if len(trajectories) == 1:
-        plt.legend()
+    plt.legend()
     
     plt.tight_layout()
     plt.savefig(os.path.join(output_dir, filename))
@@ -130,6 +128,7 @@ def main(data_directory="data", output_directory="mpc_plots"):
     csv_files = glob.glob(os.path.join(data_directory, "*.csv"))
     
     adaptive_trajectories = []
+    unique_behaviors = set()
     
     # Load and filter files
     for file in csv_files:
@@ -137,6 +136,10 @@ def main(data_directory="data", output_directory="mpc_plots"):
         
         # Proceed ONLY if this trajectory used the adaptive controller
         if 'controller_type' in df.columns and df['controller_type'].iloc[0].lower() == 'adaptive':
+            # Track the behavior mode for categorization later
+            if 'behavior_mode' in df.columns:
+                unique_behaviors.add(df['behavior_mode'].iloc[0].lower())
+                
             # Parse the JSON string in the K_a column
             df = parse_mpc_json(df)
             adaptive_trajectories.append(df)
@@ -145,18 +148,36 @@ def main(data_directory="data", output_directory="mpc_plots"):
         print("No Adaptive controller trajectories found.")
         return
 
-    print(f"Processed {len(adaptive_trajectories)} adaptive trajectories.")
+    print(f"Processed {len(adaptive_trajectories)} total adaptive trajectories.")
 
-    # --- 1. Single Trajectory Analysis ---
-    print("Generating plots for a single adaptive trajectory...")
-    single_traj = [adaptive_trajectories[0]]  # Grab the first one
-    plot_heuristic_weights(single_traj, "Single Trajectory", "adaptive_single_weights.png", output_directory)
-    plot_cost_matrices(single_traj, "Single Trajectory", "adaptive_single_matrices.png", output_directory)
+    # --- 1. All Behavior Modes Aggregated ---
+    print("Generating aggregate plots across ALL behavior modes...")
+    plot_heuristic_weights(adaptive_trajectories, "All Behavior Modes", "adaptive_all_modes_weights.png", output_directory)
+    plot_cost_matrices(adaptive_trajectories, "All Behavior Modes", "adaptive_all_modes_matrices.png", output_directory)
 
-    # --- 2. All Trajectories Aggregated ---
-    print("Generating overlaid plots for ALL adaptive trajectories...")
-    plot_heuristic_weights(adaptive_trajectories, "All Trajectories Overlaid", "adaptive_all_weights.png", output_directory)
-    plot_cost_matrices(adaptive_trajectories, "All Trajectories Overlaid", "adaptive_all_matrices.png", output_directory)
+    # --- 2. Separated by Behavior Mode ---
+    for behavior in unique_behaviors:
+        print(f"Generating plots for behavior mode: '{behavior}'...")
+        
+        # Filter the trajectories list for only data frames matching this behavior
+        behavior_trajectories = [
+            df for df in adaptive_trajectories 
+            if 'behavior_mode' in df.columns and df['behavior_mode'].iloc[0].lower() == behavior
+        ]
+        
+        # Generate mode-specific plots
+        plot_heuristic_weights(
+            behavior_trajectories, 
+            f"Mode: {behavior.title()}", 
+            f"adaptive_{behavior}_weights.png", 
+            output_directory
+        )
+        plot_cost_matrices(
+            behavior_trajectories, 
+            f"Mode: {behavior.title()}", 
+            f"adaptive_{behavior}_matrices.png", 
+            output_directory
+        )
 
     print(f"Done. Plots saved to {output_directory}/")
 
