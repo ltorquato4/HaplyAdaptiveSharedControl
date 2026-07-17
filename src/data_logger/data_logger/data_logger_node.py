@@ -18,7 +18,7 @@ from .csv_logger import CSVLogger
 class LoggerConfig:
     log_rate_hz: float = 100.0
     flush_interval: int = 100
-    file_prefix: str = "trial"
+    file_prefix: str = "trajectory"
 
 
 class DataLoggerNode(Node):
@@ -36,7 +36,7 @@ class DataLoggerNode(Node):
         # Generate a timestamp for this specific run
         run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         
-        # Combine them so all trials in this run go into the timestamped folder
+        # Combine them so all trajectorys in this run go into the timestamped folder
         self.save_directory = os.path.join(base_directory, run_timestamp)
 
         self.log_level = (
@@ -143,9 +143,9 @@ class DataLoggerNode(Node):
             return
 
         self.reset_state()
-        trial_id, filepath = self.csv_logger.start()
+        trajectory_id, filepath = self.csv_logger.start()
         self.recording = True
-        self.get_logger().info(f"Study started! Recording trial {trial_id}: {filepath}")
+        self.get_logger().info(f"Study started! Recording trajectory {trajectory_id}: {filepath}")
 
     def stop_recording(self):
         if not self.recording:

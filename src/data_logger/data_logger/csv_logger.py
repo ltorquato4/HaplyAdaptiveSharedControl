@@ -11,11 +11,11 @@ class CSVLogger:
 
         self.file = None
         self.writer = None
-        self.trial_id = None
+        self.trajectory_id = None
 
         os.makedirs(self.save_directory, exist_ok=True)
 
-    def get_next_trial_id(self):
+    def get_next_trajectory_id(self):
 
         pattern = rf"{self.file_prefix}_(\d+)\.csv"
 
@@ -34,9 +34,9 @@ class CSVLogger:
 
     def start(self):
 
-        self.trial_id = self.get_next_trial_id()
+        self.trajectory_id = self.get_next_trajectory_id()
 
-        filename = f"{self.file_prefix}_{self.trial_id:06d}.csv"
+        filename = f"{self.file_prefix}_{self.trajectory_id:06d}.csv"
 
         filepath = os.path.join(self.save_directory, filename)
 
@@ -46,7 +46,7 @@ class CSVLogger:
 
         self.writer.writeheader()
 
-        return self.trial_id, filepath
+        return self.trajectory_id, filepath
 
     def write(self, row):
         if self.writer is not None:
@@ -63,4 +63,4 @@ class CSVLogger:
 
         self.file = None
         self.writer = None
-        self.trial_id = None
+        self.trajectory_id = None
