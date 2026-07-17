@@ -1,4 +1,4 @@
-"""Launch the study GUI with mouse input, mapper, scenario generator, estimator, and data logger."""
+"""Launch the study GUI with mouse input, mapper, scenario generator, estimator, control node, and data logger."""
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -7,7 +7,6 @@ from launch.actions import (
     RegisterEventHandler,
     SetEnvironmentVariable,
 )
-from launch.conditions import IfCondition
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
 from launch.substitutions import LaunchConfiguration, PathJoinSubstitution
@@ -17,7 +16,6 @@ from launch_ros.substitutions import FindPackageShare
 
 def generate_launch_description():
     """Build the launch description for mouse-only GUI testing."""
-    use_controller = LaunchConfiguration("use_controller")
     task_file = LaunchConfiguration("task_file")
     controller_modes = LaunchConfiguration("controller_modes")
     log_level = LaunchConfiguration("log_level")
@@ -54,15 +52,14 @@ def generate_launch_description():
         ],
     )
 
-    controller = Node(
+    control_node = Node(
         package="control_node",
         executable="control_node",
         name="control_node",
         output="screen",
-        condition=IfCondition(use_controller),
         parameters=[
             {
-                "log_level": "INFO",
+                "log_level": log_level,
             }
         ],
     )
@@ -121,11 +118,6 @@ def generate_launch_description():
     return LaunchDescription(
         [
             DeclareLaunchArgument(
-                "use_controller",
-                default_value="false",
-                description="Start control_node with the mouse study GUI.",
-            ),
-            DeclareLaunchArgument(
                 "task_file",
                 default_value=default_task_file,
                 description="YAML file defining scenario path geometry.",
@@ -153,7 +145,7 @@ def generate_launch_description():
             study_gui,
             experiment_mapper,
             scenario_generator,
-            controller,
+            control_node,
             estimator_node,
             data_logger_node,
             RegisterEventHandler(

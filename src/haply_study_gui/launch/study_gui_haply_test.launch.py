@@ -1,4 +1,4 @@
-"""Launch the study GUI with Haply input, mapper, scenario data, estimator, and data logger."""
+"""Launch the study GUI with Haply input, mapper, scenario data, estimator, control node, and data logger."""
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -15,7 +15,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    """Build the launch description for hardware GUI testing with estimation and logging."""
+    """Build the launch description for hardware GUI testing with estimation, control, and logging."""
     task_file = LaunchConfiguration("task_file")
     controller_modes = LaunchConfiguration("controller_modes")
     log_level = LaunchConfiguration("log_level")
@@ -97,7 +97,6 @@ def generate_launch_description():
         ],
     )
 
-    # Estimator Node
     estimator_node = Node(
         package="estimator_node",
         executable="estimator_node",
@@ -110,7 +109,18 @@ def generate_launch_description():
         ],
     )
 
-    # Integrated Data Logger Node
+    control_node = Node(
+        package="control_node",
+        executable="control_node",
+        name="control_node",
+        output="screen",
+        parameters=[
+            {
+                "log_level": log_level,
+            }
+        ],
+    )
+
     data_logger_node = Node(
         package="data_logger",
         executable="data_logger_node",
@@ -156,7 +166,8 @@ def generate_launch_description():
             scenario_generator,
             study_gui,
             estimator_node,
-            data_logger_node,  # Added to the execution pipeline
+            control_node,
+            data_logger_node,
             RegisterEventHandler(
                 OnProcessExit(
                     target_action=study_gui,

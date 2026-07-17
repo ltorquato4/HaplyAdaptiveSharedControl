@@ -1,6 +1,6 @@
 # control_node
 
-An Adaptive Shared Control & Haptic Assistance ROS 2 package featuring dynamic rolling-horizon **Model Predictive Control (MPC)** and state-feedback control capabilities for cooperative human-robot manipulation.
+An Adaptive Shared Control & Haptic Assistance ROS 2 package featuring dynamic rolling-horizon Model Predictive Control (MPC) and state-feedback (PD) control capabilities for cooperative human-robot manipulation.
 
 ---
 
@@ -22,14 +22,6 @@ colcon build --packages-select control_node
 source install/setup.bash
 ```
 
-### Launch Control Node & Debug Visualizer
-
-To launch the headless control processor alongside the interactive Pygame-based debug visualizer:
-
-```bash
-ros2 launch control_node control_debug_launch.py
-```
-
 ### Launch Debug Visulizer
 
 If you wish to only launch the interactive Pygame-based debug visualizer:
@@ -38,6 +30,17 @@ If you wish to only launch the interactive Pygame-based debug visualizer:
 ros2 run control_node test_control_node_output
 ```
 
+The `control_node` itself is already included in the launch files. So for debugging purposes, launching this launch file only is enough.
+
+### Launch Control Node & Debug Visualizer
+
+To launch the headless control node in `DEBUG` alongside the interactive Pygame-based debug visualizer:
+
+```bash
+ros2 launch control_node control_debug_launch.py
+```
+
+When doing so, make sure the `control_node` is not running anywhere else.
 
 ---
 
