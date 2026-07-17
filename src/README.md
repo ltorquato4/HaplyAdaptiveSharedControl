@@ -192,10 +192,10 @@ flowchart LR
 | `/study_end_point` | `geometry_msgs/Point` | Scenario Generator | GUI, Controller, Estimator, Logger | Current phase endpoint used by MPC, Estimator, GUI, and Logger. |
 | `/study_phase` | `std_msgs/String` | Scenario Generator | GUI, Logger | Behavioral State phase: `aggressive`, `normal`, or `careful`. |
 | `/study_controller_mode` | `std_msgs/String` | Scenario Generator | GUI, Controller, Logger | Control condition for the current phase: `adaptive` or `fixed`. Logger records this for fixed/adaptive analysis. |
-| `/estimation/K_h` | `std_msgs/Float64` | Estimator | Controller, Logger | Estimated human stiffness. |
+| `/estimation/K_h` | `std_msgs/Float64MultiArray` | Estimator | Controller, Logger | Estimated human stiffness. |
 | `/estimation/u_h` | `geometry_msgs/Vector3` | Estimator | Logger | Estimated human effort/control input in task space. |
 | `/control/U_a` | `geometry_msgs/Vector3` | Controller | Logger | Applied robot assistance/control force, logged as a diagnostic only. |
-| `/control/K_a` | `std_msgs/Float64` | Controller | Logger | Active controller gain used for the current phase. |
+| `/control/K_a` | `std_msgs/String` | Controller | Logger | Active controller gain used for the current phase. |
 
 ## 4. Fault Handling Path
 
