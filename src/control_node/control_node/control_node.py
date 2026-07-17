@@ -79,7 +79,7 @@ class ControlNode(Node):
 
     def define_control_problem_settings(self):
         self.dt = self.get_or_declare_parameter("delta_time", 0.1)
-        self.use_mpc_controller = self.get_or_declare_parameter("use_mpc_controller", False)
+        self.use_mpc_controller = self.get_or_declare_parameter("use_mpc_controller", True)
         
         adaptive_enabled = self.get_or_declare_parameter("adaptive_control_enabled", False)
         self.controller_mode = "adaptive" if adaptive_enabled else "fixed"
