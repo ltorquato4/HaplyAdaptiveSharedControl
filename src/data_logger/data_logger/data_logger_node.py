@@ -1,6 +1,8 @@
 #!/usr/bin/env python3
 
+import os
 from dataclasses import dataclass
+from datetime import datetime
 
 import rclpy
 from geometry_msgs.msg import Point, Vector3
@@ -26,9 +28,16 @@ class DataLoggerNode(Node):
         self.declare_parameter("save_directory", "./logs")
         self.declare_parameter("log_level", "info")
 
-        self.save_directory = (
+        # Get the base directory from parameters
+        base_directory = (
             self.get_parameter("save_directory").get_parameter_value().string_value
         )
+        
+        # Generate a timestamp for this specific run
+        run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
+        
+        # Combine them so all trials in this run go into the timestamped folder
+        self.save_directory = os.path.join(base_directory, run_timestamp)
 
         self.log_level = (
             self.get_parameter("log_level").get_parameter_value().string_value
@@ -58,7 +67,7 @@ class DataLoggerNode(Node):
             self.write_row,
         )
 
-        self.get_logger().info("Data logger ready.")
+        self.get_logger().info(f"Data logger ready. Saving to: {self.save_directory}")
 
     def _message_to_debug_value(self, msg):
         if hasattr(msg, "data"):
