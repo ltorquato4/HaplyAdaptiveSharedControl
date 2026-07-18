@@ -31,10 +31,10 @@ def calculate_metrics(df):
 # ==========================================
 
 def generate_plots(df, controller, behavior, output_dir):
-    save_dir = os.path.join(output_dir, controller)
+    # Create nested directory: output_dir / controller / behavior
+    save_dir = os.path.join(output_dir, controller, behavior)
     os.makedirs(save_dir, exist_ok=True)
     
-    # Iterate through unique files instead of plotting them all at once
     trajectories = df['file_stem'].unique()
 
     for traj in trajectories:
@@ -95,7 +95,14 @@ def main(data_directory="data", output_directory="analysis_plots"):
     
     for file in csv_files:
         df = pd.read_csv(file)
-        df['file_stem'] = Path(file).stem # Capture unique filename
+        
+        # Normalize text cases immediately upon loading
+        if 'study_controller_mode' in df.columns:
+            df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.lower()
+        if 'study_phase' in df.columns:
+            df['study_phase'] = df['study_phase'].astype(str).str.lower()
+            
+        df['file_stem'] = Path(file).stem
         df = calculate_metrics(df)
         all_data.append(df)
         

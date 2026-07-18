@@ -14,6 +14,10 @@ def parse_mpc_json(df):
     w_comfort, w_trajectory, w_goal = [], [], []
     q_diag_0, r_diag_0, p_diag_0 = [], [], []
     
+    if 'K_a' not in df.columns:
+        df[['weight_comfort', 'weight_trajectory', 'weight_goal', 'Q_diag_0', 'R_diag_0', 'P_diag_0']] = np.nan
+        return df
+
     for json_str in df['K_a']:
         try:
             data = json.loads(json_str)
@@ -55,9 +59,10 @@ def plot_heuristic_weights(trajectories, title_suffix, prefix, output_dir):
         file_stem = df['file_stem'].iloc[0]
         plt.figure(figsize=(10, 6))
         
-        plt.plot(df['timestamp'], df['weight_comfort'], color='blue', label='Comfort')
-        plt.plot(df['timestamp'], df['weight_trajectory'], color='green', label='Trajectory')
-        plt.plot(df['timestamp'], df['weight_goal'], color='red', label='Goal')
+        if not df['weight_comfort'].isna().all():
+            plt.plot(df['timestamp'], df['weight_comfort'], color='blue', label='Comfort')
+            plt.plot(df['timestamp'], df['weight_trajectory'], color='green', label='Trajectory')
+            plt.plot(df['timestamp'], df['weight_goal'], color='red', label='Goal')
 
         plt.title(f"Heuristic Weighting Evolution\n({title_suffix}) | Run: {file_stem}")
         plt.xlabel("Timestamp")
@@ -74,9 +79,10 @@ def plot_cost_matrices(trajectories, title_suffix, prefix, output_dir):
         file_stem = df['file_stem'].iloc[0]
         fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
         
-        axes[0].plot(df['timestamp'], df['Q_diag_0'], color='purple')
-        axes[1].plot(df['timestamp'], df['R_diag_0'], color='orange')
-        axes[2].plot(df['timestamp'], df['P_diag_0'], color='teal')
+        if not df['Q_diag_0'].isna().all():
+            axes[0].plot(df['timestamp'], df['Q_diag_0'], color='purple')
+            axes[1].plot(df['timestamp'], df['R_diag_0'], color='orange')
+            axes[2].plot(df['timestamp'], df['P_diag_0'], color='teal')
 
         axes[0].set_title(f"Q Matrix (State Cost) Diagonal\n({title_suffix}) | Run: {file_stem}")
         axes[0].set_ylabel("Q Value")
@@ -100,38 +106,46 @@ def plot_cost_matrices(trajectories, title_suffix, prefix, output_dir):
 # ==========================================
 
 def main(data_directory="data", output_directory="mpc_plots"):
-    os.makedirs(output_directory, exist_ok=True)
     csv_files = glob.glob(os.path.join(data_directory, "**", "*.csv"), recursive=True)
     
-    adaptive_trajectories = []
-    unique_phases = set()
+    all_trajectories = []
     
     for file in csv_files:
         df = pd.read_csv(file)
-        if 'study_controller_mode' in df.columns and df['study_controller_mode'].iloc[0].lower() == 'adaptive':
-            if 'study_phase' in df.columns:
-                unique_phases.add(df['study_phase'].iloc[0].lower())
+        
+        if 'study_controller_mode' in df.columns:
+            df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.lower()
+        if 'study_phase' in df.columns:
+            df['study_phase'] = df['study_phase'].astype(str).str.lower()
                 
-            df = parse_mpc_json(df)
-            df['file_stem'] = Path(file).stem # Capture unique filename
-            adaptive_trajectories.append(df)
+        df = parse_mpc_json(df)
+        df['file_stem'] = Path(file).stem
+        all_trajectories.append(df)
             
-    if not adaptive_trajectories:
-        print("No Adaptive controller trajectories found.")
+    if not all_trajectories:
+        print("No valid trajectories found.")
         return
 
-    print(f"Processed {len(adaptive_trajectories)} total adaptive trajectories.")
+    master_df = pd.concat(all_trajectories, ignore_index=True)
+    controllers = master_df['study_controller_mode'].dropna().unique()
+    phases = master_df['study_phase'].dropna().unique()
 
-    for phase in unique_phases:
-        print(f"Generating plots for study phase: '{phase}'...")
+    for controller in controllers:
+        print(f"Processing MPC plots for {controller.upper()} controller...")
+        controller_df = master_df[master_df['study_controller_mode'] == controller]
         
-        phase_trajectories = [
-            df for df in adaptive_trajectories 
-            if 'study_phase' in df.columns and df['study_phase'].iloc[0].lower() == phase
-        ]
-        
-        plot_heuristic_weights(phase_trajectories, f"Phase: {phase.title()}", f"adaptive_{phase}", output_directory)
-        plot_cost_matrices(phase_trajectories, f"Phase: {phase.title()}", f"adaptive_{phase}", output_directory)
+        for phase in phases:
+            phase_df = controller_df[controller_df['study_phase'] == phase]
+            
+            if not phase_df.empty:
+                # Create nested directory: output_dir / controller / phase
+                phase_dir = os.path.join(output_directory, controller, phase)
+                os.makedirs(phase_dir, exist_ok=True)
+                
+                phase_trajectories = [group for _, group in phase_df.groupby('file_stem')]
+                
+                plot_heuristic_weights(phase_trajectories, f"Phase: {phase.title()}", f"{controller}_{phase}", phase_dir)
+                plot_cost_matrices(phase_trajectories, f"Phase: {phase.title()}", f"{controller}_{phase}", phase_dir)
 
     print(f"Done. Individual plots saved to {output_directory}/")
 
