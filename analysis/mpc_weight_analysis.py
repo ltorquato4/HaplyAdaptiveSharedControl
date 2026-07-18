@@ -98,18 +98,18 @@ def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_o
             axes[0].set_title(f"Comfort Weight\n{title_info} | Run: {traj}")
             axes[0].set_ylabel("Weight Value")
             axes[0].set_xlim(limits['time'])
-            axes[0].set_ylim(limits['weights'])
+            axes[0].set_ylim(limits['weight_comfort'])
             axes[0].grid(True)
 
             axes[1].set_title("Trajectory Weight")
             axes[1].set_ylabel("Weight Value")
-            axes[1].set_ylim(limits['weights'])
+            axes[1].set_ylim(limits['weight_trajectory'])
             axes[1].grid(True)
 
             axes[2].set_title("Goal Weight")
             axes[2].set_xlabel("Timestamp")
             axes[2].set_ylabel("Weight Value")
-            axes[2].set_ylim(limits['weights'])
+            axes[2].set_ylim(limits['weight_goal'])
             axes[2].grid(True)
 
             plt.tight_layout()
@@ -156,18 +156,18 @@ def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_o
     axes[0].set_title(f"Comfort Weight\n{title_info}")
     axes[0].set_ylabel("Weight Value")
     axes[0].set_xlim(limits['time'])
-    axes[0].set_ylim(limits['weights'])
+    axes[0].set_ylim(limits['weight_comfort'])
     axes[0].grid(True)
 
     axes[1].set_title("Trajectory Weight")
     axes[1].set_ylabel("Weight Value")
-    axes[1].set_ylim(limits['weights'])
+    axes[1].set_ylim(limits['weight_trajectory'])
     axes[1].grid(True)
 
     axes[2].set_title("Goal Weight")
     axes[2].set_xlabel("Timestamp")
     axes[2].set_ylabel("Weight Value")
-    axes[2].set_ylim(limits['weights'])
+    axes[2].set_ylim(limits['weight_goal'])
     axes[2].grid(True)
 
     plt.tight_layout()
@@ -227,9 +227,12 @@ def main(data_directory="data", output_directory="mpc_plots"):
 
     master_df = pd.concat(all_data, ignore_index=True)
     
+    # Calculate independent limits for each weight
     limits = {
         'time': get_padded_limits([master_df['timestamp']], pad=0),
-        'weights': get_padded_limits([master_df['weight_comfort'], master_df['weight_trajectory'], master_df['weight_goal']]),
+        'weight_comfort': get_padded_limits([master_df['weight_comfort']]),
+        'weight_trajectory': get_padded_limits([master_df['weight_trajectory']]),
+        'weight_goal': get_padded_limits([master_df['weight_goal']]),
         'Q': get_padded_limits([master_df['Q_diag_0']]),
         'R': get_padded_limits([master_df['R_diag_0']]),
         'P': get_padded_limits([master_df['P_diag_0']])
