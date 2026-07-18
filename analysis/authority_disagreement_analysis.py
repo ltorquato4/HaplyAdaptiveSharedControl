@@ -4,19 +4,15 @@ import json
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from pathlib import Path
 
 # ==========================================
 # 1. Parsing and Mathematical Logic
 # ==========================================
 
 def parse_and_calculate_inputs(df):
-    """
-    Parses the estimated human control parameter (K_h) from JSON strings.
-    Calculates the magnitude of human (u_h) and adaptive (u_a) control inputs.
-    """
     kh_parsed = []
     
-    # 1. Parse K_h
     for json_str in df.get('K_h', []):
         if pd.isna(json_str):
             kh_parsed.append(np.nan)
@@ -25,9 +21,9 @@ def parse_and_calculate_inputs(df):
             data = json.loads(json_str)
             if isinstance(data, list) and len(data) > 0:
                 if isinstance(data[0], list): 
-                    kh_parsed.append(data[0][0]) # 2D Matrix
+                    kh_parsed.append(data[0][0])
                 else:
-                    kh_parsed.append(data[0])    # 1D Array
+                    kh_parsed.append(data[0])
             else:
                 kh_parsed.append(np.nan)
         except (json.JSONDecodeError, TypeError, IndexError):
@@ -35,7 +31,6 @@ def parse_and_calculate_inputs(df):
 
     df['Kh_value'] = kh_parsed
 
-    # 2. Calculate Control Input Magnitudes (|u|)
     def parse_input_array(val):
         if pd.isna(val): return np.nan
         try:
@@ -57,53 +52,42 @@ def parse_and_calculate_inputs(df):
 # 2. Plotting Functions
 # ==========================================
 
-def plot_kh_evolution(trajectories, title_info, filename, output_dir):
-    """
-    Plots the RLS-estimated Human Control Parameter (K_h) over time.
-    """
-    plt.figure(figsize=(10, 6))
-    
-    alpha_val = 1.0 if len(trajectories) == 1 else 0.4
-
+def plot_kh_evolution(trajectories, title_info, prefix, output_dir):
     for df in trajectories:
+        file_stem = df['file_stem'].iloc[0]
+        plt.figure(figsize=(10, 6))
+        
         if 'Kh_value' in df.columns and not df['Kh_value'].isna().all():
-            plt.plot(df['timestamp'], df['Kh_value'], color='purple', alpha=alpha_val)
+            plt.plot(df['timestamp'], df['Kh_value'], color='purple')
 
-    plt.title(f"Human Control Parameter ($K_h$) Evolution\n{title_info}")
-    plt.xlabel("Timestamp")
-    plt.ylabel("Estimated $K_h$ Magnitude")
-    plt.grid(True)
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, filename))
-    plt.close()
+        plt.title(f"Human Control Parameter ($K_h$) Evolution\n{title_info} | Run: {file_stem}")
+        plt.xlabel("Timestamp")
+        plt.ylabel("Estimated $K_h$ Magnitude")
+        plt.grid(True)
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, f"{prefix}_{file_stem}_Kh.pdf"))
+        plt.close()
 
-def plot_input_comparison(trajectories, title_info, filename, output_dir):
-    """
-    Plots the magnitude of human (u_h) vs adaptive (u_a) control inputs.
-    """
-    plt.figure(figsize=(12, 6))
-    
-    alpha_val = 0.8 if len(trajectories) == 1 else 0.3
-
-    for idx, df in enumerate(trajectories):
-        label_h = "Human Input ($u_h$)" if idx == 0 else ""
-        label_a = "Adaptive Input ($u_a$)" if idx == 0 else ""
+def plot_input_comparison(trajectories, title_info, prefix, output_dir):
+    for df in trajectories:
+        file_stem = df['file_stem'].iloc[0]
+        plt.figure(figsize=(12, 6))
         
         if 'u_h_mag' in df.columns:
-            plt.plot(df['timestamp'], df['u_h_mag'], color='blue', alpha=alpha_val, label=label_h)
+            plt.plot(df['timestamp'], df['u_h_mag'], color='blue', label="Human Input ($u_h$)")
         if 'u_a_mag' in df.columns:
-            plt.plot(df['timestamp'], df['u_a_mag'], color='red', alpha=alpha_val, label=label_a)
+            plt.plot(df['timestamp'], df['u_a_mag'], color='red', label="Adaptive Input ($u_a$)")
 
-    plt.title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info}")
-    plt.xlabel("Timestamp")
-    plt.ylabel("Control Input Magnitude")
-    plt.grid(True)
-    plt.legend(loc='upper right')
-    
-    plt.tight_layout()
-    plt.savefig(os.path.join(output_dir, filename))
-    plt.close()
+        plt.title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info} | Run: {file_stem}")
+        plt.xlabel("Timestamp")
+        plt.ylabel("Control Input Magnitude")
+        plt.grid(True)
+        plt.legend(loc='upper right')
+        
+        plt.tight_layout()
+        plt.savefig(os.path.join(output_dir, f"{prefix}_{file_stem}_inputs.pdf"))
+        plt.close()
 
 # ==========================================
 # 3. Main Execution Workflow
@@ -116,21 +100,19 @@ def main(data_directory="data", base_output_dir="authority_plots"):
         print("No CSV files found in the specified directory.")
         return
 
-    # 1. Load and pre-process all files
     master_data = []
     for file in csv_files:
         df = pd.read_csv(file)
         df = parse_and_calculate_inputs(df)
+        df['file_stem'] = Path(file).stem  # Capture unique filename
         master_data.append(df)
         
     print(f"Successfully loaded and parsed {len(master_data)} trajectories.")
 
-    # Convert to a temporary full dataframe just to extract unique categories
     concat_df = pd.concat(master_data, ignore_index=True)
     controllers = concat_df['study_controller_mode'].dropna().unique()
     phases = concat_df['study_phase'].dropna().unique()
 
-    # 2. Iterate by Controller Type
     for controller in controllers:
         controller_dir = os.path.join(base_output_dir, controller.lower())
         os.makedirs(controller_dir, exist_ok=True)
@@ -142,12 +124,8 @@ def main(data_directory="data", base_output_dir="authority_plots"):
             
         print(f"\nProcessing {controller.upper()} Controller ({len(ctrl_trajectories)} trajectories)...")
         
-        # --- Aggregated across ALL phases ---
-        title_all = f"Controller: {controller.title()} | All Phases"
-        plot_kh_evolution(ctrl_trajectories, title_all, f"{controller}_all_phases_Kh.pdf", controller_dir)
-        plot_input_comparison(ctrl_trajectories, title_all, f"{controller}_all_phases_inputs.pdf", controller_dir)
+        title_all = f"Controller: {controller.title()}"
         
-        # --- Separated by distinct Study Phases ---
         for phase in phases:
             phase_trajectories = [
                 df for df in ctrl_trajectories 
@@ -160,10 +138,10 @@ def main(data_directory="data", base_output_dir="authority_plots"):
             print(f"  -> Generating plots for study phase: '{phase}'")
             title_beh = f"Controller: {controller.title()} | Phase: {phase.title()}"
             
-            plot_kh_evolution(phase_trajectories, title_beh, f"{controller}_{phase}_Kh.pdf", controller_dir)
-            plot_input_comparison(phase_trajectories, title_beh, f"{controller}_{phase}_inputs.pdf", controller_dir)
+            plot_kh_evolution(phase_trajectories, title_beh, f"{controller}_{phase}", controller_dir)
+            plot_input_comparison(phase_trajectories, title_beh, f"{controller}_{phase}", controller_dir)
 
-    print(f"\nDone. All plots saved in the '{base_output_dir}' directory, sorted by controller type.")
+    print(f"\nDone. All individual plots saved in the '{base_output_dir}' directory.")
 
 if __name__ == "__main__":
     main(data_directory="../processed_logs", base_output_dir="../plots/authority_plots")
