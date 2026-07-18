@@ -137,9 +137,9 @@ def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_o
         l_g = 'Goal' if idx == 0 else ""
         
         if not traj_data['weight_comfort'].isna().all():
-            plt.plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue', alpha=0.3, label=l_c)
-            plt.plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green', alpha=0.3, label=l_t)
-            plt.plot(traj_data['timestamp'], traj_data['weight_goal'], color='red', alpha=0.3, label=l_g)
+            plt.plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue', label=l_c)
+            plt.plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green', label=l_t)
+            plt.plot(traj_data['timestamp'], traj_data['weight_goal'], color='red', label=l_g)
     plt.title(f"Heuristic Weighting Evolution\n{title_info}")
     plt.xlabel("Timestamp")
     plt.ylabel("Weight Value")
@@ -156,9 +156,9 @@ def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_o
     for traj in trajectories:
         traj_data = df[df['file_stem'] == traj]
         if not traj_data['Q_diag_0'].isna().all():
-            axes[0].plot(traj_data['timestamp'], traj_data['Q_diag_0'], color='purple', alpha=0.3)
-            axes[1].plot(traj_data['timestamp'], traj_data['R_diag_0'], color='orange', alpha=0.3)
-            axes[2].plot(traj_data['timestamp'], traj_data['P_diag_0'], color='teal', alpha=0.3)
+            axes[0].plot(traj_data['timestamp'], traj_data['Q_diag_0'], color='purple')
+            axes[1].plot(traj_data['timestamp'], traj_data['R_diag_0'], color='orange')
+            axes[2].plot(traj_data['timestamp'], traj_data['P_diag_0'], color='teal')
 
     axes[0].set_title(f"Q Matrix (State Cost) Diagonal\n{title_info}")
     axes[0].set_ylabel("Q Value")
