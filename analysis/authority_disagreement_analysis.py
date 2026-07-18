@@ -103,8 +103,15 @@ def main(data_directory="data", base_output_dir="authority_plots"):
     master_data = []
     for file in csv_files:
         df = pd.read_csv(file)
+        
+        # Normalize text cases immediately upon loading
+        if 'study_controller_mode' in df.columns:
+            df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.lower()
+        if 'study_phase' in df.columns:
+            df['study_phase'] = df['study_phase'].astype(str).str.lower()
+            
         df = parse_and_calculate_inputs(df)
-        df['file_stem'] = Path(file).stem  # Capture unique filename
+        df['file_stem'] = Path(file).stem
         master_data.append(df)
         
     print(f"Successfully loaded and parsed {len(master_data)} trajectories.")
@@ -114,17 +121,11 @@ def main(data_directory="data", base_output_dir="authority_plots"):
     phases = concat_df['study_phase'].dropna().unique()
 
     for controller in controllers:
-        controller_dir = os.path.join(base_output_dir, controller.lower())
-        os.makedirs(controller_dir, exist_ok=True)
-        
         ctrl_trajectories = [df for df in master_data if df['study_controller_mode'].iloc[0] == controller]
-        
         if not ctrl_trajectories:
             continue
             
         print(f"\nProcessing {controller.upper()} Controller ({len(ctrl_trajectories)} trajectories)...")
-        
-        title_all = f"Controller: {controller.title()}"
         
         for phase in phases:
             phase_trajectories = [
@@ -134,14 +135,18 @@ def main(data_directory="data", base_output_dir="authority_plots"):
             
             if not phase_trajectories:
                 continue
+            
+            # Create nested directory: base_dir / controller / phase
+            phase_dir = os.path.join(base_output_dir, controller, phase)
+            os.makedirs(phase_dir, exist_ok=True)
                 
             print(f"  -> Generating plots for study phase: '{phase}'")
             title_beh = f"Controller: {controller.title()} | Phase: {phase.title()}"
             
-            plot_kh_evolution(phase_trajectories, title_beh, f"{controller}_{phase}", controller_dir)
-            plot_input_comparison(phase_trajectories, title_beh, f"{controller}_{phase}", controller_dir)
+            plot_kh_evolution(phase_trajectories, title_beh, f"{controller}_{phase}", phase_dir)
+            plot_input_comparison(phase_trajectories, title_beh, f"{controller}_{phase}", phase_dir)
 
-    print(f"\nDone. All individual plots saved in the '{base_output_dir}' directory.")
+    print(f"\nDone. All individual plots saved in '{base_output_dir}'.")
 
 if __name__ == "__main__":
     main(data_directory="../processed_logs", base_output_dir="../plots/authority_plots")
