@@ -22,11 +22,7 @@ def parse_and_calculate_inputs(df):
             kh_parsed.append(np.nan)
             continue
         try:
-            # Assuming K_h is stored as a JSON array/matrix string 
-            # e.g., "[[0.5, 0], [0, 0.5]]" or "[0.5, 0.5]"
             data = json.loads(json_str)
-            
-            # Extract the primary component (adjust indices if K_h is differently shaped)
             if isinstance(data, list) and len(data) > 0:
                 if isinstance(data[0], list): 
                     kh_parsed.append(data[0][0]) # 2D Matrix
@@ -40,22 +36,20 @@ def parse_and_calculate_inputs(df):
     df['Kh_value'] = kh_parsed
 
     # 2. Calculate Control Input Magnitudes (|u|)
-    # Assumes inputs are logged as vector components (X and Y). 
-    # If your data already provides 'u_h' and 'u_a' as magnitudes, it will use those directly.
-    
-    if 'u_h_x' in df.columns and 'u_h_y' in df.columns:
-        df['u_h_mag'] = np.sqrt(df['u_h_x']**2 + df['u_h_y']**2)
-    elif 'u_h' in df.columns:
-        df['u_h_mag'] = df['u_h'].abs()
-    else:
-        df['u_h_mag'] = np.nan # Fallback if columns are missing
-
-    if 'u_a_x' in df.columns and 'u_a_y' in df.columns:
-        df['u_a_mag'] = np.sqrt(df['u_a_x']**2 + df['u_a_y']**2)
-    elif 'u_a' in df.columns:
-        df['u_a_mag'] = df['u_a'].abs()
-    else:
-        df['u_a_mag'] = np.nan
+    def parse_input_array(val):
+        if pd.isna(val): return np.nan
+        try:
+            arr = json.loads(val) if isinstance(val, str) else val
+            if isinstance(arr, list) and len(arr) >= 2:
+                return np.sqrt(arr[0]**2 + arr[1]**2)
+            elif isinstance(arr, (int, float)):
+                return abs(arr)
+            return np.nan
+        except:
+            return np.nan
+            
+    df['u_h_mag'] = df['u_h'].apply(parse_input_array) if 'u_h' in df.columns else np.nan
+    df['u_a_mag'] = df['u_a'].apply(parse_input_array) if 'u_a' in df.columns else np.nan
 
     return df
 
@@ -72,7 +66,6 @@ def plot_kh_evolution(trajectories, title_info, filename, output_dir):
     alpha_val = 1.0 if len(trajectories) == 1 else 0.4
 
     for df in trajectories:
-        # Plot each trajectory's K_h estimate
         if 'Kh_value' in df.columns and not df['Kh_value'].isna().all():
             plt.plot(df['timestamp'], df['Kh_value'], color='purple', alpha=alpha_val)
 
@@ -85,18 +78,15 @@ def plot_kh_evolution(trajectories, title_info, filename, output_dir):
     plt.savefig(os.path.join(output_dir, filename))
     plt.close()
 
-
 def plot_input_comparison(trajectories, title_info, filename, output_dir):
     """
-    Plots the magnitude of human (u_h) vs adaptive (u_a) control inputs 
-    to evaluate disagreement (phase/amplitude differences).
+    Plots the magnitude of human (u_h) vs adaptive (u_a) control inputs.
     """
     plt.figure(figsize=(12, 6))
     
     alpha_val = 0.8 if len(trajectories) == 1 else 0.3
 
     for idx, df in enumerate(trajectories):
-        # Labels only applied to the first iteration to prevent legend duplication
         label_h = "Human Input ($u_h$)" if idx == 0 else ""
         label_a = "Adaptive Input ($u_a$)" if idx == 0 else ""
         
@@ -137,44 +127,41 @@ def main(data_directory="data", base_output_dir="authority_plots"):
 
     # Convert to a temporary full dataframe just to extract unique categories
     concat_df = pd.concat(master_data, ignore_index=True)
-    controllers = concat_df['controller_type'].dropna().unique()
-    behaviors = concat_df['behavior_mode'].dropna().unique()
+    controllers = concat_df['study_controller_mode'].dropna().unique()
+    phases = concat_df['study_phase'].dropna().unique()
 
     # 2. Iterate by Controller Type
     for controller in controllers:
-        # Create separate output directories for Fixed and Adaptive
         controller_dir = os.path.join(base_output_dir, controller.lower())
         os.makedirs(controller_dir, exist_ok=True)
         
-        # Filter trajectories matching this controller
-        ctrl_trajectories = [df for df in master_data if df['controller_type'].iloc[0] == controller]
+        ctrl_trajectories = [df for df in master_data if df['study_controller_mode'].iloc[0] == controller]
         
         if not ctrl_trajectories:
             continue
             
         print(f"\nProcessing {controller.upper()} Controller ({len(ctrl_trajectories)} trajectories)...")
         
-        # --- Aggregated across ALL behaviors ---
-        title_all = f"Controller: {controller.title()} | All Modes"
-        plot_kh_evolution(ctrl_trajectories, title_all, f"{controller}_all_modes_Kh.png", controller_dir)
-        plot_input_comparison(ctrl_trajectories, title_all, f"{controller}_all_modes_inputs.png", controller_dir)
+        # --- Aggregated across ALL phases ---
+        title_all = f"Controller: {controller.title()} | All Phases"
+        plot_kh_evolution(ctrl_trajectories, title_all, f"{controller}_all_phases_Kh.png", controller_dir)
+        plot_input_comparison(ctrl_trajectories, title_all, f"{controller}_all_phases_inputs.png", controller_dir)
         
-        # --- Separated by distinct Behavior Modes ---
-        for behavior in behaviors:
-            # Filter trajectories matching this behavior
-            beh_trajectories = [
+        # --- Separated by distinct Study Phases ---
+        for phase in phases:
+            phase_trajectories = [
                 df for df in ctrl_trajectories 
-                if 'behavior_mode' in df.columns and df['behavior_mode'].iloc[0] == behavior
+                if 'study_phase' in df.columns and df['study_phase'].iloc[0] == phase
             ]
             
-            if not beh_trajectories:
+            if not phase_trajectories:
                 continue
                 
-            print(f"  -> Generating plots for behavior mode: '{behavior}'")
-            title_beh = f"Controller: {controller.title()} | Mode: {behavior.title()}"
+            print(f"  -> Generating plots for study phase: '{phase}'")
+            title_beh = f"Controller: {controller.title()} | Phase: {phase.title()}"
             
-            plot_kh_evolution(beh_trajectories, title_beh, f"{controller}_{behavior}_Kh.png", controller_dir)
-            plot_input_comparison(beh_trajectories, title_beh, f"{controller}_{behavior}_inputs.png", controller_dir)
+            plot_kh_evolution(phase_trajectories, title_beh, f"{controller}_{phase}_Kh.png", controller_dir)
+            plot_input_comparison(phase_trajectories, title_beh, f"{controller}_{phase}_inputs.png", controller_dir)
 
     print(f"\nDone. All plots saved in the '{base_output_dir}' directory, sorted by controller type.")
 
