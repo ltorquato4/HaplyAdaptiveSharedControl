@@ -144,8 +144,8 @@ def main(data_directory="data", base_output_dir="authority_plots"):
         
         # --- Aggregated across ALL phases ---
         title_all = f"Controller: {controller.title()} | All Phases"
-        plot_kh_evolution(ctrl_trajectories, title_all, f"{controller}_all_phases_Kh.png", controller_dir)
-        plot_input_comparison(ctrl_trajectories, title_all, f"{controller}_all_phases_inputs.png", controller_dir)
+        plot_kh_evolution(ctrl_trajectories, title_all, f"{controller}_all_phases_Kh.pdf", controller_dir)
+        plot_input_comparison(ctrl_trajectories, title_all, f"{controller}_all_phases_inputs.pdf", controller_dir)
         
         # --- Separated by distinct Study Phases ---
         for phase in phases:
@@ -160,8 +160,8 @@ def main(data_directory="data", base_output_dir="authority_plots"):
             print(f"  -> Generating plots for study phase: '{phase}'")
             title_beh = f"Controller: {controller.title()} | Phase: {phase.title()}"
             
-            plot_kh_evolution(phase_trajectories, title_beh, f"{controller}_{phase}_Kh.png", controller_dir)
-            plot_input_comparison(phase_trajectories, title_beh, f"{controller}_{phase}_inputs.png", controller_dir)
+            plot_kh_evolution(phase_trajectories, title_beh, f"{controller}_{phase}_Kh.pdf", controller_dir)
+            plot_input_comparison(phase_trajectories, title_beh, f"{controller}_{phase}_inputs.pdf", controller_dir)
 
     print(f"\nDone. All plots saved in the '{base_output_dir}' directory, sorted by controller type.")
 
