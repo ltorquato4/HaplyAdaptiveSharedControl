@@ -68,7 +68,7 @@ def generate_plots(df, controller, behavior, output_dir):
     plt.ylabel("Cursor Y")
     plt.legend()
     plt.grid(True)
-    plt.savefig(os.path.join(save_dir, f"{prefix}_2d_trajectory.png"))
+    plt.savefig(os.path.join(save_dir, f"{prefix}_2d_trajectory.pdf"))
     plt.close()
 
     # --- Plot 2: Positional Error over Normalized Distance ---
@@ -83,7 +83,7 @@ def generate_plots(df, controller, behavior, output_dir):
     plt.xlabel("Normalized Distance (0 = Start, 1 = End)")
     plt.ylabel("Orthogonal Error")
     plt.grid(True)
-    plt.savefig(os.path.join(save_dir, f"{prefix}_positional_error.png"))
+    plt.savefig(os.path.join(save_dir, f"{prefix}_positional_error.pdf"))
     plt.close()
 
     # --- Plot 3: Velocity Profiles ---
@@ -103,7 +103,7 @@ def generate_plots(df, controller, behavior, output_dir):
     ax2.grid(True)
     
     plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, f"{prefix}_velocity_profiles.png"))
+    plt.savefig(os.path.join(save_dir, f"{prefix}_velocity_profiles.pdf"))
     plt.close()
 
 # ==========================================

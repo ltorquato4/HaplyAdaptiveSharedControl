@@ -152,8 +152,8 @@ def main(data_directory="data", output_directory="mpc_plots"):
 
     # --- 1. All Phases Aggregated ---
     print("Generating aggregate plots across ALL study phases...")
-    plot_heuristic_weights(adaptive_trajectories, "All Study Phases", "adaptive_all_phases_weights.png", output_directory)
-    plot_cost_matrices(adaptive_trajectories, "All Study Phases", "adaptive_all_phases_matrices.png", output_directory)
+    plot_heuristic_weights(adaptive_trajectories, "All Study Phases", "adaptive_all_phases_weights.pdf", output_directory)
+    plot_cost_matrices(adaptive_trajectories, "All Study Phases", "adaptive_all_phases_matrices.pdf", output_directory)
 
     # --- 2. Separated by Study Phase ---
     for phase in unique_phases:
@@ -169,13 +169,13 @@ def main(data_directory="data", output_directory="mpc_plots"):
         plot_heuristic_weights(
             phase_trajectories, 
             f"Phase: {phase.title()}", 
-            f"adaptive_{phase}_weights.png", 
+            f"adaptive_{phase}_weights.pdf", 
             output_directory
         )
         plot_cost_matrices(
             phase_trajectories, 
             f"Phase: {phase.title()}", 
-            f"adaptive_{phase}_matrices.png", 
+            f"adaptive_{phase}_matrices.pdf", 
             output_directory
         )
 
