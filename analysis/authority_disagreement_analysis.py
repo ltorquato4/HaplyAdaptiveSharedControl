@@ -44,7 +44,6 @@ def parse_and_calculate_inputs(df):
     return df
 
 def get_padded_limits(series_list, pad=0.05):
-    """Calculates global min/max limits across multiple columns with a slight padding."""
     valid_mins = [s.min() for s in series_list if s.notna().any()]
     valid_maxs = [s.max() for s in series_list if s.notna().any()]
     if not valid_mins or not valid_maxs: return (0, 1)
@@ -60,97 +59,135 @@ def get_padded_limits(series_list, pad=0.05):
 # 2. Plotting Functions
 # ==========================================
 
-def plot_kh_evolution(trajectories, title_info, prefix, output_dir, limits):
-    for df in trajectories:
-        file_stem = df['file_stem'].iloc[0]
-        plt.figure(figsize=(10, 6))
-        
-        if 'Kh_value' in df.columns and not df['Kh_value'].isna().all():
-            plt.plot(df['timestamp'], df['Kh_value'], color='purple')
+def generate_authority_plots(df, controller, behavior, output_dir, limits, aggregate_only=False):
+    save_dir = os.path.join(output_dir, controller, behavior)
+    os.makedirs(save_dir, exist_ok=True)
+    
+    trajectories = df['file_stem'].unique()
+    prefix = f"{controller}_{behavior}"
+    title_info = f"Controller: {controller.title()} | Phase: {behavior.replace('_', ' ').title()}"
 
-        plt.title(f"Human Control Parameter ($K_h$) Evolution\n{title_info} | Run: {file_stem}")
-        plt.xlabel("Timestamp")
-        plt.ylabel("Estimated $K_h$ Magnitude")
-        plt.xlim(limits['time'])
-        plt.ylim(limits['kh'])
-        plt.grid(True)
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, f"{prefix}_{file_stem}_Kh.pdf"))
-        plt.close()
+    # ----------------------------------------
+    # INDIVIDUAL PLOTS
+    # ----------------------------------------
+    if not aggregate_only:
+        for traj in trajectories:
+            traj_data = df[df['file_stem'] == traj]
+            
+            # --- Plot 1: Kh Evolution ---
+            plt.figure(figsize=(10, 6))
+            if 'Kh_value' in traj_data.columns and not traj_data['Kh_value'].isna().all():
+                plt.plot(traj_data['timestamp'], traj_data['Kh_value'], color='purple')
+            plt.title(f"Human Control Parameter ($K_h$) Evolution\n{title_info} | Run: {traj}")
+            plt.xlabel("Timestamp")
+            plt.ylabel("Estimated $K_h$ Magnitude")
+            plt.xlim(limits['time'])
+            plt.ylim(limits['kh'])
+            plt.grid(True)
+            plt.tight_layout()
+            plt.savefig(os.path.join(save_dir, f"{prefix}_{traj}_Kh.pdf"))
+            plt.close()
 
-def plot_input_comparison(trajectories, title_info, prefix, output_dir, limits):
-    for df in trajectories:
-        file_stem = df['file_stem'].iloc[0]
-        plt.figure(figsize=(12, 6))
-        
-        if 'u_h_mag' in df.columns:
-            plt.plot(df['timestamp'], df['u_h_mag'], color='blue', label="Human Input ($u_h$)")
-        if 'u_a_mag' in df.columns:
-            plt.plot(df['timestamp'], df['u_a_mag'], color='red', label="Adaptive Input ($u_a$)")
+            # --- Plot 2: Input Comparison ---
+            plt.figure(figsize=(12, 6))
+            if 'u_h_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_h_mag'], color='blue', label="Human Input ($u_h$)")
+            if 'u_a_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_a_mag'], color='red', label="Adaptive Input ($u_a$)")
+            plt.title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info} | Run: {traj}")
+            plt.xlabel("Timestamp")
+            plt.ylabel("Control Input Magnitude")
+            plt.xlim(limits['time'])
+            plt.ylim(limits['u_mag'])
+            plt.grid(True)
+            plt.legend(loc='upper right')
+            plt.tight_layout()
+            plt.savefig(os.path.join(save_dir, f"{prefix}_{traj}_inputs.pdf"))
+            plt.close()
 
-        plt.title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info} | Run: {file_stem}")
-        plt.xlabel("Timestamp")
-        plt.ylabel("Control Input Magnitude")
-        plt.xlim(limits['time'])
-        plt.ylim(limits['u_mag'])
-        plt.grid(True)
-        plt.legend(loc='upper right')
+    # ----------------------------------------
+    # AGGREGATED PLOTS
+    # ----------------------------------------
+    # --- Plot 1: Kh Evolution (all) ---
+    plt.figure(figsize=(10, 6))
+    for traj in trajectories:
+        traj_data = df[df['file_stem'] == traj]
+        if 'Kh_value' in traj_data.columns and not traj_data['Kh_value'].isna().all():
+            plt.plot(traj_data['timestamp'], traj_data['Kh_value'], color='purple', alpha=0.3)
+    plt.title(f"Human Control Parameter ($K_h$) Evolution\n{title_info}")
+    plt.xlabel("Timestamp")
+    plt.ylabel("Estimated $K_h$ Magnitude")
+    plt.xlim(limits['time'])
+    plt.ylim(limits['kh'])
+    plt.grid(True)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f"{prefix}_all_Kh.pdf"))
+    plt.close()
+
+    # --- Plot 2: Input Comparison (all) ---
+    plt.figure(figsize=(12, 6))
+    for idx, traj in enumerate(trajectories):
+        traj_data = df[df['file_stem'] == traj]
+        label_h = "Human Input ($u_h$)" if idx == 0 else ""
+        label_a = "Adaptive Input ($u_a$)" if idx == 0 else ""
         
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, f"{prefix}_{file_stem}_inputs.pdf"))
-        plt.close()
+        if 'u_h_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_h_mag'], color='blue', alpha=0.3, label=label_h)
+        if 'u_a_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_a_mag'], color='red', alpha=0.3, label=label_a)
+    plt.title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info}")
+    plt.xlabel("Timestamp")
+    plt.ylabel("Control Input Magnitude")
+    plt.xlim(limits['time'])
+    plt.ylim(limits['u_mag'])
+    plt.grid(True)
+    plt.legend(loc='upper right')
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f"{prefix}_all_inputs.pdf"))
+    plt.close()
 
 # ==========================================
 # 3. Main Execution Workflow
 # ==========================================
 
-def main(data_directory="data", base_output_dir="authority_plots"):
+def main(data_directory="data", output_directory="authority_plots"):
     csv_files = glob.glob(os.path.join(data_directory, "**", "*.csv"), recursive=True)
     
     if not csv_files:
         print("No CSV files found in the specified directory.")
         return
 
-    master_data = []
+    all_data = []
     for file in csv_files:
         df = pd.read_csv(file)
-        if 'study_controller_mode' in df.columns: df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.lower()
-        if 'study_phase' in df.columns: df['study_phase'] = df['study_phase'].astype(str).str.lower()
+        if 'study_controller_mode' in df.columns: df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
+        if 'study_phase' in df.columns: df['study_phase'] = df['study_phase'].astype(str).str.strip().str.lower()
             
         df = parse_and_calculate_inputs(df)
         df['file_stem'] = Path(file).stem
-        master_data.append(df)
+        all_data.append(df)
         
-    concat_df = pd.concat(master_data, ignore_index=True)
+    master_df = pd.concat(all_data, ignore_index=True)
     
-    # --- CALCULATE GLOBAL LIMITS FOR SCALING ---
     limits = {
-        'time': get_padded_limits([concat_df['timestamp']], pad=0),
-        'kh': get_padded_limits([concat_df['Kh_value']]),
-        'u_mag': get_padded_limits([concat_df['u_h_mag'], concat_df['u_a_mag']])
+        'time': get_padded_limits([master_df['timestamp']], pad=0),
+        'kh': get_padded_limits([master_df['Kh_value']]),
+        'u_mag': get_padded_limits([master_df['u_h_mag'], master_df['u_a_mag']])
     }
 
-    controllers = concat_df['study_controller_mode'].dropna().unique()
-    phases = concat_df['study_phase'].dropna().unique()
+    controllers = master_df['study_controller_mode'].dropna().unique()
+    behaviors = master_df['study_phase'].dropna().unique()
 
     for controller in controllers:
-        ctrl_trajectories = [df for df in master_data if df['study_controller_mode'].iloc[0] == controller]
-        if not ctrl_trajectories: continue
-        print(f"\nProcessing scaled plots for {controller.upper()} Controller...")
+        controller_df = master_df[master_df['study_controller_mode'] == controller]
         
-        for phase in phases:
-            phase_trajectories = [df for df in ctrl_trajectories if 'study_phase' in df.columns and df['study_phase'].iloc[0] == phase]
-            if not phase_trajectories: continue
-            
-            phase_dir = os.path.join(base_output_dir, controller, phase)
-            os.makedirs(phase_dir, exist_ok=True)
-            title_beh = f"Controller: {controller.title()} | Phase: {phase.title()}"
-            
-            plot_kh_evolution(phase_trajectories, title_beh, f"{controller}_{phase}", phase_dir, limits)
-            plot_input_comparison(phase_trajectories, title_beh, f"{controller}_{phase}", phase_dir, limits)
+        # 1. Plot aggregated all phases for this controller
+        print(f"Generating aggregated all phases plots for {controller.upper()} Controller...")
+        generate_authority_plots(controller_df, controller, "all_phases", output_directory, limits, aggregate_only=True)
 
-    print(f"\nDone. All scaled individual plots saved in '{base_output_dir}'.")
+        # 2. Iterate through specific phases
+        for behavior in behaviors:
+            behavior_df = controller_df[controller_df['study_phase'] == behavior]
+            
+            if not behavior_df.empty:
+                print(f"Generating scaled & aggregated plots for {controller} controller - {behavior} phase...")
+                generate_authority_plots(behavior_df, controller, behavior, output_directory, limits, aggregate_only=False)
 
 if __name__ == "__main__":
-    main(data_directory="../processed_logs", base_output_dir="../plots/authority_plots")
+    main(data_directory="../processed_logs", output_directory="../plots/authority_plots")
