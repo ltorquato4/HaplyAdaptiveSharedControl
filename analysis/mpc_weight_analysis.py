@@ -20,6 +20,10 @@ def parse_mpc_json(df):
 
     for json_str in df['K_a']:
         try:
+            # Handle potential NaN values or empty strings in K_a
+            if pd.isna(json_str) or not str(json_str).strip():
+                raise ValueError("Empty JSON")
+                
             data = json.loads(json_str)
             w_comfort.append(data.get('weight_comfort', np.nan))
             w_trajectory.append(data.get('weight_trajectory', np.nan))
@@ -33,7 +37,7 @@ def parse_mpc_json(df):
             r_diag_0.append(R[0][0] if len(R) > 0 and len(R[0]) > 0 else np.nan)
             p_diag_0.append(P[0][0] if len(P) > 0 and len(P[0]) > 0 else np.nan)
             
-        except (json.JSONDecodeError, TypeError, IndexError):
+        except (json.JSONDecodeError, TypeError, IndexError, ValueError):
             w_comfort.append(np.nan)
             w_trajectory.append(np.nan)
             w_goal.append(np.nan)
@@ -47,6 +51,10 @@ def parse_mpc_json(df):
     df['Q_diag_0'] = q_diag_0
     df['R_diag_0'] = r_diag_0
     df['P_diag_0'] = p_diag_0
+    
+    # Forward-fill and backward-fill in case 'fixed' controllers only log the JSON once
+    cols_to_fill = ['weight_comfort', 'weight_trajectory', 'weight_goal', 'Q_diag_0', 'R_diag_0', 'P_diag_0']
+    df[cols_to_fill] = df[cols_to_fill].ffill().bfill()
     
     return df
 
@@ -83,10 +91,10 @@ def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_o
             
             # --- Plot 1: Heuristic Weights ---
             plt.figure(figsize=(10, 6))
-            if not traj_data['weight_comfort'].isna().all():
-                plt.plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue', label='Comfort')
-                plt.plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green', label='Trajectory')
-                plt.plot(traj_data['timestamp'], traj_data['weight_goal'], color='red', label='Goal')
+            plt.plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue', label='Comfort')
+            plt.plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green', label='Trajectory')
+            plt.plot(traj_data['timestamp'], traj_data['weight_goal'], color='red', label='Goal')
+            
             plt.title(f"Heuristic Weighting Evolution\n{title_info} | Run: {traj}")
             plt.xlabel("Timestamp")
             plt.ylabel("Weight Value")
@@ -100,10 +108,9 @@ def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_o
 
             # --- Plot 2: Cost Matrices ---
             fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
-            if not traj_data['Q_diag_0'].isna().all():
-                axes[0].plot(traj_data['timestamp'], traj_data['Q_diag_0'], color='purple')
-                axes[1].plot(traj_data['timestamp'], traj_data['R_diag_0'], color='orange')
-                axes[2].plot(traj_data['timestamp'], traj_data['P_diag_0'], color='teal')
+            axes[0].plot(traj_data['timestamp'], traj_data['Q_diag_0'], color='purple')
+            axes[1].plot(traj_data['timestamp'], traj_data['R_diag_0'], color='orange')
+            axes[2].plot(traj_data['timestamp'], traj_data['P_diag_0'], color='teal')
 
             axes[0].set_title(f"Q Matrix (State Cost) Diagonal\n{title_info} | Run: {traj}")
             axes[0].set_ylabel("Q Value")
@@ -136,10 +143,10 @@ def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_o
         l_t = 'Trajectory' if idx == 0 else ""
         l_g = 'Goal' if idx == 0 else ""
         
-        if not traj_data['weight_comfort'].isna().all():
-            plt.plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue', label=l_c)
-            plt.plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green', label=l_t)
-            plt.plot(traj_data['timestamp'], traj_data['weight_goal'], color='red', label=l_g)
+        plt.plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue', label=l_c)
+        plt.plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green', label=l_t)
+        plt.plot(traj_data['timestamp'], traj_data['weight_goal'], color='red', label=l_g)
+            
     plt.title(f"Heuristic Weighting Evolution\n{title_info}")
     plt.xlabel("Timestamp")
     plt.ylabel("Weight Value")
@@ -155,10 +162,9 @@ def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_o
     fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
     for traj in trajectories:
         traj_data = df[df['file_stem'] == traj]
-        if not traj_data['Q_diag_0'].isna().all():
-            axes[0].plot(traj_data['timestamp'], traj_data['Q_diag_0'], color='purple')
-            axes[1].plot(traj_data['timestamp'], traj_data['R_diag_0'], color='orange')
-            axes[2].plot(traj_data['timestamp'], traj_data['P_diag_0'], color='teal')
+        axes[0].plot(traj_data['timestamp'], traj_data['Q_diag_0'], color='purple')
+        axes[1].plot(traj_data['timestamp'], traj_data['R_diag_0'], color='orange')
+        axes[2].plot(traj_data['timestamp'], traj_data['P_diag_0'], color='teal')
 
     axes[0].set_title(f"Q Matrix (State Cost) Diagonal\n{title_info}")
     axes[0].set_ylabel("Q Value")
@@ -190,8 +196,10 @@ def main(data_directory="data", output_directory="mpc_plots"):
     
     for file in csv_files:
         df = pd.read_csv(file)
-        if 'study_controller_mode' in df.columns: df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
-        if 'study_phase' in df.columns: df['study_phase'] = df['study_phase'].astype(str).str.strip().str.lower()
+        if 'study_controller_mode' in df.columns: 
+            df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
+        if 'study_phase' in df.columns: 
+            df['study_phase'] = df['study_phase'].astype(str).str.strip().str.lower()
                 
         df = parse_mpc_json(df)
         df['file_stem'] = Path(file).stem
@@ -211,6 +219,7 @@ def main(data_directory="data", output_directory="mpc_plots"):
         'P': get_padded_limits([master_df['P_diag_0']])
     }
 
+    # Automatically captures all controllers, including both 'fixed' and 'adaptive'
     controllers = master_df['study_controller_mode'].dropna().unique()
     behaviors = master_df['study_phase'].dropna().unique()
 
@@ -226,7 +235,7 @@ def main(data_directory="data", output_directory="mpc_plots"):
             behavior_df = controller_df[controller_df['study_phase'] == behavior]
             
             if not behavior_df.empty:
-                print(f"Generating scaled & aggregated plots for {controller} controller - {behavior} phase...")
+                print(f"Generating scaled & aggregated plots for {controller.upper()} controller - {behavior.upper()} phase...")
                 generate_mpc_plots(behavior_df, controller, behavior, output_directory, limits, aggregate_only=False)
 
 if __name__ == "__main__":
