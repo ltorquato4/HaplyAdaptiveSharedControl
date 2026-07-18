@@ -6,6 +6,10 @@ log/
 # Experiment log results
 logs/*
 
+# Analysis results
+processed_logs/*
+plots/*
+
 # python environment
 .venv/
 
