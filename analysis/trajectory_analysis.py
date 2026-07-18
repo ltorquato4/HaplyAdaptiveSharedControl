@@ -112,7 +112,7 @@ def generate_plots(df, controller, behavior, output_dir):
 
 def main(data_directory="data", output_directory="analysis_plots"):
     # Find all CSV files in the directory
-    csv_files = glob.glob(os.path.join(data_directory, "*.csv"))
+    csv_files = glob.glob(os.path.join(data_directory, "**", "*.csv"), recursive=True)
     
     all_data = []
     
@@ -151,5 +151,4 @@ def main(data_directory="data", output_directory="analysis_plots"):
                 generate_plots(behavior_df, controller, behavior, output_directory)
 
 if __name__ == "__main__":
-    # Ensure you set these directories to match your local file system
-    main(data_directory="./trajectories", output_directory="./plots")
+    main(data_directory="../processed_logs", output_directory="../plots/trajectory_plots")

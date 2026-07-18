@@ -120,7 +120,7 @@ def plot_input_comparison(trajectories, title_info, filename, output_dir):
 # ==========================================
 
 def main(data_directory="data", base_output_dir="authority_plots"):
-    csv_files = glob.glob(os.path.join(data_directory, "*.csv"))
+    csv_files = glob.glob(os.path.join(data_directory, "**", "*.csv"), recursive=True)
     
     if not csv_files:
         print("No CSV files found in the specified directory.")
@@ -179,5 +179,4 @@ def main(data_directory="data", base_output_dir="authority_plots"):
     print(f"\nDone. All plots saved in the '{base_output_dir}' directory, sorted by controller type.")
 
 if __name__ == "__main__":
-    # Update these directories to point to your specific data locations
-    main(data_directory="./trajectories", base_output_dir="./authority_plots")
+    main(data_directory="../processed_logs", base_output_dir="../plots/authority_plots")

@@ -125,7 +125,7 @@ def plot_cost_matrices(trajectories, title_suffix, filename, output_dir):
 
 def main(data_directory="data", output_directory="mpc_plots"):
     os.makedirs(output_directory, exist_ok=True)
-    csv_files = glob.glob(os.path.join(data_directory, "*.csv"))
+    csv_files = glob.glob(os.path.join(data_directory, "**", "*.csv"), recursive=True)
     
     adaptive_trajectories = []
     unique_behaviors = set()
@@ -182,5 +182,4 @@ def main(data_directory="data", output_directory="mpc_plots"):
     print(f"Done. Plots saved to {output_directory}/")
 
 if __name__ == "__main__":
-    # Ensure you set these directories to match your local file system
-    main(data_directory="./trajectories", output_directory="./mpc_plots")
+    main(data_directory="../processed_logs", output_directory="../plots/mpc_plots")
