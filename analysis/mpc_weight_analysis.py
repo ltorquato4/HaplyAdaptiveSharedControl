@@ -128,17 +128,17 @@ def main(data_directory="data", output_directory="mpc_plots"):
     csv_files = glob.glob(os.path.join(data_directory, "**", "*.csv"), recursive=True)
     
     adaptive_trajectories = []
-    unique_behaviors = set()
+    unique_phases = set()
     
     # Load and filter files
     for file in csv_files:
         df = pd.read_csv(file)
         
         # Proceed ONLY if this trajectory used the adaptive controller
-        if 'controller_type' in df.columns and df['controller_type'].iloc[0].lower() == 'adaptive':
-            # Track the behavior mode for categorization later
-            if 'behavior_mode' in df.columns:
-                unique_behaviors.add(df['behavior_mode'].iloc[0].lower())
+        if 'study_controller_mode' in df.columns and df['study_controller_mode'].iloc[0].lower() == 'adaptive':
+            # Track the phase for categorization later
+            if 'study_phase' in df.columns:
+                unique_phases.add(df['study_phase'].iloc[0].lower())
                 
             # Parse the JSON string in the K_a column
             df = parse_mpc_json(df)
@@ -150,32 +150,32 @@ def main(data_directory="data", output_directory="mpc_plots"):
 
     print(f"Processed {len(adaptive_trajectories)} total adaptive trajectories.")
 
-    # --- 1. All Behavior Modes Aggregated ---
-    print("Generating aggregate plots across ALL behavior modes...")
-    plot_heuristic_weights(adaptive_trajectories, "All Behavior Modes", "adaptive_all_modes_weights.png", output_directory)
-    plot_cost_matrices(adaptive_trajectories, "All Behavior Modes", "adaptive_all_modes_matrices.png", output_directory)
+    # --- 1. All Phases Aggregated ---
+    print("Generating aggregate plots across ALL study phases...")
+    plot_heuristic_weights(adaptive_trajectories, "All Study Phases", "adaptive_all_phases_weights.png", output_directory)
+    plot_cost_matrices(adaptive_trajectories, "All Study Phases", "adaptive_all_phases_matrices.png", output_directory)
 
-    # --- 2. Separated by Behavior Mode ---
-    for behavior in unique_behaviors:
-        print(f"Generating plots for behavior mode: '{behavior}'...")
+    # --- 2. Separated by Study Phase ---
+    for phase in unique_phases:
+        print(f"Generating plots for study phase: '{phase}'...")
         
-        # Filter the trajectories list for only data frames matching this behavior
-        behavior_trajectories = [
+        # Filter the trajectories list for only data frames matching this phase
+        phase_trajectories = [
             df for df in adaptive_trajectories 
-            if 'behavior_mode' in df.columns and df['behavior_mode'].iloc[0].lower() == behavior
+            if 'study_phase' in df.columns and df['study_phase'].iloc[0].lower() == phase
         ]
         
         # Generate mode-specific plots
         plot_heuristic_weights(
-            behavior_trajectories, 
-            f"Mode: {behavior.title()}", 
-            f"adaptive_{behavior}_weights.png", 
+            phase_trajectories, 
+            f"Phase: {phase.title()}", 
+            f"adaptive_{phase}_weights.png", 
             output_directory
         )
         plot_cost_matrices(
-            behavior_trajectories, 
-            f"Mode: {behavior.title()}", 
-            f"adaptive_{behavior}_matrices.png", 
+            phase_trajectories, 
+            f"Phase: {phase.title()}", 
+            f"adaptive_{phase}_matrices.png", 
             output_directory
         )
 

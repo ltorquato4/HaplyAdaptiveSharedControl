@@ -63,7 +63,7 @@ def generate_plots(df, controller, behavior, output_dir):
     plt.scatter(df['start_x'].iloc[0], df['start_y'].iloc[0], c='green', marker='o', s=100, label='Start', zorder=5)
     plt.scatter(df['end_x'].iloc[0], df['end_y'].iloc[0], c='red', marker='X', s=100, label='End', zorder=5)
     
-    plt.title(f"2D Cursor Trajectory\nController: {controller.title()} | Mode: {behavior.title()}")
+    plt.title(f"2D Cursor Trajectory\nController: {controller.title()} | Phase: {behavior.title()}")
     plt.xlabel("Cursor X")
     plt.ylabel("Cursor Y")
     plt.legend()
@@ -79,7 +79,7 @@ def generate_plots(df, controller, behavior, output_dir):
         traj_data = traj_data.sort_values(by='normalized_distance')
         plt.plot(traj_data['normalized_distance'], traj_data['orthogonal_error'], alpha=0.5)
     
-    plt.title(f"Positional Error vs Normalized Distance\nController: {controller.title()} | Mode: {behavior.title()}")
+    plt.title(f"Positional Error vs Normalized Distance\nController: {controller.title()} | Phase: {behavior.title()}")
     plt.xlabel("Normalized Distance (0 = Start, 1 = End)")
     plt.ylabel("Orthogonal Error")
     plt.grid(True)
@@ -93,7 +93,7 @@ def generate_plots(df, controller, behavior, output_dir):
         ax1.plot(traj_data['timestamp'], traj_data['haply_vel_x'], alpha=0.5)
         ax2.plot(traj_data['timestamp'], traj_data['haply_vel_y'], alpha=0.5)
     
-    ax1.set_title(f"Velocity Profile (X-axis)\nController: {controller.title()} | Mode: {behavior.title()}")
+    ax1.set_title(f"Velocity Profile (X-axis)\nController: {controller.title()} | Phase: {behavior.title()}")
     ax1.set_ylabel("Velocity X")
     ax1.grid(True)
 
@@ -131,23 +131,24 @@ def main(data_directory="data", output_directory="analysis_plots"):
     # Combine all trajectories into one large DataFrame
     master_df = pd.concat(all_data, ignore_index=True)
 
-    controllers = master_df['controller_type'].unique()
-    behaviors = master_df['behavior_mode'].unique()
+    # Use the updated column names
+    controllers = master_df['study_controller_mode'].dropna().unique()
+    behaviors = master_df['study_phase'].dropna().unique()
 
     # Iterate through Fixed vs Adaptive
     for controller in controllers:
-        controller_df = master_df[master_df['controller_type'] == controller]
+        controller_df = master_df[master_df['study_controller_mode'] == controller]
         
         # 1. Generate plots OVER ALL trajectories for this controller
         print(f"Generating aggregated plots for {controller} controller...")
-        generate_plots(controller_df, controller, "all_modes", output_directory)
+        generate_plots(controller_df, controller, "all_phases", output_directory)
         
         # 2. Generate plots separated by the distinct behavioral modes
         for behavior in behaviors:
-            behavior_df = controller_df[controller_df['behavior_mode'] == behavior]
+            behavior_df = controller_df[controller_df['study_phase'] == behavior]
             
             if not behavior_df.empty:
-                print(f"Generating plots for {controller} controller - {behavior} mode...")
+                print(f"Generating plots for {controller} controller - {behavior} phase...")
                 generate_plots(behavior_df, controller, behavior, output_directory)
 
 if __name__ == "__main__":
