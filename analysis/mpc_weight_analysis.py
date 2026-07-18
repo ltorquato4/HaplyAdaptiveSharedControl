@@ -90,18 +90,28 @@ def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_o
             traj_data = df[df['file_stem'] == traj]
             
             # --- Plot 1: Heuristic Weights ---
-            plt.figure(figsize=(10, 6))
-            plt.plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue', label='Comfort')
-            plt.plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green', label='Trajectory')
-            plt.plot(traj_data['timestamp'], traj_data['weight_goal'], color='red', label='Goal')
+            fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+            axes[0].plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue')
+            axes[1].plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green')
+            axes[2].plot(traj_data['timestamp'], traj_data['weight_goal'], color='red')
             
-            plt.title(f"Heuristic Weighting Evolution\n{title_info} | Run: {traj}")
-            plt.xlabel("Timestamp")
-            plt.ylabel("Weight Value")
-            plt.xlim(limits['time'])
-            plt.ylim(limits['weights'])
-            plt.grid(True)
-            plt.legend()
+            axes[0].set_title(f"Comfort Weight\n{title_info} | Run: {traj}")
+            axes[0].set_ylabel("Weight Value")
+            axes[0].set_xlim(limits['time'])
+            axes[0].set_ylim(limits['weights'])
+            axes[0].grid(True)
+
+            axes[1].set_title("Trajectory Weight")
+            axes[1].set_ylabel("Weight Value")
+            axes[1].set_ylim(limits['weights'])
+            axes[1].grid(True)
+
+            axes[2].set_title("Goal Weight")
+            axes[2].set_xlabel("Timestamp")
+            axes[2].set_ylabel("Weight Value")
+            axes[2].set_ylim(limits['weights'])
+            axes[2].grid(True)
+
             plt.tight_layout()
             plt.savefig(os.path.join(save_dir, f"{prefix}_{traj}_weights.pdf"))
             plt.close()
@@ -136,24 +146,30 @@ def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_o
     # AGGREGATED PLOTS
     # ----------------------------------------
     # --- Plot 1: Heuristic Weights (all) ---
-    plt.figure(figsize=(10, 6))
+    fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
     for idx, traj in enumerate(trajectories):
         traj_data = df[df['file_stem'] == traj]
-        l_c = 'Comfort' if idx == 0 else ""
-        l_t = 'Trajectory' if idx == 0 else ""
-        l_g = 'Goal' if idx == 0 else ""
-        
-        plt.plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue', label=l_c)
-        plt.plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green', label=l_t)
-        plt.plot(traj_data['timestamp'], traj_data['weight_goal'], color='red', label=l_g)
+        axes[0].plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue')
+        axes[1].plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green')
+        axes[2].plot(traj_data['timestamp'], traj_data['weight_goal'], color='red')
             
-    plt.title(f"Heuristic Weighting Evolution\n{title_info}")
-    plt.xlabel("Timestamp")
-    plt.ylabel("Weight Value")
-    plt.xlim(limits['time'])
-    plt.ylim(limits['weights'])
-    plt.grid(True)
-    plt.legend()
+    axes[0].set_title(f"Comfort Weight\n{title_info}")
+    axes[0].set_ylabel("Weight Value")
+    axes[0].set_xlim(limits['time'])
+    axes[0].set_ylim(limits['weights'])
+    axes[0].grid(True)
+
+    axes[1].set_title("Trajectory Weight")
+    axes[1].set_ylabel("Weight Value")
+    axes[1].set_ylim(limits['weights'])
+    axes[1].grid(True)
+
+    axes[2].set_title("Goal Weight")
+    axes[2].set_xlabel("Timestamp")
+    axes[2].set_ylabel("Weight Value")
+    axes[2].set_ylim(limits['weights'])
+    axes[2].grid(True)
+
     plt.tight_layout()
     plt.savefig(os.path.join(save_dir, f"{prefix}_all_weights.pdf"))
     plt.close()
