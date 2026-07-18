@@ -51,7 +51,6 @@ def parse_mpc_json(df):
     return df
 
 def get_padded_limits(series_list, pad=0.05):
-    """Calculates global min/max limits across multiple columns with a slight padding."""
     valid_mins = [s.min() for s in series_list if s.notna().any()]
     valid_maxs = [s.max() for s in series_list if s.notna().any()]
     if not valid_mins or not valid_maxs: return (0, 1)
@@ -67,58 +66,119 @@ def get_padded_limits(series_list, pad=0.05):
 # 2. Plotting Functions
 # ==========================================
 
-def plot_heuristic_weights(trajectories, title_suffix, prefix, output_dir, limits):
-    for df in trajectories:
-        file_stem = df['file_stem'].iloc[0]
-        plt.figure(figsize=(10, 6))
-        
-        if not df['weight_comfort'].isna().all():
-            plt.plot(df['timestamp'], df['weight_comfort'], color='blue', label='Comfort')
-            plt.plot(df['timestamp'], df['weight_trajectory'], color='green', label='Trajectory')
-            plt.plot(df['timestamp'], df['weight_goal'], color='red', label='Goal')
+def generate_mpc_plots(df, controller, behavior, output_dir, limits, aggregate_only=False):
+    save_dir = os.path.join(output_dir, controller, behavior)
+    os.makedirs(save_dir, exist_ok=True)
+    
+    trajectories = df['file_stem'].unique()
+    prefix = f"{controller}_{behavior}"
+    title_info = f"Controller: {controller.title()} | Phase: {behavior.replace('_', ' ').title()}"
 
-        plt.title(f"Heuristic Weighting Evolution\n({title_suffix}) | Run: {file_stem}")
-        plt.xlabel("Timestamp")
-        plt.ylabel("Weight Value")
-        plt.xlim(limits['time'])
-        plt.ylim(limits['weights'])
-        plt.grid(True)
-        plt.legend()
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, f"{prefix}_{file_stem}_weights.pdf"))
-        plt.close()
+    # ----------------------------------------
+    # INDIVIDUAL PLOTS
+    # ----------------------------------------
+    if not aggregate_only:
+        for traj in trajectories:
+            traj_data = df[df['file_stem'] == traj]
+            
+            # --- Plot 1: Heuristic Weights ---
+            plt.figure(figsize=(10, 6))
+            if not traj_data['weight_comfort'].isna().all():
+                plt.plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue', label='Comfort')
+                plt.plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green', label='Trajectory')
+                plt.plot(traj_data['timestamp'], traj_data['weight_goal'], color='red', label='Goal')
+            plt.title(f"Heuristic Weighting Evolution\n{title_info} | Run: {traj}")
+            plt.xlabel("Timestamp")
+            plt.ylabel("Weight Value")
+            plt.xlim(limits['time'])
+            plt.ylim(limits['weights'])
+            plt.grid(True)
+            plt.legend()
+            plt.tight_layout()
+            plt.savefig(os.path.join(save_dir, f"{prefix}_{traj}_weights.pdf"))
+            plt.close()
 
-def plot_cost_matrices(trajectories, title_suffix, prefix, output_dir, limits):
-    for df in trajectories:
-        file_stem = df['file_stem'].iloc[0]
-        fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
-        
-        if not df['Q_diag_0'].isna().all():
-            axes[0].plot(df['timestamp'], df['Q_diag_0'], color='purple')
-            axes[1].plot(df['timestamp'], df['R_diag_0'], color='orange')
-            axes[2].plot(df['timestamp'], df['P_diag_0'], color='teal')
+            # --- Plot 2: Cost Matrices ---
+            fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+            if not traj_data['Q_diag_0'].isna().all():
+                axes[0].plot(traj_data['timestamp'], traj_data['Q_diag_0'], color='purple')
+                axes[1].plot(traj_data['timestamp'], traj_data['R_diag_0'], color='orange')
+                axes[2].plot(traj_data['timestamp'], traj_data['P_diag_0'], color='teal')
 
-        axes[0].set_title(f"Q Matrix (State Cost) Diagonal\n({title_suffix}) | Run: {file_stem}")
-        axes[0].set_ylabel("Q Value")
-        axes[0].set_xlim(limits['time'])
-        axes[0].set_ylim(limits['Q'])
-        axes[0].grid(True)
+            axes[0].set_title(f"Q Matrix (State Cost) Diagonal\n{title_info} | Run: {traj}")
+            axes[0].set_ylabel("Q Value")
+            axes[0].set_xlim(limits['time'])
+            axes[0].set_ylim(limits['Q'])
+            axes[0].grid(True)
+            
+            axes[1].set_title("R Matrix (Control Effort) Diagonal")
+            axes[1].set_ylabel("R Value")
+            axes[1].set_ylim(limits['R'])
+            axes[1].grid(True)
+            
+            axes[2].set_title("P Matrix (Terminal Cost) Diagonal")
+            axes[2].set_xlabel("Timestamp")
+            axes[2].set_ylabel("P Value")
+            axes[2].set_ylim(limits['P'])
+            axes[2].grid(True)
+            plt.tight_layout()
+            plt.savefig(os.path.join(save_dir, f"{prefix}_{traj}_matrices.pdf"))
+            plt.close()
+
+    # ----------------------------------------
+    # AGGREGATED PLOTS
+    # ----------------------------------------
+    # --- Plot 1: Heuristic Weights (all) ---
+    plt.figure(figsize=(10, 6))
+    for idx, traj in enumerate(trajectories):
+        traj_data = df[df['file_stem'] == traj]
+        l_c = 'Comfort' if idx == 0 else ""
+        l_t = 'Trajectory' if idx == 0 else ""
+        l_g = 'Goal' if idx == 0 else ""
         
-        axes[1].set_title("R Matrix (Control Effort) Diagonal")
-        axes[1].set_ylabel("R Value")
-        axes[1].set_ylim(limits['R'])
-        axes[1].grid(True)
-        
-        axes[2].set_title("P Matrix (Terminal Cost) Diagonal")
-        axes[2].set_xlabel("Timestamp")
-        axes[2].set_ylabel("P Value")
-        axes[2].set_ylim(limits['P'])
-        axes[2].grid(True)
-        
-        plt.tight_layout()
-        plt.savefig(os.path.join(output_dir, f"{prefix}_{file_stem}_matrices.pdf"))
-        plt.close()
+        if not traj_data['weight_comfort'].isna().all():
+            plt.plot(traj_data['timestamp'], traj_data['weight_comfort'], color='blue', alpha=0.3, label=l_c)
+            plt.plot(traj_data['timestamp'], traj_data['weight_trajectory'], color='green', alpha=0.3, label=l_t)
+            plt.plot(traj_data['timestamp'], traj_data['weight_goal'], color='red', alpha=0.3, label=l_g)
+    plt.title(f"Heuristic Weighting Evolution\n{title_info}")
+    plt.xlabel("Timestamp")
+    plt.ylabel("Weight Value")
+    plt.xlim(limits['time'])
+    plt.ylim(limits['weights'])
+    plt.grid(True)
+    plt.legend()
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f"{prefix}_all_weights.pdf"))
+    plt.close()
+
+    # --- Plot 2: Cost Matrices (all) ---
+    fig, axes = plt.subplots(3, 1, figsize=(10, 10), sharex=True)
+    for traj in trajectories:
+        traj_data = df[df['file_stem'] == traj]
+        if not traj_data['Q_diag_0'].isna().all():
+            axes[0].plot(traj_data['timestamp'], traj_data['Q_diag_0'], color='purple', alpha=0.3)
+            axes[1].plot(traj_data['timestamp'], traj_data['R_diag_0'], color='orange', alpha=0.3)
+            axes[2].plot(traj_data['timestamp'], traj_data['P_diag_0'], color='teal', alpha=0.3)
+
+    axes[0].set_title(f"Q Matrix (State Cost) Diagonal\n{title_info}")
+    axes[0].set_ylabel("Q Value")
+    axes[0].set_xlim(limits['time'])
+    axes[0].set_ylim(limits['Q'])
+    axes[0].grid(True)
+    
+    axes[1].set_title("R Matrix (Control Effort) Diagonal")
+    axes[1].set_ylabel("R Value")
+    axes[1].set_ylim(limits['R'])
+    axes[1].grid(True)
+    
+    axes[2].set_title("P Matrix (Terminal Cost) Diagonal")
+    axes[2].set_xlabel("Timestamp")
+    axes[2].set_ylabel("P Value")
+    axes[2].set_ylim(limits['P'])
+    axes[2].grid(True)
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f"{prefix}_all_matrices.pdf"))
+    plt.close()
 
 # ==========================================
 # 3. Main Execution Workflow
@@ -126,24 +186,23 @@ def plot_cost_matrices(trajectories, title_suffix, prefix, output_dir, limits):
 
 def main(data_directory="data", output_directory="mpc_plots"):
     csv_files = glob.glob(os.path.join(data_directory, "**", "*.csv"), recursive=True)
-    all_trajectories = []
+    all_data = []
     
     for file in csv_files:
         df = pd.read_csv(file)
-        if 'study_controller_mode' in df.columns: df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.lower()
-        if 'study_phase' in df.columns: df['study_phase'] = df['study_phase'].astype(str).str.lower()
+        if 'study_controller_mode' in df.columns: df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
+        if 'study_phase' in df.columns: df['study_phase'] = df['study_phase'].astype(str).str.strip().str.lower()
                 
         df = parse_mpc_json(df)
         df['file_stem'] = Path(file).stem
-        all_trajectories.append(df)
+        all_data.append(df)
             
-    if not all_trajectories:
+    if not all_data:
         print("No valid trajectories found.")
         return
 
-    master_df = pd.concat(all_trajectories, ignore_index=True)
+    master_df = pd.concat(all_data, ignore_index=True)
     
-    # --- CALCULATE GLOBAL LIMITS FOR SCALING ---
     limits = {
         'time': get_padded_limits([master_df['timestamp']], pad=0),
         'weights': get_padded_limits([master_df['weight_comfort'], master_df['weight_trajectory'], master_df['weight_goal']]),
@@ -153,24 +212,22 @@ def main(data_directory="data", output_directory="mpc_plots"):
     }
 
     controllers = master_df['study_controller_mode'].dropna().unique()
-    phases = master_df['study_phase'].dropna().unique()
+    behaviors = master_df['study_phase'].dropna().unique()
 
     for controller in controllers:
-        print(f"Processing scaled MPC plots for {controller.upper()} controller...")
         controller_df = master_df[master_df['study_controller_mode'] == controller]
         
-        for phase in phases:
-            phase_df = controller_df[controller_df['study_phase'] == phase]
-            
-            if not phase_df.empty:
-                phase_dir = os.path.join(output_directory, controller, phase)
-                os.makedirs(phase_dir, exist_ok=True)
-                
-                phase_trajectories = [group for _, group in phase_df.groupby('file_stem')]
-                plot_heuristic_weights(phase_trajectories, f"Phase: {phase.title()}", f"{controller}_{phase}", phase_dir, limits)
-                plot_cost_matrices(phase_trajectories, f"Phase: {phase.title()}", f"{controller}_{phase}", phase_dir, limits)
+        # 1. Plot aggregated all phases for this controller
+        print(f"Generating aggregated all phases plots for {controller.upper()} Controller...")
+        generate_mpc_plots(controller_df, controller, "all_phases", output_directory, limits, aggregate_only=True)
 
-    print(f"Done. Scaled individual plots saved to {output_directory}/")
+        # 2. Iterate through specific phases
+        for behavior in behaviors:
+            behavior_df = controller_df[controller_df['study_phase'] == behavior]
+            
+            if not behavior_df.empty:
+                print(f"Generating scaled & aggregated plots for {controller} controller - {behavior} phase...")
+                generate_mpc_plots(behavior_df, controller, behavior, output_directory, limits, aggregate_only=False)
 
 if __name__ == "__main__":
     main(data_directory="../processed_logs", output_directory="../plots/mpc_plots")
