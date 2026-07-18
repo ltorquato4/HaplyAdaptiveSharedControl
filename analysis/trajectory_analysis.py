@@ -133,10 +133,33 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
 
     # 2. Positional Error (all)
     plt.figure(figsize=(8, 6))
+    
+    # Create a uniform grid from 0 to 1 to align all trajectories for averaging
+    common_norm_dist = np.linspace(0, 1, 500)
+    interpolated_errors = []
+
     for traj in trajectories:
         traj_data = df[df['file_stem'] == traj]
         traj_data_sorted = traj_data.sort_values(by='normalized_distance')
-        plt.plot(traj_data_sorted['normalized_distance'], traj_data_sorted['orthogonal_error'])
+        
+        # Plot the individual trajectory
+        plt.plot(traj_data_sorted['normalized_distance'], traj_data_sorted['orthogonal_error'], alpha=0.6)
+        
+        # Interpolate the trajectory's error onto the common grid
+        if len(traj_data_sorted) > 1:
+            interp_error = np.interp(
+                common_norm_dist, 
+                traj_data_sorted['normalized_distance'], 
+                traj_data_sorted['orthogonal_error']
+            )
+            interpolated_errors.append(interp_error)
+
+    # Calculate and plot the mean trajectory
+    if interpolated_errors:
+        mean_error = np.mean(interpolated_errors, axis=0)
+        plt.plot(common_norm_dist, mean_error, color='black', linewidth=3, linestyle='--', label='Mean Error', zorder=10)
+        plt.legend()
+
     plt.title(f"Positional Error vs Normalized Distance\nController: {controller.title()} | {title_phase}")
     plt.xlabel("Normalized Distance (0 = Start, 1 = End)")
     plt.ylabel("Orthogonal Error")
