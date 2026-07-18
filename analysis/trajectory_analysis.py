@@ -111,7 +111,7 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
     plt.figure(figsize=(8, 6))
     for idx, traj in enumerate(trajectories):
         traj_data = df[df['file_stem'] == traj]
-        plt.plot(traj_data['cursor_x'], traj_data['cursor_y'], alpha=0.3)
+        plt.plot(traj_data['cursor_x'], traj_data['cursor_y'])
         
         # Only add the label for the legend on the very first loop iteration
         l_start = 'Start' if idx == 0 else ""
@@ -136,7 +136,7 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
     for traj in trajectories:
         traj_data = df[df['file_stem'] == traj]
         traj_data_sorted = traj_data.sort_values(by='normalized_distance')
-        plt.plot(traj_data_sorted['normalized_distance'], traj_data_sorted['orthogonal_error'], alpha=0.3)
+        plt.plot(traj_data_sorted['normalized_distance'], traj_data_sorted['orthogonal_error'])
     plt.title(f"Positional Error vs Normalized Distance\nController: {controller.title()} | {title_phase}")
     plt.xlabel("Normalized Distance (0 = Start, 1 = End)")
     plt.ylabel("Orthogonal Error")
@@ -150,8 +150,8 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
     fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
     for traj in trajectories:
         traj_data = df[df['file_stem'] == traj]
-        ax1.plot(traj_data['timestamp'], traj_data['haply_vel_x'], alpha=0.3)
-        ax2.plot(traj_data['timestamp'], traj_data['haply_vel_y'], alpha=0.3)
+        ax1.plot(traj_data['timestamp'], traj_data['haply_vel_x'])
+        ax2.plot(traj_data['timestamp'], traj_data['haply_vel_y'])
     ax1.set_title(f"Velocity Profile\nController: {controller.title()} | {title_phase}")
     ax1.set_ylabel("Velocity X")
     ax1.set_xlim(limits['time'])

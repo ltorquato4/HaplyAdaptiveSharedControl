@@ -111,7 +111,7 @@ def generate_authority_plots(df, controller, behavior, output_dir, limits, aggre
     for traj in trajectories:
         traj_data = df[df['file_stem'] == traj]
         if 'Kh_value' in traj_data.columns and not traj_data['Kh_value'].isna().all():
-            plt.plot(traj_data['timestamp'], traj_data['Kh_value'], color='purple', alpha=0.3)
+            plt.plot(traj_data['timestamp'], traj_data['Kh_value'], color='purple')
     plt.title(f"Human Control Parameter ($K_h$) Evolution\n{title_info}")
     plt.xlabel("Timestamp")
     plt.ylabel("Estimated $K_h$ Magnitude")
@@ -129,8 +129,8 @@ def generate_authority_plots(df, controller, behavior, output_dir, limits, aggre
         label_h = "Human Input ($u_h$)" if idx == 0 else ""
         label_a = "Adaptive Input ($u_a$)" if idx == 0 else ""
         
-        if 'u_h_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_h_mag'], color='blue', alpha=0.3, label=label_h)
-        if 'u_a_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_a_mag'], color='red', alpha=0.3, label=label_a)
+        if 'u_h_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_h_mag'], color='blue', label=label_h)
+        if 'u_a_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_a_mag'], color='red', label=label_a)
     plt.title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info}")
     plt.xlabel("Timestamp")
     plt.ylabel("Control Input Magnitude")
@@ -146,7 +146,7 @@ def generate_authority_plots(df, controller, behavior, output_dir, limits, aggre
 # 3. Main Execution Workflow
 # ==========================================
 
-def main(data_directory="data", output_directory="authority_plots"):
+def main(data_directory="data", base_output_dir="authority_plots"):
     csv_files = glob.glob(os.path.join(data_directory, "**", "*.csv"), recursive=True)
     
     if not csv_files:
@@ -179,7 +179,7 @@ def main(data_directory="data", output_directory="authority_plots"):
         
         # 1. Plot aggregated all phases for this controller
         print(f"Generating aggregated all phases plots for {controller.upper()} Controller...")
-        generate_authority_plots(controller_df, controller, "all_phases", output_directory, limits, aggregate_only=True)
+        generate_authority_plots(controller_df, controller, "all_phases", base_output_dir, limits, aggregate_only=True)
 
         # 2. Iterate through specific phases
         for behavior in behaviors:
@@ -187,7 +187,7 @@ def main(data_directory="data", output_directory="authority_plots"):
             
             if not behavior_df.empty:
                 print(f"Generating scaled & aggregated plots for {controller} controller - {behavior} phase...")
-                generate_authority_plots(behavior_df, controller, behavior, output_directory, limits, aggregate_only=False)
+                generate_authority_plots(behavior_df, controller, behavior, base_output_dir, limits, aggregate_only=False)
 
 if __name__ == "__main__":
-    main(data_directory="../processed_logs", output_directory="../plots/authority_plots")
+    main(data_directory="../processed_logs", base_output_dir="../plots/authority_plots")
