@@ -6,6 +6,7 @@ The optimization yields an optimal sequence of virtual control inputs $\mathbf{U
 
 ---
 
+
 ### 1. State-Space Representation & Batch Prediction
 
 The system is modeled as a discrete-time Linear Time-Invariant (LTI) system:
@@ -24,36 +25,15 @@ $$\bar{A} = \begin{bmatrix} A \\ A^2 \\ \vdots \\ A^N \end{bmatrix}, \quad \bar{
 
 ---
 
-### 2. Real-Time Authority Estimation from Haptic Stiffness
 
-The interaction authority shifts between the human agent and the automaton by analyzing the structural components of the measured human haptic stiffness matrix $K_h$.
-
-Let the flattened stiffness components be mapped to extract specific operational attributes:
-
-* **Comfort (Locomotion Drive):** $\kappa_c = \frac{\vert{}K_0\vert{} + \vert{}K_6\vert{}}{2}$
-
-* **Trajectory (Stabilization/Caution):** $\kappa_t = \frac{\vert{}K_1\vert{} + \vert{}K_7\vert{}}{2}$
-
-
-The normalized dominance difference $\Delta \kappa$ computes the balance of authority bounded within $[-1, 1]$:
-
-$$\Delta \kappa = \text{clamp}\left( \frac{\kappa_c - \kappa_t}{\lambda}, \, -1.0, \, 1.0 \right)$$
-
-where $\lambda = 50.0 \text{ N/m}$ is a soft-normalization scale. This yields a dynamic parameter adjustment factor for the base cost weights:
-
-$$w_c(\Delta \kappa) = \max\left(0.1, \, 1.0 + 1.5\Delta \kappa\right) \cdot w_{c,\text{base}}$$
-
-$$w_t(\Delta \kappa) = \max\left(0.1, \, 1.0 - 1.5\Delta \kappa\right) \cdot w_{t,\text{base}}$$
-
----
-
-### 3. Dynamic Reference Trajectory Generation
+### 2. Dynamic Reference Trajectory Generation
 
 The reference trajectory $\mathbf{X}_{\text{ref}} = [x_{\text{ref}, 0}, \dots, x_{\text{ref}, N-1}]^T$ is synthesized at each time step by projecting the current actual state $x_0$ orthogonally onto the global path vector connecting the start position $\mathbf{p}_{\text{start}}$ and end position $\mathbf{p}_{\text{end}}$.
 
 ---
 
-### 4. The Mathematical Cost Optimization & Constraints
+
+### 3. The Mathematical Cost Optimization & Constraints
 
 The discrete optimization problem solved at every control interval is formulated as:
 
@@ -79,23 +59,13 @@ $$P = \text{diag}\big(100 w_g, \, 10 w_g, \, 100 w_g, \, 10 w_g\big)$$
 
 ---
 
-### 5. Boundary Boundary Override (Terminal Docking)
-
-When the progress variable reaches the terminal boundary ($t_{\text{current}} > 0.85$), the system locks into a terminal docking state. An exponential scaling function $\tau$ models the convergence proximity:
-
-$$\tau = \left( \frac{t_{\text{current}} - 0.85}{1.0 - 0.85} \right)^2$$
-
-The cost parameters undergo a smooth, non-linear transformation to prioritize mathematical convergence over human compliance:
-
-$$\begin{aligned} w_c &\leftarrow w_c \cdot (1.0 - 0.9\tau) \\ w_t &\leftarrow w_t \cdot (1.0 + 2.0\tau) \\ w_g &\leftarrow w_g \cdot (1.0 + 10^6\tau) \end{aligned}$$
-
-As $\tau \to 1$, the terminal penalty matrix element magnitudes expand exponentially ($P \to \infty$). This forces the optimization surface to form a strict global minimum at the goal coordinates, eliminating steady-state positioning error.
 
 ## Mathematical Formulation of the Dynamic Adaptation Mechanism
 
 At the core of the controller's intelligence is a continuous, online adaptation law that maps physical human behavior and task progress directly to the cost optimization parameters. Rather than using static weights ($w_{c,\text{base}}, w_{t,\text{base}}, w_{g,\text{base}}$), the MPC optimization surface is reshaped at every sampling interval $\Delta t$ by tracking a human-intent observer and a geometric progress metric.
 
 ---
+
 
 ### 1. The Human Intent & Authority Observer
 
@@ -117,6 +87,7 @@ $$\Delta \kappa = \text{clamp}\left( \frac{\kappa_c - \kappa_t}{\lambda}, \, -1.
 Where $\lambda = 50.0 \text{ N/m}$ is a soft-normalization scale that prevents sensor noise or transient force spikes from destabilizing the optimizer.
 
 ---
+
 
 ### 2. Linear Scaling Law & Authority Blending
 
@@ -141,7 +112,6 @@ $$w_t(\Delta \kappa) = \max\left( \delta_{\min}, \, 1.0 - \gamma \Delta \kappa \
 
 
 * **Safety Bound ($\delta_{\min} = 0.1$):** Acts as a mathematical safeguard. It guarantees that neither weight ever vanishes completely, ensuring that the optimization matrix remains strictly positive-definite ($\succ 0$) and stable.
-
 
 
 ---
