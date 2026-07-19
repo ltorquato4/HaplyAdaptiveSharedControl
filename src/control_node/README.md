@@ -42,6 +42,20 @@ ros2 launch control_node control_debug_launch.py
 
 When doing so, make sure the `control_node` is not running anywhere else.
 
+### Launch Control Node in Debug & Debug Visualizer and all other nodes
+
+With Haply:
+
+```bash
+ros2 launch control_node haply_control_debug_launch.py
+```
+
+With Mouse:
+
+```bash
+ros2 launch control_node mouse_control_debug_launch.py
+```
+
 ---
 
 ## 2. Core Controller Schemes
