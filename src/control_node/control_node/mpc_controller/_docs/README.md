@@ -130,4 +130,6 @@ $$\tau = \left( \frac{t_{\text{current}} - 0.85}{1.0 - 0.85} \right)^2$$
 
 Using $\tau$, the cost parameters undergo a final non-linear transformation before being pushed to the solver:
 
-$$\begin{aligned} w_c &\leftarrow w_c \cdot (1.0 - \alpha \tau) && \text{where } \alpha = 0.9 \\ w_t &\leftarrow w_t \cdot (1.0 + \beta \tau) && \text{where } \beta = 2.0 \\ w_g &\leftarrow w_g \cdot (1.0 + \eta \tau) && \text{where } \eta = 10^6 \end{aligned}$$
+$$\begin{aligned} w_c &\leftarrow w_c \cdot (1.0 - \alpha \tau) && \text{where } \alpha = 0.9 
+\\ w_t &\leftarrow w_t \cdot (1.0 + \beta \tau) && \text{where } \beta = 2.0 
+\\ w_g &\leftarrow w_g \cdot (1.0 + \eta \tau) && \text{where } \eta = 10^6 \end{aligned}$$
