@@ -21,14 +21,14 @@ class MpcController(Controller):
         start_point: Sequence[float],
         end_point: Sequence[float],
         dt: float,
-        prediction_horizon: int = 10,
+        prediction_horizon: int = 5,
         max_control: tuple[float, float] = (1.0, 1.0),
         max_velocity: tuple[float, float] = (1.0, 1.0),
         x_bounds: tuple[float, float] | None = None,
         y_bounds: tuple[float, float] | None = None,
-        weight_comfort: float = 1.0,
-        weight_trajectory: float = 1.0,
-        weight_goal: float = 1.0,
+        weight_comfort: float = 10e17,
+        weight_trajectory: float = 10e17,
+        weight_goal: float = 10e15,
     ) -> None:
         super().__init__(start_point, end_point, dt)
         self.prediction_horizon = prediction_horizon
@@ -80,6 +80,8 @@ class MpcController(Controller):
             ),
             state_dimension=4,
             input_dimension=2,
+            start_point=self.experiment_start_point, 
+            end_point=self.experiment_end_point,  
         )
 
     def _build_initial_state(self, current_point: Sequence[float]) -> np.ndarray:
@@ -130,3 +132,45 @@ class MpcController(Controller):
 
     def publish_control_parameter(self):
         return json.dumps(self.cost_function.get_parameters())
+    
+    def destroy(self) -> None:
+        """Explicitly tear down the MPC controller structure and free memory.
+        
+        This cleans up internal NumPy state buffers, cascades down to the CasADi 
+        Optimization orchestrator, and strips sub-component references to force 
+        immediate garbage collection.
+        """
+        # 1. Force cleanup of the symbolic optimizer structures
+        if hasattr(self, "optimizer") and self.optimizer is not None:
+            try:
+                self.optimizer.destroy()
+            except Exception:
+                pass
+            del self.optimizer
+            self.optimizer = None
+
+        # 2. Iteratively clear child components to isolate memory footprints
+        child_components = [
+            "linear_system_model", 
+            "constraints", 
+            "cost_function", 
+            "batch_predictor"
+        ]
+        for component_attr in child_components:
+            component = getattr(self, component_attr, None)
+            if component is not None:
+                # If these classes get upgraded later to have internal destroy loops
+                if hasattr(component, "destroy"):
+                    try:
+                        component.destroy()
+                    except Exception:
+                        pass
+                setattr(self, component_attr, None)
+
+        # 3. Wipe out structural runtime arrays and cached sequences
+        self.u_init = None
+        if hasattr(self, "u_a"):
+            self.u_a = None
+
+        import gc
+        gc.collect()

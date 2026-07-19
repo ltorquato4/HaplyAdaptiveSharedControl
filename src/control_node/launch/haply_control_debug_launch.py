@@ -1,4 +1,4 @@
-"""Launch the study GUI with mouse input, mapper, scenario generator, estimator, control node, and data logger."""
+"""Launch the controller debug environment with Haply input, orchestrator nodes, estimator, logger, and visualizer."""
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -15,7 +15,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    """Build the launch description for mouse-only GUI testing."""
+    """Build the launch description for hardware GUI testing with visual debugging."""
     task_file = LaunchConfiguration("task_file")
     controller_modes = LaunchConfiguration("controller_modes")
     log_level = LaunchConfiguration("log_level")
@@ -23,6 +23,18 @@ def generate_launch_description():
 
     default_task_file = PathJoinSubstitution(
         [FindPackageShare("study_orchestration"), "config", "default_tasks.yaml"]
+    )
+
+    haply_driver = Node(
+        package="haply_interface",
+        executable="haply_driver_node",
+        name="haply_driver_node",
+        output="screen",
+        parameters=[
+            {
+                "frequency": 100.0,
+            }
+        ],
     )
 
     scenario_generator = Node(
@@ -47,19 +59,40 @@ def generate_launch_description():
         output="screen",
         parameters=[
             {
-                "mapping_mode": "identity",
+                "mapping_mode": "anchored_delta",
+                "use_z_as_y": True,
+                "scale_x": 2.0,
+                "scale_y": 2.0,
+                "clamp_raw": True,
+                "raw_x_min": -0.20,
+                "raw_x_max": 0.20,
+                "raw_second_min": -0.20,
+                "raw_second_max": 0.20,
             }
         ],
     )
 
-    control_node = Node(
-        package="control_node",
-        executable="control_node",
-        name="control_node",
+    study_gui = Node(
+        package="haply_study_gui",
+        executable="study_gui",
+        name="study_gui",
         output="screen",
+        additional_env={
+            "SDL_AUDIODRIVER": "dummy",
+            "PYGAME_HIDE_SUPPORT_PROMPT": "1",
+            "AUDIODEV": "null",
+        },
         parameters=[
             {
-                "log_level": log_level,
+                "source": "haply",
+                "width": 1280,
+                "height": 720,
+                "side_panel_width": 300,
+                "workspace_padding": 52,
+                "render_fps": 100.0,
+                "state_publish_hz": 100.0,
+                "auto_start": False,
+                "endpoint_reached_radius": 0.01,
             }
         ],
     )
@@ -68,6 +101,18 @@ def generate_launch_description():
         package="estimator_node",
         executable="estimator_node",
         name="estimator_node",
+        output="screen",
+        parameters=[
+            {
+                "log_level": log_level,
+            }
+        ],
+    )
+
+    control_node = Node(
+        package="control_node",
+        executable="control_node",
+        name="control_node",
         output="screen",
         parameters=[
             {
@@ -89,30 +134,12 @@ def generate_launch_description():
         ],
     )
 
-    study_gui = Node(
-        package="haply_study_gui",
-        executable="study_gui",
-        name="study_gui",
+    # Pygame Visualizer Node for controller debugging
+    visualizer_node = Node(
+        package="control_node",
+        executable="test_control_node_output",
+        name="test_control_node_output",
         output="screen",
-        additional_env={
-            "SDL_AUDIODRIVER": "dummy",
-            "PYGAME_HIDE_SUPPORT_PROMPT": "1",
-            "AUDIODEV": "null",
-        },
-        parameters=[
-            {
-                "source": "mouse",
-                "width": 1280,
-                "height": 720,
-                "side_panel_width": 300,
-                "workspace_padding": 52,
-                "render_fps": 30.0,
-                "state_publish_hz": 100.0,
-                "mouse_simulation_hz": 100.0,
-                "auto_start": False,
-                "endpoint_reached_radius": 0.01,
-            }
-        ],
     )
 
     return LaunchDescription(
@@ -124,15 +151,12 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "controller_modes",
-                default_value="fixed",
-                description=(
-                    "Comma-separated controller modes: adaptive, fixed, "
-                    "or adaptive,fixed."
-                ),
+                default_value="adaptive",
+                description="Comma-separated controller modes: adaptive, fixed, or adaptive,fixed.",
             ),
             DeclareLaunchArgument(
                 "log_level",
-                default_value="INFO",
+                default_value="DEBUG",  # Defaulting to DEBUG for debugging purposes
                 description="Logging level for the nodes (DEBUG, INFO, WARN, ERROR).",
             ),
             DeclareLaunchArgument(
@@ -142,12 +166,14 @@ def generate_launch_description():
             ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
-            study_gui,
+            haply_driver,
             experiment_mapper,
             scenario_generator,
-            control_node,
+            study_gui,
             estimator_node,
+            control_node,
             data_logger_node,
+            visualizer_node,
             RegisterEventHandler(
                 OnProcessExit(
                     target_action=study_gui,

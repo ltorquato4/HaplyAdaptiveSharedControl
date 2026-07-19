@@ -18,7 +18,7 @@ From the repository root in WSL, run:
 
 ```bash
 ./setup.sh
-```
+```   
 
 The setup script installs ROS 2 Humble dependencies, creates `.venv` if needed,
 installs Python tooling into that virtual environment, installs rosdep

@@ -112,6 +112,7 @@ class ScenarioGenerator(Node):
             if not self.endpoint_latched:
                 self.start_gate_reached = True
                 self.last_rollout_time = time.monotonic()
+                self._publish_task_definition() # this is a hack, otherwise data logger does not get the task definition for the tasks
         elif not self.is_running:
             self.start_gate_reached = False
 

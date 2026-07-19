@@ -1,4 +1,4 @@
-"""Launch the study GUI with Haply input, mapper, and scenario data."""
+"""Launch the study GUI with Haply input, mapper, scenario data, estimator, control node, and data logger."""
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -15,9 +15,12 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    """Build the launch description for hardware GUI testing."""
+    """Build the launch description for hardware GUI testing with estimation, control, and logging."""
     task_file = LaunchConfiguration("task_file")
     controller_modes = LaunchConfiguration("controller_modes")
+    log_level = LaunchConfiguration("log_level")
+    save_directory = LaunchConfiguration("save_directory")
+
     default_task_file = PathJoinSubstitution(
         [FindPackageShare("study_orchestration"), "config", "default_tasks.yaml"]
     )
@@ -33,6 +36,7 @@ def generate_launch_description():
             }
         ],
     )
+
     scenario_generator = Node(
         package="study_orchestration",
         executable="scenario_generator",
@@ -47,6 +51,7 @@ def generate_launch_description():
             }
         ],
     )
+
     experiment_mapper = Node(
         package="study_orchestration",
         executable="experiment_mapper",
@@ -66,6 +71,7 @@ def generate_launch_description():
             }
         ],
     )
+
     study_gui = Node(
         package="haply_study_gui",
         executable="study_gui",
@@ -91,6 +97,43 @@ def generate_launch_description():
         ],
     )
 
+    estimator_node = Node(
+        package="estimator_node",
+        executable="estimator_node",
+        name="estimator_node",
+        output="screen",
+        parameters=[
+            {
+                "log_level": log_level,
+            }
+        ],
+    )
+
+    control_node = Node(
+        package="control_node",
+        executable="control_node",
+        name="control_node",
+        output="screen",
+        parameters=[
+            {
+                "log_level": log_level,
+            }
+        ],
+    )
+
+    data_logger_node = Node(
+        package="data_logger",
+        executable="data_logger_node",
+        name="data_logger_node",
+        output="screen",
+        parameters=[
+            {
+                "save_directory": save_directory,
+                "log_level": log_level,
+            }
+        ],
+    )
+
     return LaunchDescription(
         [
             DeclareLaunchArgument(
@@ -100,11 +143,21 @@ def generate_launch_description():
             ),
             DeclareLaunchArgument(
                 "controller_modes",
-                default_value="fixed",
+                default_value="adaptive",
                 description=(
                     "Comma-separated controller modes: adaptive, fixed, "
                     "or adaptive,fixed."
                 ),
+            ),
+            DeclareLaunchArgument(
+                "log_level",
+                default_value="INFO",
+                description="Logging level for the nodes (DEBUG, INFO, WARN, ERROR).",
+            ),
+            DeclareLaunchArgument(
+                "save_directory",
+                default_value="./logs",
+                description="Directory path where trial CSV files will be saved.",
             ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
@@ -112,6 +165,9 @@ def generate_launch_description():
             experiment_mapper,
             scenario_generator,
             study_gui,
+            estimator_node,
+            control_node,
+            data_logger_node,
             RegisterEventHandler(
                 OnProcessExit(
                     target_action=study_gui,

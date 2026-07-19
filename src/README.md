@@ -47,10 +47,7 @@ boundaries, topics, and fault-handling path.
 - Owns the current task definition through the randomized start and end points.
 - Defines each phase's Behavioral State: aggressive, normal, or careful.
 - Defines each phase's controller mode: adaptive or fixed.
-- Publishes start/end points to GUI, Experiment Mapper, Controller, Estimator,
-  and Logger. The default task uses exactly three points chained as
-  `P0 -> P1`, `P1 -> P2`, and `P2 -> P0`, so each start point is the previous
-  endpoint.
+- Publishes start/end points to GUI, Experiment Mapper, Controller, Estimator and Logger. The tasks are read from a config file in the `study_orchestration/config` folder.
 - Publishes `/study_phase` to GUI and Logger.
 - Publishes `/study_controller_mode` to GUI, Controller, and Logger.
 - Subscribes to `/experiment_cursor_position` to compute progress and endpoint
@@ -192,10 +189,10 @@ flowchart LR
 | `/study_end_point` | `geometry_msgs/Point` | Scenario Generator | GUI, Controller, Estimator, Logger | Current phase endpoint used by MPC, Estimator, GUI, and Logger. |
 | `/study_phase` | `std_msgs/String` | Scenario Generator | GUI, Logger | Behavioral State phase: `aggressive`, `normal`, or `careful`. |
 | `/study_controller_mode` | `std_msgs/String` | Scenario Generator | GUI, Controller, Logger | Control condition for the current phase: `adaptive` or `fixed`. Logger records this for fixed/adaptive analysis. |
-| `/estimation/K_h` | `std_msgs/Float64` | Estimator | Controller, Logger | Estimated human stiffness. |
+| `/estimation/K_h` | `std_msgs/Float64MultiArray` | Estimator | Controller, Logger | Estimated human stiffness. |
 | `/estimation/u_h` | `geometry_msgs/Vector3` | Estimator | Logger | Estimated human effort/control input in task space. |
 | `/control/U_a` | `geometry_msgs/Vector3` | Controller | Logger | Applied robot assistance/control force, logged as a diagnostic only. |
-| `/control/K_a` | `std_msgs/Float64` | Controller | Logger | Active controller gain used for the current phase. |
+| `/control/K_a` | `std_msgs/String` | Controller | Logger | Active controller gain used for the current phase. |
 
 ## 4. Fault Handling Path
 

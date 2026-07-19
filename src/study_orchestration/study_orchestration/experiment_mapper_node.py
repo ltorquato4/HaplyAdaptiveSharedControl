@@ -43,6 +43,7 @@ class ExperimentMapper(Node):
         self.mapping_mode = (
             str(self.get_parameter("mapping_mode").value).strip().lower()
         )
+
         if self.mapping_mode not in self.VALID_MAPPING_MODES:
             raise ValueError(
                 f"mapping_mode must be one of {sorted(self.VALID_MAPPING_MODES)}"
@@ -60,9 +61,12 @@ class ExperimentMapper(Node):
             raw_second_min=float(self.get_parameter("raw_second_min").value),
             raw_second_max=float(self.get_parameter("raw_second_max").value),
         )
+
         self.anchored_mapper = AnchoredDeltaMapper(config)
+
         self.latest_raw_position: TaskPoint | None = None
         self.study_start_point: TaskPoint | None = None
+
         self.is_running = False
         self.anchor_pending = True
         self.trial_anchor_locked = False
@@ -88,14 +92,15 @@ class ExperimentMapper(Node):
         )
 
     def _haply_state(self, msg: HaplyState) -> None:
-        raw_position = self._from_point_msg(msg.position)
-        self.latest_raw_position = raw_position
+        self.latest_raw_position = self._from_point_msg(msg.position)
         self._capture_anchor_if_ready()
 
     def _study_start_point(self, msg: Point) -> None:
         next_start_point = self._from_point_msg(msg)
+
         if self.study_start_point is None or self._point_changed(
-            self.study_start_point, next_start_point
+            self.study_start_point,
+            next_start_point,
         ):
             self.study_start_point = next_start_point
             self.anchor_pending = True
@@ -105,6 +110,7 @@ class ExperimentMapper(Node):
     def _study_is_running(self, msg: Bool) -> None:
         was_running = self.is_running
         self.is_running = bool(msg.data)
+
         if self.is_running and not was_running:
             self._capture_anchor_if_ready()
             if self.anchored_mapper.is_ready:
@@ -124,8 +130,10 @@ class ExperimentMapper(Node):
             raw_position=self.latest_raw_position,
             task_start=self.study_start_point,
         )
+
         self.anchor_pending = False
-        self.get_logger().info(
+
+        self.get_logger().debug(
             "Captured mapper anchor: "
             f"raw=({self.latest_raw_position.x:.4f}, "
             f"{self.latest_raw_position.y:.4f}), "
@@ -154,9 +162,17 @@ class ExperimentMapper(Node):
         self.cursor_pub.publish(msg)
 
     def _from_point_msg(self, msg: Point) -> TaskPoint:
-        return TaskPoint(x=float(msg.x), y=float(msg.y), z=float(msg.z))
+        return TaskPoint(
+            x=float(msg.x),
+            y=float(msg.y),
+            z=float(msg.z),
+        )
 
-    def _point_changed(self, first: TaskPoint, second: TaskPoint) -> bool:
+    def _point_changed(
+        self,
+        first: TaskPoint,
+        second: TaskPoint,
+    ) -> bool:
         return (
             abs(first.x - second.x) > 1e-6
             or abs(first.y - second.y) > 1e-6
@@ -167,15 +183,21 @@ class ExperimentMapper(Node):
 def main(args=None):
     """Start the Experiment Mapper."""
     rclpy.init(args=args)
+
     node = ExperimentMapper()
+
     try:
         rclpy.spin(node)
+
     except ExternalShutdownException:
         pass
+
     except KeyboardInterrupt:
         node.get_logger().info("Shutting down...")
+
     finally:
         node.destroy_node()
+
         if rclpy.ok():
             rclpy.shutdown()
 

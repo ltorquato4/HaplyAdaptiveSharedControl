@@ -1,4 +1,4 @@
-"""Launch the study GUI with mouse input, mapper, scenario generator, estimator, control node, and data logger."""
+"""Launch the controller debug environment with mouse input, orchestrator nodes, estimator, logger, and visualizer."""
 
 from launch import LaunchDescription
 from launch.actions import (
@@ -15,7 +15,7 @@ from launch_ros.substitutions import FindPackageShare
 
 
 def generate_launch_description():
-    """Build the launch description for mouse-only GUI testing."""
+    """Build the launch description for mouse-only testing with visual debugging."""
     task_file = LaunchConfiguration("task_file")
     controller_modes = LaunchConfiguration("controller_modes")
     log_level = LaunchConfiguration("log_level")
@@ -115,6 +115,14 @@ def generate_launch_description():
         ],
     )
 
+    # Pygame Visualizer Node for controller debugging
+    visualizer_node = Node(
+        package="control_node",
+        executable="test_control_node_output",
+        name="test_control_node_output",
+        output="screen",
+    )
+
     return LaunchDescription(
         [
             DeclareLaunchArgument(
@@ -125,14 +133,11 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "controller_modes",
                 default_value="fixed",
-                description=(
-                    "Comma-separated controller modes: adaptive, fixed, "
-                    "or adaptive,fixed."
-                ),
+                description="Comma-separated controller modes: adaptive, fixed, or adaptive,fixed.",
             ),
             DeclareLaunchArgument(
                 "log_level",
-                default_value="INFO",
+                default_value="DEBUG",  # Defaulting to DEBUG for debugging purposes
                 description="Logging level for the nodes (DEBUG, INFO, WARN, ERROR).",
             ),
             DeclareLaunchArgument(
@@ -148,6 +153,7 @@ def generate_launch_description():
             control_node,
             estimator_node,
             data_logger_node,
+            visualizer_node,
             RegisterEventHandler(
                 OnProcessExit(
                     target_action=study_gui,

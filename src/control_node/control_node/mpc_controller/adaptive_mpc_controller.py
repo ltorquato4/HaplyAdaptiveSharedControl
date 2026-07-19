@@ -1,22 +1,10 @@
 from __future__ import annotations
 
 from collections.abc import Sequence
-
 import numpy as np
 
 from control_node.controller_interface import AdaptiveController
-
 from .mpc_controller import MpcController
-
-FACTOR_DEFAULT = 0.5
-FACTOR_RANGE: list[float] = []
-
-BORDER_ONE_DEFAULT = 0.3
-BORDER_ONE_RANGE = [0.2, 0.4]
-
-BORDER_TWO_DEFAULT = 0.7
-BORDER_TWO_RANGE = [0.6, 0.8]
-
 
 class AdaptiveMpcController(AdaptiveController, MpcController):
     def __init__(
@@ -52,24 +40,16 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         self.weight_goal_base = weight_goal
 
         self.progress_along_path = 0.0
+        self.in_docking_zone_already_once = False
 
-    def adapt(self, K_h: Sequence[Sequence[float]]) -> None:
+    def adapt(self, K_h: Sequence[Sequence[float]] | Sequence[float]) -> None:
         """
         Adapt MPC objective weights based on:
-        1. Progress along the path.
-        2. Magnitude of human gain K_h.
-
-        Increasing K_h:
-            - decreases comfort weight
-            - increases trajectory weight
-            - increases goal weight
-
-        Decreasing K_h:
-            - increases comfort weight
-            - decreases trajectory weight
-            - decreases goal weight
+        1. Progress along the path (with a Terminal Docking Zone).
+        2. Balance of human gain K_h (Cooperative authority model using 
+           aggressive vs. careful stiffness components).
         """
-
+        # 1. Calculate path progress metrics
         distance_start_to_end = np.linalg.norm(
             self.experiment_end_point - self.experiment_start_point
         )
@@ -89,75 +69,54 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
             else 0.0
         )
 
-        progress_along_path = np.clip(
-            self.progress_along_path,
-            0.0,
-            1.0,
-        )
+        progress_along_path = np.clip(self.progress_along_path, 0.0, 1.0)
 
-        # Human gain magnitude
-        K_h_array = np.asarray(K_h, dtype=float)
-        K_h_magnitude = np.linalg.norm(K_h_array)
+        # 2. Extract active components from K_h safely
+        K_h_flat = np.asarray(K_h, dtype=float).flatten()
+        K_0 = K_h_flat[0] if K_h_flat.size > 0 else 0.0
+        K_1 = K_h_flat[1] if K_h_flat.size > 1 else 0.0
+        K_2 = K_h_flat[2] if K_h_flat.size > 2 else 0.0
+        K_3 = K_h_flat[3] if K_h_flat.size > 3 else 0.0
 
-        # Normalize to approximately [0, 1]
-        normalized_human_gain = np.tanh(K_h_magnitude)
+        # Mathematically corrected averaging
+        comfort_factor = (abs(K_0) + abs(K_2)) / 2.0
+        trajectory_factor = (abs(K_1) + abs(K_3)) / 2.0
 
-        # Adapt borders based on human gain
-        border_one = BORDER_ONE_RANGE[0] + normalized_human_gain * (
-            BORDER_ONE_RANGE[1] - BORDER_ONE_RANGE[0]
-        )
+        # 3. Compute Normalized Dominance Difference to keep things bounded
+        # We divide by a soft-normalization factor (e.g., 50.0 N/m) to scale the influence,
+        # then clip it to prevent extreme weights.
+        normalization_scale = 50.0
+        stiffness_diff = (comfort_factor - trajectory_factor) / normalization_scale
+        stiffness_diff = np.clip(stiffness_diff, -1.0, 1.0) # Keeps delta factors between [-1, 1]
 
-        border_two = BORDER_TWO_RANGE[1] - normalized_human_gain * (
-            BORDER_TWO_RANGE[1] - BORDER_TWO_RANGE[0]
-        )
+        # 4. Calculate adaptive weights
+        # When comfort_factor > trajectory_factor:
+        #   - Comfort weight increases (robot complies with user's direct intent)
+        #   - Trajectory weight decreases (robot loosens its track-keeping)
+        comfort_weight = self.weight_comfort_base * (1.0 + 1.5 * stiffness_diff)
+        trajectory_weight = self.weight_trajectory_base * (1.0 - 1.5 * stiffness_diff)
+        
+        # Goal weight remains constant and is only adapted in close proximity to the docking zone 
+        goal_weight = self.weight_goal_base 
 
-        scaling_factor = FACTOR_DEFAULT
+        # 5. Ensure All Weights Stay Strictly Positive (Safety Guard)
+        comfort_weight = max(comfort_weight, self.weight_comfort_base * 0.1)
+        trajectory_weight = max(trajectory_weight, self.weight_trajectory_base * 0.1)
+        goal_weight = max(goal_weight, self.weight_goal_base * 0.1)
 
-        if FACTOR_RANGE:
-            scaling_factor = FACTOR_RANGE[0] + normalized_human_gain * (
-                FACTOR_RANGE[1] - FACTOR_RANGE[0]
-            )
+        # 6. Terminal Docking Zone Override (Last 20% of path)
+        TERMINAL_THRESHOLD = 0.85 
+        if progress_along_path > TERMINAL_THRESHOLD or self.in_docking_zone_already_once:
+            self.in_docking_zone_already_once = True
+            terminal_fraction = (progress_along_path - TERMINAL_THRESHOLD) / (1.0 - TERMINAL_THRESHOLD)
+            t_scale = terminal_fraction ** 2
 
-        # Progress-based adaptation
-        if progress_along_path < border_one:
-            gain_scale = 1.0 - scaling_factor * (progress_along_path / border_one)
+            # Smoothly shift authority to the computer to lock onto the target
+            comfort_weight   *= (1.0 - 0.9 * t_scale)
+            trajectory_weight *= (1.0 + 2.0 * t_scale)
+            goal_weight *= (1.0 + 10e5 * t_scale)
 
-        elif progress_along_path > border_two:
-            gain_scale = 1.0 - scaling_factor * (
-                (1.0 - progress_along_path) / (1.0 - border_two)
-            )
-
-        else:
-            gain_scale = 1.0 - scaling_factor
-
-        gain_scale = np.clip(gain_scale, 0.0, 1.0)
-
-        # ------------------------------------------------------------------
-        # Direct human-gain adaptation
-        # Higher K_h:
-        #   less comfort
-        #   more trajectory tracking
-        #   more goal seeking
-        # ------------------------------------------------------------------
-
-        comfort_gain_factor = 1.5 - normalized_human_gain
-        trajectory_gain_factor = 0.5 + normalized_human_gain
-        goal_gain_factor = 0.5 + 1.5 * normalized_human_gain
-
-        comfort_weight = (
-            self.weight_comfort_base * (1.0 - 0.75 * gain_scale) * comfort_gain_factor
-        )
-
-        trajectory_weight = (
-            self.weight_trajectory_base
-            * (0.5 + 0.5 * gain_scale)
-            * trajectory_gain_factor
-        )
-
-        goal_weight = (
-            self.weight_goal_base * (0.5 + 1.5 * gain_scale) * goal_gain_factor
-        )
-
+        # Push calculated changes down to active solver parameters
         self.cost_function.set_weights(
             weight_comfort=comfort_weight,
             weight_trajectory=trajectory_weight,
