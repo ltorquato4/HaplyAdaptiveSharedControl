@@ -3,7 +3,7 @@ import numpy as np
 
 
 class LinearSystemModel:
-    """Linear state-space model x(k+1) = A x(k) + B u(k) + z(k)."""
+    """Linear state-space model x(k+1) = A x(k) + B u(k)."""
 
     def __init__(self, dt):
         """Initialize the model with sampling time ``dt``."""

@@ -93,9 +93,8 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         # When comfort_factor > trajectory_factor:
         #   - Comfort weight increases (robot complies with user's direct intent)
         #   - Trajectory weight decreases (robot loosens its track-keeping)
-        # makes sure waits never become negative
-        comfort_weight = max(0, self.weight_comfort_base * (1.0 + 1.5 * stiffness_diff))
-        trajectory_weight = max(0, self.weight_trajectory_base * (1.0 - 1.5 * stiffness_diff))
+        comfort_weight = self.weight_comfort_base * (1.0 + 1.5 * stiffness_diff)
+        trajectory_weight = self.weight_trajectory_base * (1.0 - 1.5 * stiffness_diff)
         
         # Goal weight remains constant and is only adapted in close proximity to the docking zone 
         goal_weight = self.weight_goal_base 
