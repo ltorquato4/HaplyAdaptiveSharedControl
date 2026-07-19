@@ -75,12 +75,12 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         K_h_flat = np.asarray(K_h, dtype=float).flatten()
         K_0 = K_h_flat[0] if K_h_flat.size > 0 else 0.0
         K_1 = K_h_flat[1] if K_h_flat.size > 1 else 0.0
-        K_6 = K_h_flat[6] if K_h_flat.size > 6 else 0.0
-        K_7 = K_h_flat[7] if K_h_flat.size > 7 else 0.0
+        K_2 = K_h_flat[2] if K_h_flat.size > 2 else 0.0
+        K_3 = K_h_flat[3] if K_h_flat.size > 3 else 0.0
 
         # Mathematically corrected averaging
-        comfort_factor = (abs(K_0) + abs(K_6)) / 2.0
-        trajectory_factor = (abs(K_1) + abs(K_7)) / 2.0
+        comfort_factor = (abs(K_0) + abs(K_2)) / 2.0
+        trajectory_factor = (abs(K_1) + abs(K_3)) / 2.0
 
         # 3. Compute Normalized Dominance Difference to keep things bounded
         # We divide by a soft-normalization factor (e.g., 50.0 N/m) to scale the influence,

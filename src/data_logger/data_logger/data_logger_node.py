@@ -36,7 +36,7 @@ class DataLoggerNode(Node):
         # Generate a timestamp for this specific run
         run_timestamp = datetime.now().strftime("%Y-%m-%d_%H-%M-%S")
         
-        # Combine them so all trajectorys in this run go into the timestamped folder
+        # Combine them so all trajectories in this run go into the timestamped folder
         self.save_directory = os.path.join(base_directory, run_timestamp)
 
         self.log_level = (
@@ -51,7 +51,9 @@ class DataLoggerNode(Node):
         self.study_is_running = False
         self.recording = False
         
-        self.latest = {}
+        # Explicit state splitting
+        self.trial_metadata = {}  
+        self.latest_sample = {}  
         self.flush_counter = 0
 
         self.csv_logger = CSVLogger(
@@ -135,14 +137,18 @@ class DataLoggerNode(Node):
             "endpoint_reached",
         ]
 
-    def reset_state(self):
-        self.latest = {}
+    def reset_sample_state(self):  
+        self.latest_sample = {}  
+
+    def reset_all_state(self):  
+        self.trial_metadata = {}  
+        self.latest_sample = {}  
 
     def start_recording(self):
         if self.recording:
             return
 
-        self.reset_state()
+        self.reset_sample_state()  
         trajectory_id, filepath = self.csv_logger.start()
         self.recording = True
         self.get_logger().info(f"Study started! Recording trajectory {trajectory_id}: {filepath}")
@@ -153,7 +159,7 @@ class DataLoggerNode(Node):
 
         self.csv_logger.stop()
         self.recording = False
-        self.reset_state()
+        self.reset_sample_state()  
         self.get_logger().info("Study stopped. Data logging stopped.")
 
     def setup_subscribers(self):
@@ -243,7 +249,6 @@ class DataLoggerNode(Node):
 
     def study_running_callback(self, msg):
         self._log_received_message("/study_is_running", msg)
-        self.latest["study_running"] = msg.data
 
         new_study_is_running = msg.data
         if self.study_is_running == new_study_is_running:
@@ -252,76 +257,73 @@ class DataLoggerNode(Node):
         self.study_is_running = new_study_is_running
         self.get_logger().debug(f"Study is running state changed: {self.study_is_running}")
 
-        # Start or Stop logging based solely on the study_is_running value
         if self.study_is_running:
             self.start_recording()
         else:
             self.stop_recording()
 
-    def phase_callback(self, msg):
-        self._log_received_message("/study_phase", msg)
-        self.latest["study_phase"] = msg.data
+    def phase_callback(self, msg):  
+        self._log_received_message("/study_phase", msg)  
+        self.trial_metadata["study_phase"] = msg.data  
 
-    def mode_callback(self, msg):
-        self._log_received_message("/study_controller_mode", msg)
-        self.latest["study_controller_mode"] = msg.data
+    def mode_callback(self, msg):  
+        self._log_received_message("/study_controller_mode", msg)  
+        self.trial_metadata["study_controller_mode"] = msg.data  
 
-    def start_point_callback(self, msg):
-        self._log_received_message("/study_start_point", msg)
-        self.latest["start"] = msg
+    def start_point_callback(self, msg):  
+        self._log_received_message("/study_start_point", msg)  
+        self.trial_metadata["start"] = msg  
 
-    def end_point_callback(self, msg):
-        self._log_received_message("/study_end_point", msg)
-        self.latest["end"] = msg
+    def end_point_callback(self, msg):  
+        self._log_received_message("/study_end_point", msg)  
+        self.trial_metadata["end"] = msg  
 
-    def cursor_callback(self, msg):
-        self._log_received_message("/experiment_cursor_position", msg)
-        self.latest["cursor"] = msg
+    def cursor_callback(self, msg):  
+        self._log_received_message("/experiment_cursor_position", msg)  
+        self.latest_sample["cursor"] = msg  
 
-    def kh_callback(self, msg):
-        self._log_received_message("/estimation/K_h", msg)
-        self.latest["K_h"] = msg.data
+    def kh_callback(self, msg):  
+        self._log_received_message("/estimation/K_h", msg)  
+        self.latest_sample["K_h"] = msg.data  
 
-    def uh_callback(self, msg):
-        self._log_received_message("/estimation/u_h", msg)
-        self.latest["u_h"] = msg
+    def uh_callback(self, msg):  
+        self._log_received_message("/estimation/u_h", msg)  
+        self.latest_sample["u_h"] = msg  
 
-    def ka_callback(self, msg):
-        self._log_received_message("/control/K_a", msg)
-        self.latest["K_a"] = msg.data
+    def ka_callback(self, msg):  
+        self._log_received_message("/control/K_a", msg)  
+        self.latest_sample["K_a"] = msg.data  
 
-    def ua_callback(self, msg):
-        self._log_received_message("/control/U_a", msg)
-        self.latest["u_a"] = msg
+    def ua_callback(self, msg):  
+        self._log_received_message("/control/U_a", msg)  
+        self.latest_sample["u_a"] = msg  
 
     def endpoint_callback(self, msg):
         self._log_received_message("/study_endpoint_reached", msg)
-        self.latest["endpoint_reached"] = msg.data
-        # Endpoint reached trigger is ignored for logging control, only tracked in row values.
+        self.latest_sample["endpoint_reached"] = msg.data
 
-    def haply_callback(self, msg):
-        self._log_received_message("/haply_state", msg)
-        self.latest["haply"] = msg
-        # Button A interactions are completely ignored for managing log state.
+    def haply_callback(self, msg):  
+        self._log_received_message("/haply_state", msg)  
+        self.latest_sample["haply"] = msg  
 
     def write_row(self):
-        # Prevent writing any rows if the study is not actively running
         if not self.recording or not self.study_is_running:
             return
 
         row = {}
         row["timestamp"] = self.get_clock().now().nanoseconds * 1e-9
-        row["study_running"] = self.latest.get("study_running")
-        row["study_phase"] = self.latest.get("study_phase")
-        row["study_controller_mode"] = self.latest.get("study_controller_mode")
+        row["study_running"] = self.study_is_running  
+        row["study_phase"] = self.trial_metadata.get("study_phase")  
+        row["study_controller_mode"] = self.trial_metadata.get("study_controller_mode")  
 
-        start = self.latest.get("start")
-        end = self.latest.get("end")
-        cursor = self.latest.get("cursor")
-        uh = self.latest.get("u_h")
-        ua = self.latest.get("u_a")
-        Kh = self.latest.get("K_h")
-        haply = self.latest.get("haply")
+        start = self.trial_metadata.get("start")  
+        end = self.trial_metadata.get("end")  
+
+        cursor = self.latest_sample.get("cursor")  
+        uh = self.latest_sample.get("u_h")  
+        ua = self.latest_sample.get("u_a")  
+        Kh = self.latest_sample.get("K_h")  
+        haply = self.latest_sample.get("haply")  
 
         if start:
             row["start_x"] = start.x
@@ -355,8 +357,8 @@ class DataLoggerNode(Node):
         if ua:
             row["u_a"] = str([ua.x, ua.y, ua.z])
 
-        row["K_a"] = self.latest.get("K_a")
-        row["endpoint_reached"] = self.latest.get("endpoint_reached")
+        row["K_a"] = self.latest_sample.get("K_a")
+        row["endpoint_reached"] = self.latest_sample.get("endpoint_reached")
 
         saved_row = self._normalize_row_for_debug(row)
         self.csv_logger.write(saved_row)
