@@ -197,14 +197,23 @@ class RLSEstimatorNode(Node):
         self.prev_vel = vel
         self.prev_time = now
 
-    def study_is_running_callback(self, msg: Bool):
-        new_study_is_running = msg.data
-        
-        if self.study_is_running == new_study_is_running:
-            return
-        
-        self.study_is_running = new_study_is_running
-        self.get_logger().debug(f"Study is running: {self.study_is_running}")
+    def reset_kinematic_state(self):  
+        """Reset kinematic history at the start of each trial."""  
+        self.prev_pos = None  
+        self.prev_vel = None  
+        self.prev_time = None  
+
+    def study_is_running_callback(self, msg: Bool):  
+        new_study_is_running = bool(msg.data)  
+
+        if self.study_is_running == new_study_is_running:  
+            return  
+
+        self.study_is_running = new_study_is_running  
+        self.get_logger().debug(f"Study is running: {self.study_is_running}")  
+
+        if self.study_is_running:  
+            self.reset_kinematic_state()  
 
 
 def main(args=None):
