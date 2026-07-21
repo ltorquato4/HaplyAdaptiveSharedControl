@@ -47,8 +47,8 @@ Subscribes to:
 - `/study_trial_state` (`haply_msgs/StudyTrialState`): authoritative lifecycle.
 - `/study_endpoint_dwell_progress` (`haply_msgs/StudyDwellProgress`):
   ID-bearing endpoint-hold progress.
-- `/study_system_ready` (`std_msgs/Bool`): required production components are
-  alive and reporting heartbeats.
+- `/study_system_ready` (`std_msgs/Bool`): required production components have
+  applied the active task and are reporting heartbeats.
 
 Publishes:
 

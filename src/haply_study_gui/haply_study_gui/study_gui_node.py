@@ -236,7 +236,12 @@ class StudyGui(Node):
         # Production runs deliberately keep the participant window closed
         # until Scenario confirms every required node is alive.
         self.screen = None if self.require_system_ready else self._create_display()
-        self.frame = pygame.Surface((self.width, self.height)).convert()
+        # No display surface exists while a production readiness gate is
+        # pending. Converting in that state raises "No video mode has been
+        # set", so defer conversion until the display is created.
+        self.frame = pygame.Surface((self.width, self.height))
+        if self.screen is not None:
+            self.frame = self.frame.convert()
         self.draw_target = self.frame
         self.clock = pygame.time.Clock()
         self.title_font = self._load_font(22, bold=True)
@@ -885,6 +890,7 @@ class StudyGui(Node):
             if self.screen is None:
                 if self.system_ready:
                     self.screen = self._create_display()
+                    self.frame = self.frame.convert()
                 else:
                     self.clock.tick(max(self.render_fps, 1.0))
                     continue

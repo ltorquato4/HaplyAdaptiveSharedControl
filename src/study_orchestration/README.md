@@ -74,8 +74,10 @@ typed `/study_cursor` topic.
 
 When `require_controller_ready`, `require_estimator_ready`, or
 `require_logger_ready` is enabled, Scenario also requires the corresponding
-heartbeat before accepting a start. It publishes `/study_system_ready`; a
-required heartbeat timeout prevents starts and aborts an active trial.
+heartbeat before accepting a start. Estimator and Logger become ready only
+after applying the retained atomic `StudyTask`; Logger additionally has its
+CSV output prepared. Scenario publishes `/study_system_ready`; a required
+heartbeat timeout prevents starts and aborts an active trial.
 
 `task_file` may point to a YAML file containing a `paths` list. Each entry has
 an independently defined `start_point` and `end_point`; paths need not form a

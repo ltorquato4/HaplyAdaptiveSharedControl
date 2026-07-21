@@ -70,9 +70,11 @@ typed interfaces above.
 
 Production hardware runs with `controller:=mpc` or
 `controller:=state_feedback` wait for Controller, Estimator, and Logger
-heartbeats before opening the participant window or accepting a start. Missing
-heartbeats block a start and abort an active production trial. Mouse and
-GUI-only launches deliberately do not require that gate.
+heartbeats before opening the participant window or accepting a start.
+Estimator and Logger report ready only after they have received the retained,
+atomic `StudyTask`; Logger also has its CSV output prepared. Missing heartbeats
+block a start and abort an active production trial. Mouse and GUI-only launches
+deliberately do not require that gate.
 
 `mpc` and `state_feedback` are controller families. `adaptive` and `fixed` are
 task conditions selected by Scenario; the GUI displays both separately.

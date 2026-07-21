@@ -203,10 +203,9 @@ class ScenarioGenerator(Node):
         self.rollout_due_time: float | None = None
 
         task_qos = self._task_qos()
-        # LEGACY (remove after the branch-51 Controller, Estimator, and Logger
-        # migrate to StudyTask/StudyTrialState): these consumers still require
-        # split task fields and the running Bool. They are compatibility-only;
-        # the GUI uses the typed, ID-bearing messages below.
+        # LEGACY: Estimator and Logger still consume split task fields and the
+        # running Bool for lifecycle compatibility. New task configuration is
+        # delivered through the typed, ID-bearing messages below.
         self.start_pub = self.create_publisher(Point, "study_start_point", task_qos)
         self.end_pub = self.create_publisher(Point, "study_end_point", task_qos)
         self.phase_pub = self.create_publisher(String, "study_phase", task_qos)

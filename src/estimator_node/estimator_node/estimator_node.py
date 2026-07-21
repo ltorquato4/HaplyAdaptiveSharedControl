@@ -4,7 +4,7 @@ import numpy as np
 import rclpy
 
 from geometry_msgs.msg import Point, Vector3
-from haply_msgs.msg import HaplyState
+from haply_msgs.msg import HaplyState, StudyTask
 from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
@@ -46,6 +46,7 @@ class RLSEstimatorNode(Node):
         self.prev_time = None
 
         self.initialized = False
+        self.task_received = False
         self.study_is_running = False
 
         self.rls = RLSEstimator()
@@ -53,6 +54,7 @@ class RLSEstimatorNode(Node):
         self.create_subscription(Point, "/experiment_cursor_position", self.cursor_callback, 10)
         self.create_subscription(Point, "/study_end_point", self.goal_callback, 10)
         self.create_subscription(Point, "/study_start_point", self.start_callback, 10)
+        self.create_subscription(StudyTask, "/study_task", self.study_task_callback, self._task_qos())
         self.study_is_running_sub = self.create_subscription(Bool, "/study_is_running", self.study_is_running_callback, 10)
 
         self.kh_pub = self.create_publisher(Float64MultiArray, "/estimation/K_h", 10)
@@ -69,9 +71,31 @@ class RLSEstimatorNode(Node):
         self.get_logger().info("RLS Estimator node started.")                
 
     def _publish_ready(self):
-        self.ready_pub.publish(Bool(data=self.start_point is not None and self.goal is not None))
+        self.ready_pub.publish(Bool(data=self.task_received))
+
+    @staticmethod
+    def _task_qos():
+        return QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
+
+    def study_task_callback(self, msg: StudyTask):
+        """Apply a complete retained task before declaring estimator readiness."""
+        self.start_point = msg.start_point
+        self.goal = msg.end_point
+        self.prev_pos = None
+        self.prev_vel = None
+        self.prev_time = None
+        if not self.initialized:
+            self.rls.initialize_from_start_point(self.start_point)
+            self.initialized = True
+        self.task_received = True
 
     def start_callback(self, msg):
+        if self.task_received:
+            return
 
         self.start_point = msg
 
@@ -88,6 +112,8 @@ class RLSEstimatorNode(Node):
         self.get_logger().debug(f"Cursor position received: [{msg.x}, {msg.y}]")
 
     def goal_callback(self, msg):
+        if self.task_received:
+            return
         self.goal = msg
         self.get_logger().debug(f"Goal point updated: [{msg.x}, {msg.y}]")
 
