@@ -18,6 +18,11 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/HandleState.msg"
   "msg/HaplyState.msg"
   "msg/HaplyControl.msg"
+  "msg/StudyTask.msg"
+  "msg/StudyTrialState.msg"
+  "msg/StudyDwellProgress.msg"
+  "msg/StudyStartRequest.msg"
+  "msg/StudyAbortRequest.msg"
   DEPENDENCIES geometry_msgs std_msgs
 )
 

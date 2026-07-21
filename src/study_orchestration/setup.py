@@ -1,8 +1,7 @@
 """Package configuration for study orchestration nodes."""
 
-from glob import glob
-
 from setuptools import find_packages, setup
+from glob import glob
 
 package_name = "study_orchestration"
 
