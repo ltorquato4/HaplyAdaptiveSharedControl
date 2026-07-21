@@ -4,7 +4,7 @@ import numpy as np
 import rclpy
 
 from geometry_msgs.msg import Point, Vector3
-from haply_msgs.msg import HaplyState, StudyTask
+from haply_msgs.msg import StudyTask
 from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
@@ -51,11 +51,17 @@ class RLSEstimatorNode(Node):
 
         self.rls = RLSEstimator()
 
-        self.create_subscription(Point, "/experiment_cursor_position", self.cursor_callback, 10)
+        self.create_subscription(
+            Point, "/experiment_cursor_position", self.cursor_callback, 10
+        )
         self.create_subscription(Point, "/study_end_point", self.goal_callback, 10)
         self.create_subscription(Point, "/study_start_point", self.start_callback, 10)
-        self.create_subscription(StudyTask, "/study_task", self.study_task_callback, self._task_qos())
-        self.study_is_running_sub = self.create_subscription(Bool, "/study_is_running", self.study_is_running_callback, 10)
+        self.create_subscription(
+            StudyTask, "/study_task", self.study_task_callback, self._task_qos()
+        )
+        self.study_is_running_sub = self.create_subscription(
+            Bool, "/study_is_running", self.study_is_running_callback, 10
+        )
 
         self.kh_pub = self.create_publisher(Float64MultiArray, "/estimation/K_h", 10)
         self.uh_pub = self.create_publisher(Vector3, "/estimation/u_h", 10)
@@ -68,7 +74,7 @@ class RLSEstimatorNode(Node):
 
         self.timer = self.create_timer(0.01, self.update_estimator)
 
-        self.get_logger().info("RLS Estimator node started.")                
+        self.get_logger().info("RLS Estimator node started.")
 
     def _publish_ready(self):
         self.ready_pub.publish(Bool(data=self.task_received))
@@ -144,7 +150,9 @@ class RLSEstimatorNode(Node):
             self.prev_pos = pos
             self.prev_vel = np.zeros(2)
 
-            self.get_logger().debug("First sample recorded, initializing previous state variables.")
+            self.get_logger().debug(
+                "First sample recorded, initializing previous state variables."
+            )
 
             return
 

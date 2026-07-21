@@ -482,6 +482,7 @@ class ScenarioGenerator(Node):
         # from the prior task across the new identity while waiting for Mapper.
         self.cursor_position = None
         self.input_valid = False
+        self.is_running = False
         self.last_rollout_time = time.monotonic()
         self.rollout_due_time = None
         task = self._current_task()

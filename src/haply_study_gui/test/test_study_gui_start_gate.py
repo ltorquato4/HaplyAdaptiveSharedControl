@@ -278,6 +278,7 @@ def test_mode_change_shows_overlay_and_delays_start(monkeypatch):
     )
     gui._study_task(_task(phase="careful"))
     gui._mapping_ready(Bool(data=True))
+    gui._experiment_cursor_position(_cursor(0.0, 0.0))
 
     assert gui._mode_overlay_visible()
     gui._button_pressed(_press())
