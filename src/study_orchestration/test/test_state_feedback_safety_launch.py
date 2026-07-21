@@ -185,3 +185,21 @@ class TestStateFeedbackSafetyLaunch(unittest.TestCase):
         while time.monotonic() < deadline:
             rclpy.spin_once(self.node, timeout_sec=0.02)
         self.assertEqual(len(self.estimates), estimate_count)
+
+        # A retry of unchanged geometry must rebuild the stopped controller
+        # and resume non-zero force feedback rather than merely reporting RUNNING.
+        force_count = len(self.force_commands)
+        self._publish_input(task.start_point.x, task.start_point.y, samples=8)
+        self.start_request_pub.publish(
+            StudyStartRequest(session_id=task.session_id, trial_id=task.trial_id)
+        )
+        self._spin_until(
+            lambda: sum(state.state == "RUNNING" for state in self.states) >= 2
+        )
+        self._publish_input(task.start_point.x + 0.01, task.start_point.y, samples=8)
+        self._spin_until(
+            lambda: any(
+                not self._is_zero_force(command)
+                for command in self.force_commands[force_count:]
+            )
+        )

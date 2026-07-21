@@ -17,13 +17,14 @@ from geometry_msgs.msg import Point
 from haply_msgs.msg import (
     HaplyState,
     StudyCursor,
+    StudyButtonPress,
     StudyStartRequest,
     StudyTask,
     StudyTrialState,
 )
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Bool, Empty
+from std_msgs.msg import Bool
 
 
 @pytest.mark.launch_test
@@ -95,7 +96,7 @@ class TestMouseInteractionLaunch(unittest.TestCase):
             Bool, "study_mapping_ready", self._mapping_ready, task_qos
         )
         self.node.create_subscription(
-            Empty, "study_button_pressed", self._button_pressed, 10
+            StudyButtonPress, "study_button_pressed", self._button_pressed, 10
         )
         self.node.create_subscription(
             StudyTask, "study_task", self.tasks.append, task_qos

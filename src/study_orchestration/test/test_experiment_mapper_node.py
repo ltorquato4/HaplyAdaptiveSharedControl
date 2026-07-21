@@ -1,6 +1,5 @@
 from geometry_msgs.msg import Point
-from haply_msgs.msg import HaplyState, StudyCursor, StudyTask
-from std_msgs.msg import Empty
+from haply_msgs.msg import HaplyState, StudyButtonPress, StudyCursor, StudyTask
 from study_orchestration import experiment_mapper_node
 from study_orchestration.experiment_mapper_node import ExperimentMapper
 from study_orchestration.mapper_logic import AnchoredDeltaMapper, MappingConfig, TaskPoint
@@ -117,13 +116,16 @@ def test_held_button_does_not_emit_another_event(monkeypatch):
 
 def test_release_then_second_press_emits_one_event(monkeypatch):
     node = _mapper()
+    node._study_task(StudyTask(session_id="session-a", trial_id=7))
     times = iter((1.0, 1.5, 2.0))
     monkeypatch.setattr(experiment_mapper_node.time, "monotonic", lambda: next(times))
     node._haply_state(_haply_state(0.0, 0.0, 0.0, pressed=True))
     node._haply_state(_haply_state(0.0, 0.0, 0.0, pressed=False))
     node._haply_state(_haply_state(0.0, 0.0, 0.0, pressed=True))
     assert len(node.button_pressed_pub.messages) == 1
-    assert isinstance(node.button_pressed_pub.messages[0], Empty)
+    press = node.button_pressed_pub.messages[0]
+    assert isinstance(press, StudyButtonPress)
+    assert (press.session_id, press.trial_id) == ("session-a", 7)
 
 
 def test_button_bounce_inside_debounce_window_is_ignored(monkeypatch):

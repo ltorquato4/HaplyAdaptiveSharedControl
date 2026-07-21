@@ -25,6 +25,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/StudyStartRequest.msg"
   "msg/StudyAbortRequest.msg"
   "msg/StudyCursor.msg"
+  "msg/StudyButtonPress.msg"
   DEPENDENCIES builtin_interfaces geometry_msgs std_msgs
 )
 

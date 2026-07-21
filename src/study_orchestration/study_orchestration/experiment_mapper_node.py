@@ -7,11 +7,11 @@ import time
 
 import rclpy
 from geometry_msgs.msg import Point
-from haply_msgs.msg import HaplyState, StudyCursor, StudyTask
+from haply_msgs.msg import HaplyState, StudyButtonPress, StudyCursor, StudyTask
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import Bool, Empty
+from std_msgs.msg import Bool
 
 from study_orchestration.mapper_logic import (
     AnchoredDeltaMapper,
@@ -117,7 +117,7 @@ class ExperimentMapper(Node):
             Bool, "study_mapping_ready", task_qos
         )
         self.button_pressed_pub = self.create_publisher(
-            Empty, "study_button_pressed", 10
+            StudyButtonPress, "study_button_pressed", 10
         )
         self.input_valid_pub = self.create_publisher(
             Bool, "experiment_input_valid", task_qos
@@ -192,7 +192,13 @@ class ExperimentMapper(Node):
             )
             return
 
-        self.button_pressed_pub.publish(Empty())
+        if self.current_session_id is None or self.current_trial_id is None:
+            return
+        msg = StudyButtonPress()
+        msg.session_id = self.current_session_id
+        msg.trial_id = self.current_trial_id
+        msg.stamp = self.get_clock().now().to_msg()
+        self.button_pressed_pub.publish(msg)
 
     def _publish_mapping_ready(self, ready: bool) -> None:
         msg = Bool()

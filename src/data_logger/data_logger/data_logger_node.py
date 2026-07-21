@@ -9,6 +9,7 @@ from geometry_msgs.msg import Point, Vector3
 from haply_msgs.msg import HaplyState
 from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float64MultiArray, String
 
 from .csv_logger import CSVLogger
@@ -63,6 +64,12 @@ class DataLoggerNode(Node):
         )
 
         self.setup_subscribers()
+        self.ready_pub = self.create_publisher(
+            Bool, "/study_logger_ready",
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                       reliability=ReliabilityPolicy.RELIABLE),
+        )
+        self.ready_timer = self.create_timer(0.5, self._publish_ready)
 
         self.timer = self.create_timer(
             1.0 / self.config.log_rate_hz,
@@ -70,6 +77,9 @@ class DataLoggerNode(Node):
         )
 
         self.get_logger().info(f"Data logger ready. Saving to: {self.save_directory}")
+
+    def _publish_ready(self):
+        self.ready_pub.publish(Bool(data=True))
 
     def _message_to_debug_value(self, msg):
         if hasattr(msg, "data"):

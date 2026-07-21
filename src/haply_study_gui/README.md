@@ -13,7 +13,7 @@ Both `source=mouse` and `source=haply` follow the same press interaction:
 2. Move the mapped cursor to the current start marker and release then press A
    again. A trial starts only on this discrete second press.
 3. Trace to the endpoint and remain there continuously for the configured
-   dwell duration. The GUI shows dwell progress while the trial is active.
+   dwell duration. The GUI indicates when endpoint dwell has begun.
 4. After successful dwell, the next scenario is shown. A held button is never
    reused as a press for the next scenario.
 
@@ -24,7 +24,7 @@ is enabled automatically when the overlay has faded.
 Before calibration the cursor is hidden. The GUI also hides it and prevents
 trial start when device input is stale, unavailable, or outside the configured
 task workspace. Start and endpoint markers use their configured task-space
-radii, so their on-screen size matches the acceptance regions. Mouse mode
+radii; acceptance remains in task coordinates. Mouse mode
 deliberately uses identity mapping after calibration, so its blue cursor remains
 exactly under the operating-system mouse pointer; hardware mode uses
 anchored-delta mapping from its neutral calibration pose.
@@ -38,12 +38,17 @@ Subscribes to:
 - `/study_cursor` (`haply_msgs/StudyCursor`): timestamped, ID-bearing mapped
   cursor sample. The GUI rejects stale-session/trial samples and invalid input.
 - `/study_mapping_ready` (`std_msgs/Bool`): latched calibration state.
-- `/study_button_pressed` (`std_msgs/Empty`): post-calibration press events.
+- `/experiment_input_valid` (`std_msgs/Bool`): raw device/mouse health, kept
+  separate from task-specific cursor validity.
+- `/study_button_pressed` (`haply_msgs/StudyButtonPress`): task-identified
+  post-calibration press events.
 - `/study_task` (`haply_msgs/StudyTask`): atomic task definition, including
   session/trial IDs, start/end points, phase, and controller mode.
 - `/study_trial_state` (`haply_msgs/StudyTrialState`): authoritative lifecycle.
 - `/study_endpoint_dwell_progress` (`haply_msgs/StudyDwellProgress`):
   ID-bearing endpoint-hold progress.
+- `/study_system_ready` (`std_msgs/Bool`): required production components are
+  alive and reporting heartbeats.
 
 Publishes:
 
@@ -71,12 +76,16 @@ source install/setup.bash
 | --- | --- |
 | Mouse simulation | `ros2 launch haply_study_gui study_gui_mouse.launch.py` |
 | Hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py` |
-| Hardware test launch | `ros2 launch haply_study_gui study_gui_haply_test.launch.py` |
-| Start MPC controller with hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py controller:=mpc` |
+| Full MPC hardware stack (includes Estimator, Data Logger, and readiness gate) | `ros2 launch haply_study_gui study_gui.launch.py controller:=mpc` |
 | Start state-feedback controller with hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback` |
 
 The hardware launch requires the Haply Inverse SDK Service to be running at
 `ws://localhost:10001` before ROS starts.
+
+When launched with `controller:=mpc` or `controller:=state_feedback`, the
+hardware GUI waits for Controller, Estimator, and Logger readiness before it
+opens. The mouse launch is intentionally a lightweight/debug path and does not
+wait for that production gate.
 
 ## GUI behavior and parameters
 
@@ -90,8 +99,9 @@ The hardware launch requires the Haply Inverse SDK Service to be running at
 - Mouse simulation stops publishing raw state outside the drawing area. A
   mapped hardware cursor outside the task workspace is hidden and reported as
   `cursor outside workspace` until it returns.
-- The drawing transform uses one pixels-per-metre scale for both axes, with
-  letterboxing where necessary, so task-space circles remain circles on screen.
+- The drawing transform fills the visible workspace in both axes.
+- The sidebar distinguishes controller family (`MPC`, `State Feedback`, or
+  `None`) from the task mode (`adaptive` or `fixed`).
 
 Run package tests with:
 

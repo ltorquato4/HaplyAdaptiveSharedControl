@@ -1,4 +1,7 @@
 import random
+from pathlib import Path
+
+import yaml
 
 from haply_msgs.msg import StudyAbortRequest, StudyCursor, StudyStartRequest
 from study_orchestration.scenario_generator_node import ScenarioGenerator
@@ -29,6 +32,10 @@ def _generator():
         StudyPoint(0.0, 1.0, 0.0),
         StudyPoint(-1.0, 0.0, 0.0),
     ]
+    node.segments = [
+        (node.points[index], node.points[(index + 1) % len(node.points)])
+        for index in range(len(node.points))
+    ]
     node.endpoint_reached_radius = 0.1
     node.start_reached_radius = 0.1
     node.min_phase_duration_s = 0.0
@@ -47,6 +54,11 @@ def _generator():
     node.session_id = "test-session"
     node.loop_tasks = False
     node.session_finished = False
+    node.component_ready = {"controller": True, "estimator": True, "logger": True}
+    node.component_required = {"controller": False, "estimator": False, "logger": False}
+    node.component_last_seen = {"controller": float("-inf"), "estimator": float("-inf"), "logger": float("-inf")}
+    node.component_heartbeat_timeout_s = 2.0
+    node.cursor_max_age_s = 0.5
     node.is_running = True
     node.input_valid = True
     node.cursor_position = StudyPoint(1.0, 0.0, 0.0)
@@ -65,7 +77,9 @@ def _generator():
     node.endpoint_pub = FakePublisher()
     node.task_pub = FakePublisher()
     node.trial_state_pub = FakePublisher()
+    node.system_ready_pub = FakePublisher()
     node.get_logger = lambda: FakeLogger()
+    node.get_clock = lambda: type("Clock", (), {"now": lambda _self: type("Now", (), {"nanoseconds": 0})()})()
     return node
 
 
@@ -189,6 +203,29 @@ def test_rollout_clears_dwell_timestamp():
     assert node.endpoint_entered_time is None
 
 
+def test_rollout_requires_a_cursor_for_the_new_trial():
+    node = _generator()
+    node._rollout_next_segment()
+
+    assert node.cursor_position is None
+    assert not node.input_valid
+    node._start_requested(StudyStartRequest(session_id="test-session", trial_id=1))
+    assert not node.is_running
+    assert node.trial_state_pub.messages[-1].reason == "start_rejected"
+
+
+def test_start_is_rejected_until_required_components_are_healthy():
+    node = _generator()
+    node.component_required["controller"] = True
+    node.component_ready["controller"] = False
+    node.is_running = False
+    node.cursor_position = StudyPoint(0.0, 0.0, 0.0)
+
+    node._start_requested(StudyStartRequest(session_id="test-session", trial_id=0))
+
+    assert node.trial_state_pub.messages[-1].reason == "system_not_ready"
+
+
 def test_schedule_covers_each_phase_segment_mode_combination():
     node = _generator()
     combinations = {
@@ -197,6 +234,18 @@ def test_schedule_covers_each_phase_segment_mode_combination():
 
     assert len(node.tasks) == 30
     assert len(combinations) == 30
+
+
+def test_default_yaml_paths_fit_the_configured_mpc_workspace():
+    config_dir = Path(__file__).resolve().parents[1] / "config"
+    base = yaml.safe_load((config_dir / "study_base.yaml").read_text())
+    paths = yaml.safe_load((config_dir / "default_tasks.yaml").read_text())["paths"]
+    bounds = base["control_node"]["ros__parameters"]
+
+    for path in paths:
+        for point in (path["start_point"], path["end_point"]):
+            assert -bounds["x_bounds"] <= point[0] <= bounds["x_bounds"]
+            assert -bounds["y_bounds"] <= point[1] <= bounds["y_bounds"]
 
 
 def test_schedule_completes_one_controller_mode_before_switching():

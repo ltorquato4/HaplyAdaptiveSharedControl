@@ -13,7 +13,7 @@ On the first debounced rising edge it captures the raw neutral pose, maps it to
 the fixed task anchor (`task_anchor_x`, `task_anchor_y`, default `(0, 0)`), and
 publishes the latched `/study_mapping_ready=True` state. That first press is
 not forwarded as a trial-start event. Each later release-and-rising-edge
-publishes exactly one `/study_button_pressed` event.
+publishes exactly one task-identified `/study_button_pressed` event.
 
 The calibration anchor persists across scenario rollouts; new scenario start
 points never silently recalibrate the device.
@@ -25,11 +25,12 @@ Subscribes to `/haply_state` (`haply_msgs/HaplyState`). Publishes:
 - `/experiment_cursor_position` (`geometry_msgs/Point`)
 - `/study_cursor` (`haply_msgs/StudyCursor`): timestamped mapped task-frame
   sample with `session_id`, `trial_id`, position, and validity. GUI and
-  Scenario reject samples for any other task. `/experiment_cursor_position`
+  Scenario reject samples for any other task or samples older than their
+  configured `cursor_max_age_s`. `/experiment_cursor_position`
   and `/experiment_input_valid` remain temporary Controller/Estimator/Logger
   compatibility topics.
 - `/study_mapping_ready` (`std_msgs/Bool`, reliable transient-local)
-- `/study_button_pressed` (`std_msgs/Empty`)
+- `/study_button_pressed` (`haply_msgs/StudyButtonPress`)
 
 `input_timeout_s` defaults to `0.2` seconds. If raw input stops, the Mapper
 marks input invalid and stops publishing cursor samples. A new raw sample marks
@@ -62,14 +63,23 @@ Published task and trial topics:
 - `/study_endpoint_dwell_progress` (`haply_msgs/StudyDwellProgress`):
   `session_id`, `trial_id`, and continuous hold progress in `0.0–1.0`.
 
-Branch 51 temporarily also publishes `/study_start_point`, `/study_end_point`,
+Scenario also publishes `/study_start_point`, `/study_end_point`,
 `/study_phase`, `/study_controller_mode`, `/study_is_running`, and
-`/study_endpoint_reached` because its Controller, Estimator, and Logger still
-consume them. They are compatibility outputs only and must be removed when
-those nodes migrate to the typed protocol.
+`/study_endpoint_reached` for Estimator and Logger compatibility. Controller
+uses the atomic `StudyTask` protocol and retains the split topics only for
+backward-compatible debug use.
 
 It subscribes to `/study_start_requested`, `/study_abort_requested`, and the
 typed `/study_cursor` topic.
+
+When `require_controller_ready`, `require_estimator_ready`, or
+`require_logger_ready` is enabled, Scenario also requires the corresponding
+heartbeat before accepting a start. It publishes `/study_system_ready`; a
+required heartbeat timeout prevents starts and aborts an active trial.
+
+`task_file` may point to a YAML file containing a `paths` list. Each entry has
+an independently defined `start_point` and `end_point`; paths need not form a
+closed chain. The shared launches use `config/default_tasks.yaml`.
 
 Endpoint completion requires all of the following:
 
@@ -77,7 +87,7 @@ Endpoint completion requires all of the following:
 2. Input remains valid.
 3. The configured minimum trial duration has elapsed.
 4. The cursor remains continuously inside the endpoint radius for
-   `endpoint_dwell_s` (default `0.5` seconds).
+   `endpoint_dwell_s` (default `1.0` second).
 
 Leaving the endpoint or losing input resets dwell. Only successful dwell emits
 `COMPLETED`. `inter_trial_delay_s` is a separate optional post-completion pause;
@@ -92,9 +102,9 @@ The default task coordinates are bounded by:
 - y: `-0.15` to `0.15`
 - minimum segment length: `0.10`
 
-The nodes validate the configured five task points at startup. These task-space
-bounds must still be verified against the physical Haply workspace before a
-participant run.
+The nodes validate configured path endpoints and segment lengths at startup.
+These task-space bounds must still be verified against the physical Haply
+workspace before a participant run.
 
 ## Tests
 

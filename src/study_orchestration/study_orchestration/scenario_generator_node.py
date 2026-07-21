@@ -7,6 +7,9 @@ import secrets
 import time
 import uuid
 from dataclasses import dataclass
+from pathlib import Path
+
+import yaml
 
 import rclpy
 from geometry_msgs.msg import Point
@@ -26,7 +29,6 @@ from std_msgs.msg import Bool, String
 from study_orchestration.scenario_logic import (
     StudyPoint,
     WorkspaceBounds,
-    chained_segment,
     endpoint_reached,
     validate_task_points,
 )
@@ -86,6 +88,12 @@ class ScenarioGenerator(Node):
         self.declare_parameter("order_strategy", "seeded_random")
         self.declare_parameter("order_seed", -1)
         self.declare_parameter("session_id", "")
+        self.declare_parameter("task_file", "")
+        self.declare_parameter("require_controller_ready", False)
+        self.declare_parameter("require_estimator_ready", False)
+        self.declare_parameter("require_logger_ready", False)
+        self.declare_parameter("component_heartbeat_timeout_s", 2.0)
+        self.declare_parameter("cursor_max_age_s", 0.5)
 
         self.points = self._read_task_points()
         self.bounds = WorkspaceBounds(
@@ -101,6 +109,10 @@ class ScenarioGenerator(Node):
             self.min_segment_length,
             expected_count=self.POINT_COUNT,
         )
+        self.segments = self._read_yaml_segments() or [
+            (self.points[index], self.points[(index + 1) % len(self.points)])
+            for index in range(len(self.points))
+        ]
 
         self.endpoint_reached_radius = float(
             self.get_parameter("endpoint_reached_radius").value
@@ -163,13 +175,24 @@ class ScenarioGenerator(Node):
                 (
                     index
                     for index, task in enumerate(self.tasks)
-                    if task.segment_index == initial_segment_index % len(self.points)
+                    if task.segment_index == initial_segment_index % len(self.segments)
                 ),
                 0,
             )
         self.is_running = False
         self.trial_id = self.task_index
         self.session_finished = False
+        self.component_required = {
+            "controller": bool(self.get_parameter("require_controller_ready").value),
+            "estimator": bool(self.get_parameter("require_estimator_ready").value),
+            "logger": bool(self.get_parameter("require_logger_ready").value),
+        }
+        self.component_ready = {name: not required for name, required in self.component_required.items()}
+        self.component_last_seen = {name: float("-inf") for name in self.component_ready}
+        self.component_heartbeat_timeout_s = max(
+            0.1, float(self.get_parameter("component_heartbeat_timeout_s").value)
+        )
+        self.cursor_max_age_s = max(0.0, float(self.get_parameter("cursor_max_age_s").value))
         self.cursor_position: StudyPoint | None = None
         self.input_valid = False
         self.endpoint_latched = False
@@ -197,6 +220,9 @@ class ScenarioGenerator(Node):
         self.dwell_progress_pub = self.create_publisher(
             StudyDwellProgress, "study_endpoint_dwell_progress", task_qos
         )
+        self.system_ready_pub = self.create_publisher(
+            Bool, "study_system_ready", task_qos
+        )
 
         self.create_subscription(
             StudyStartRequest, "study_start_requested", self._start_requested, 10
@@ -207,6 +233,13 @@ class ScenarioGenerator(Node):
         self.create_subscription(
             StudyCursor, "study_cursor", self._cursor_position, self._state_qos()
         )
+        for component in self.component_ready:
+            self.create_subscription(
+                Bool,
+                f"study_{component}_ready",
+                lambda msg, name=component: self._component_ready(name, msg),
+                task_qos,
+            )
 
         publish_period_s = 1.0 / max(float(self.get_parameter("publish_hz").value), 0.1)
         self.republish_timer = self.create_timer(publish_period_s, self._tick)
@@ -214,6 +247,7 @@ class ScenarioGenerator(Node):
         self._publish_endpoint_state(False)
         self._publish_dwell_progress(0.0)
         self._publish_trial_state("READY")
+        self._publish_system_ready()
 
     def _task_qos(self) -> QoSProfile:
         return QoSProfile(
@@ -235,6 +269,36 @@ class ScenarioGenerator(Node):
             for index in range(self.POINT_COUNT)
         ]
 
+    def _read_yaml_segments(self) -> list[tuple[StudyPoint, StudyPoint]]:
+        """Load independently defined paths when a researcher supplies YAML."""
+        task_file = str(self.get_parameter("task_file").value).strip()
+        if not task_file:
+            return []
+        path = Path(task_file)
+        if not path.is_file():
+            raise ValueError(f"task_file does not exist: {task_file}")
+        with path.open(encoding="utf-8") as stream:
+            entries = (yaml.safe_load(stream) or {}).get("paths")
+        if not isinstance(entries, list) or not entries:
+            raise ValueError("task_file must contain a non-empty paths list")
+        segments = []
+        for index, entry in enumerate(entries):
+            try:
+                start = StudyPoint(*map(float, entry["start_point"]))
+                end = StudyPoint(*map(float, entry["end_point"]))
+            except (KeyError, TypeError, ValueError) as exc:
+                raise ValueError(f"invalid path entry {index} in {task_file}") from exc
+            if not all(
+                self.bounds.x_min <= point.x <= self.bounds.x_max
+                and self.bounds.y_min <= point.y <= self.bounds.y_max
+                for point in (start, end)
+            ):
+                raise ValueError(f"path entry {index} is outside workspace bounds")
+            if ((end.x - start.x) ** 2 + (end.y - start.y) ** 2) ** 0.5 < self.min_segment_length:
+                raise ValueError(f"path entry {index} is shorter than min_segment_length")
+            segments.append((start, end))
+        return segments
+
     def _parse_modes(self, value: str) -> list[str]:
         modes = [mode.strip().lower() for mode in value.split(",")]
         modes = [mode for mode in modes if mode in ("adaptive", "fixed")]
@@ -249,7 +313,7 @@ class ScenarioGenerator(Node):
                 if self.order_strategy == "seeded_random":
                     self._schedule_rng.shuffle(phases)
                 for phase in phases:
-                    segments = list(range(len(self.points)))
+                    segments = list(range(len(self.segments)))
                     if self.order_strategy == "seeded_random":
                         self._schedule_rng.shuffle(segments)
                     tasks.extend(
@@ -277,13 +341,16 @@ class ScenarioGenerator(Node):
         if int(msg.trial_id) != self.trial_id:
             self._publish_trial_state("READY", "stale_trial_id")
             return
+        if not all(self.component_ready.values()):
+            self._publish_trial_state("READY", "system_not_ready")
+            return
         if self.abort_requested_for_current_trial:
             self._publish_trial_state("ABORTED", "abort_requested")
             return
         if self.is_running or not self.input_valid or self.cursor_position is None:
             self._publish_trial_state("READY", "start_rejected")
             return
-        start, _ = chained_segment(self.points, self._current_task().segment_index)
+        start, _ = self._current_segment()
         if not endpoint_reached(
             self.cursor_position, start, self.start_reached_radius
         ):
@@ -301,6 +368,8 @@ class ScenarioGenerator(Node):
             str(msg.session_id) != self.session_id
             or int(msg.trial_id) != self.trial_id
         ):
+            return
+        if not self._cursor_is_fresh(msg):
             return
         self.input_valid = bool(msg.input_valid)
         if not self.input_valid:
@@ -332,6 +401,7 @@ class ScenarioGenerator(Node):
     def _tick(self) -> None:
         if self.session_finished:
             return
+        self._expire_component_heartbeats()
         if self._rollout_delay_elapsed():
             self._rollout_next_segment()
             return
@@ -377,7 +447,7 @@ class ScenarioGenerator(Node):
             self.endpoint_entered_time = None
             return False
 
-        start, end = chained_segment(self.points, self._current_task().segment_index)
+        start, end = self._current_segment()
         if not self.start_gate_reached:
             self.start_gate_reached = endpoint_reached(
                 self.cursor_position,
@@ -409,6 +479,10 @@ class ScenarioGenerator(Node):
         else:
             self.task_index += 1
         self.trial_id += 1
+        # Cursor samples are task-identified.  Do not carry an accepted sample
+        # from the prior task across the new identity while waiting for Mapper.
+        self.cursor_position = None
+        self.input_valid = False
         self.last_rollout_time = time.monotonic()
         self.rollout_due_time = None
         task = self._current_task()
@@ -470,7 +544,7 @@ class ScenarioGenerator(Node):
 
     def _publish_task_definition(self) -> None:
         task = self._current_task()
-        start, end = chained_segment(self.points, task.segment_index)
+        start, end = self._current_segment()
         self.start_pub.publish(self._to_point_msg(start))
         self.end_pub.publish(self._to_point_msg(end))
         self.phase_pub.publish(String(data=task.phase))
@@ -496,6 +570,42 @@ class ScenarioGenerator(Node):
 
     def _publish_running(self, running: bool) -> None:
         self.running_pub.publish(Bool(data=bool(running)))
+
+    def _component_ready(self, component: str, msg: Bool) -> None:
+        if not self.component_required[component]:
+            return
+        self.component_ready[component] = bool(msg.data)
+        if msg.data:
+            self.component_last_seen[component] = time.monotonic()
+        self._publish_system_ready()
+
+    def _publish_system_ready(self) -> None:
+        self.system_ready_pub.publish(Bool(data=all(self.component_ready.values())))
+
+    def _expire_component_heartbeats(self) -> None:
+        now = time.monotonic()
+        changed = False
+        for component, last_seen in self.component_last_seen.items():
+            if (
+                self.component_required[component]
+                and self.component_ready[component]
+                and now - last_seen > self.component_heartbeat_timeout_s
+            ):
+                self.component_ready[component] = False
+                changed = True
+        if changed:
+            if self.is_running:
+                self._abort_trial("system_not_ready")
+            self._publish_system_ready()
+
+    def _cursor_is_fresh(self, msg: StudyCursor) -> bool:
+        stamp_s = float(msg.stamp.sec) + (float(msg.stamp.nanosec) * 1e-9)
+        if stamp_s <= 0.0 or self.cursor_max_age_s <= 0.0:
+            return True
+        return (self.get_clock().now().nanoseconds * 1e-9) - stamp_s <= self.cursor_max_age_s
+
+    def _current_segment(self) -> tuple[StudyPoint, StudyPoint]:
+        return self.segments[self._current_task().segment_index]
 
     def _publish_trial_state(self, state: str, reason: str = "") -> None:
         msg = StudyTrialState()

@@ -16,6 +16,7 @@ from geometry_msgs.msg import Point  # noqa: E402
 from haply_msgs.msg import (  # noqa: E402
     HaplyState,
     StudyAbortRequest,
+    StudyButtonPress,
     StudyDwellProgress,
     StudyCursor,
     StudyStartRequest,
@@ -24,7 +25,7 @@ from haply_msgs.msg import (  # noqa: E402
 )
 from rclpy.node import Node  # noqa: E402
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy  # noqa: E402
-from std_msgs.msg import Bool, Empty  # noqa: E402
+from std_msgs.msg import Bool  # noqa: E402
 
 
 class StudyGui(Node):
@@ -100,6 +101,9 @@ class StudyGui(Node):
         self.declare_parameter("workspace_y_max", 0.15)
         self.declare_parameter("start_reached_radius", 0.01)
         self.declare_parameter("endpoint_reached_radius", 0.01)
+        self.declare_parameter("require_system_ready", False)
+        self.declare_parameter("controller_family", "none")
+        self.declare_parameter("cursor_max_age_s", 0.5)
 
         self.width = int(self.get_parameter("width").value)
         self.height = int(self.get_parameter("height").value)
@@ -162,6 +166,11 @@ class StudyGui(Node):
         self.cursor_in_bounds = False
         self.mouse_in_workspace = True
         self.input_valid = False
+        self.raw_input_valid = False
+        self.require_system_ready = bool(self.get_parameter("require_system_ready").value)
+        self.controller_family = str(self.get_parameter("controller_family").value)
+        self.cursor_max_age_s = max(0.0, float(self.get_parameter("cursor_max_age_s").value))
+        self.system_ready = not self.require_system_ready
         self.start_point_received = False
         self.end_point_received = False
         self.endpoint_dwell_progress = 0.0
@@ -197,7 +206,11 @@ class StudyGui(Node):
         self.create_subscription(
             Bool, "study_mapping_ready", self._mapping_ready, task_qos
         )
-        self.create_subscription(Empty, "study_button_pressed", self._button_pressed, 10)
+        self.create_subscription(
+            Bool, "experiment_input_valid", self._raw_input_valid, task_qos
+        )
+        self.create_subscription(Bool, "study_system_ready", self._system_ready, task_qos)
+        self.create_subscription(StudyButtonPress, "study_button_pressed", self._button_pressed, 10)
         self.create_subscription(
             StudyDwellProgress,
             "study_endpoint_dwell_progress",
@@ -220,7 +233,9 @@ class StudyGui(Node):
         pygame.display.init()
         pygame.font.init()
         pygame.display.set_caption("Haply Study GUI")
-        self.screen = self._create_display()
+        # Production runs deliberately keep the participant window closed
+        # until Scenario confirms every required node is alive.
+        self.screen = None if self.require_system_ready else self._create_display()
         self.frame = pygame.Surface((self.width, self.height)).convert()
         self.draw_target = self.frame
         self.clock = pygame.time.Clock()
@@ -294,6 +309,8 @@ class StudyGui(Node):
             or int(msg.trial_id) != self.current_trial_id
         ):
             return
+        if not self._cursor_is_fresh(msg):
+            return
         self.input_valid = bool(msg.input_valid)
         if not self.input_valid:
             self.cursor_in_bounds = False
@@ -307,9 +324,26 @@ class StudyGui(Node):
     def _mapping_ready(self, msg):
         self.mapping_ready = bool(msg.data)
 
-    def _button_pressed(self, _msg):
-        if self.mapping_ready:
+    def _raw_input_valid(self, msg):
+        """Track device/mouse health independently of mapped task samples."""
+        self.raw_input_valid = bool(msg.data)
+
+    def _system_ready(self, msg):
+        self.system_ready = bool(msg.data)
+
+    def _button_pressed(self, msg):
+        if (
+            self.mapping_ready
+            and str(msg.session_id) == self.current_session_id
+            and int(msg.trial_id) == self.current_trial_id
+        ):
             self._start_trial_if_ready()
+
+    def _cursor_is_fresh(self, msg):
+        stamp_s = float(msg.stamp.sec) + (float(msg.stamp.nanosec) * 1e-9)
+        if stamp_s <= 0.0 or self.cursor_max_age_s <= 0.0:
+            return True
+        return (self.get_clock().now().nanoseconds * 1e-9) - stamp_s <= self.cursor_max_age_s
 
     def _study_task(self, msg):
         previous_phase = self.study_phase.strip().lower()
@@ -321,6 +355,10 @@ class StudyGui(Node):
         self.controller_mode = str(msg.controller_mode)
         self.current_session_id = str(msg.session_id)
         self.current_trial_id = int(msg.trial_id)
+        self.cursor_received = False
+        self.cursor_in_bounds = False
+        self.input_valid = False
+        self.endpoint_dwell_progress = 0.0
         self.session_finished = False
         self.last_abort_reason = ""
         self.start_point_received = True
@@ -417,6 +455,8 @@ class StudyGui(Node):
     def _start_trial_if_ready(self):
         if self.session_finished or self.trial_started or self.trial_completion_latched:
             return
+        if not self.system_ready:
+            return
         if self._mode_overlay_visible():
             return
 
@@ -459,6 +499,7 @@ class StudyGui(Node):
     def _draw_workspace(self):
         workspace = self._drawing_rect()
         pygame.draw.rect(self.draw_target, self.WORKSPACE_BACKGROUND, workspace)
+        pygame.draw.rect(self.draw_target, self.SURFACE, workspace)
         pygame.draw.rect(self.draw_target, self.BORDER, workspace, width=2)
 
         sx, sy = self._marker_canvas_position(
@@ -636,12 +677,12 @@ class StudyGui(Node):
             self.draw_target.blit(label_text, (x, row_y))
             lines = self._wrap_sidebar_text(value, value_width)
             for line_index, line in enumerate(lines):
-                value_text = self.body_font.render(line, True, self.TEXT)
+                value_text = self.label_font.render(line, True, self.TEXT)
                 self.draw_target.blit(
                     value_text,
-                    (value_x, row_y - 4 + (line_index * self.body_font.get_linesize())),
+                    (value_x, row_y + (line_index * self.label_font.get_linesize())),
                 )
-            row_y += max(46, (len(lines) * self.body_font.get_linesize()) + 8)
+            row_y += max(40, (len(lines) * self.label_font.get_linesize()) + 8)
 
     def _wrap_sidebar_text(self, value, max_width, max_lines=3):
         """Wrap a status value to the available sidebar width (up to three lines)."""
@@ -653,7 +694,7 @@ class StudyGui(Node):
         current = ""
         for word in words:
             candidate = f"{current} {word}".strip()
-            if self.body_font.size(candidate)[0] <= max_width:
+            if self.label_font.size(candidate)[0] <= max_width:
                 current = candidate
                 continue
             if current:
@@ -673,14 +714,18 @@ class StudyGui(Node):
             state = "waiting for scenario"
         elif self.session_finished:
             state = "session complete"
+        elif not self.system_ready:
+            state = "waiting for study system"
         elif self.source == "mouse" and not self.mouse_in_workspace:
             state = "pointer outside workspace"
-        elif not self.input_valid:
+        elif not self.raw_input_valid:
             state = "device disconnected"
-        elif self.cursor_received and not self.cursor_in_bounds:
-            state = "cursor outside workspace"
         elif not self.mapping_ready:
             state = "press A at neutral"
+        elif not self.input_valid or not self.cursor_received:
+            state = "waiting for cursor"
+        elif self.cursor_received and not self.cursor_in_bounds:
+            state = "cursor outside workspace"
         elif self._mode_overlay_visible():
             state = "read mode instruction"
         elif self.last_abort_reason:
@@ -696,8 +741,17 @@ class StudyGui(Node):
         return [
             ("State", state),
             ("Trial", str(self.current_trial_id) if self.current_trial_id is not None else "-"),
-            ("Control", self.controller_mode),
+            ("Controller", self._controller_family_label()),
+            ("Mode", self.controller_mode),
         ]
+
+    def _controller_family_label(self):
+        labels = {
+            "state_feedback": "State Feedback",
+            "mpc": "MPC",
+            "none": "None",
+        }
+        return labels.get(self.controller_family.strip().lower(), self.controller_family)
 
     def _world_to_canvas(self, point):
         scale_x, scale_y, left, bottom = self._canvas_transform()
@@ -720,17 +774,14 @@ class StudyGui(Node):
         draw_rect = self._drawing_rect()
         x_span = max(self.workspace["x_max"] - self.workspace["x_min"], 1e-9)
         y_span = max(self.workspace["y_max"] - self.workspace["y_min"], 1e-9)
-        # Mouse mode uses every pixel of the visible white workspace.  Using
-        # one shared scale letterboxed the task into an invisible central
-        # rectangle, so pointer movement in the visible side areas was
-        # converted outside the task bounds and then appeared clamped.
-        scale_x = draw_rect.width / x_span
-        scale_y = draw_rect.height / y_span
-        return scale_x, scale_y, draw_rect.x, draw_rect.bottom
+        return (
+            draw_rect.width / x_span,
+            draw_rect.height / y_span,
+            draw_rect.x,
+            draw_rect.bottom,
+        )
 
     def _screen_pos_in_workspace(self, pos):
-        # The white task rectangle is the entire mouse workspace. It is also
-        # the rectangle used for marker and cursor coordinate transforms.
         return self._drawing_rect().collidepoint(pos)
 
     def _point_in_workspace(self, point):
@@ -831,6 +882,12 @@ class StudyGui(Node):
         while rclpy.ok() and self.running:
             for _ in range(self.max_callbacks_per_frame):
                 rclpy.spin_once(self, timeout_sec=0.0)
+            if self.screen is None:
+                if self.system_ready:
+                    self.screen = self._create_display()
+                else:
+                    self.clock.tick(max(self.render_fps, 1.0))
+                    continue
             self._handle_events()
             self._update_line_drawing()
             self._draw_scene()

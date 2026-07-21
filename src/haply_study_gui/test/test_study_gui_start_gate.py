@@ -1,7 +1,7 @@
 from geometry_msgs.msg import Point
-from haply_msgs.msg import StudyCursor, StudyDwellProgress, StudyTask, StudyTrialState
+from haply_msgs.msg import StudyButtonPress, StudyCursor, StudyDwellProgress, StudyTask, StudyTrialState
 from haply_study_gui.study_gui_node import StudyGui
-from std_msgs.msg import Bool, Empty
+from std_msgs.msg import Bool
 
 
 class FakePublisher:
@@ -43,6 +43,10 @@ def _cursor(x, y, trial_id=0, valid=True):
     )
 
 
+def _press(trial_id=0):
+    return StudyButtonPress(session_id="test-session", trial_id=trial_id)
+
+
 def _task(trial_id=0, start=(0.0, 0.0), end=(1.0, 0.0), phase="normal"):
     return StudyTask(
         session_id="test-session",
@@ -59,6 +63,9 @@ def _gui():
     gui.current_position = _point(0.0, 0.0)
     gui.cursor_received = True
     gui.input_valid = True
+    gui.raw_input_valid = True
+    gui.system_ready = True
+    gui.controller_family = "mpc"
     gui.start_point_received = True
     gui.end_point_received = True
     gui.start_point = _point(0.0, 0.0)
@@ -99,7 +106,7 @@ def test_mapping_ready_does_not_start_trial():
 def test_invalid_input_aborts_an_active_trial():
     gui = _gui()
     gui._mapping_ready(Bool(data=True))
-    gui._button_pressed(Empty())
+    gui._button_pressed(_press())
     gui._trial_state(_state("RUNNING"))
 
     gui._experiment_cursor_position(_cursor(0.0, 0.0, valid=False))
@@ -111,15 +118,24 @@ def test_press_event_outside_start_does_not_start_trial():
     gui = _gui()
     gui._mapping_ready(Bool(data=True))
     gui.current_position = _point(0.5, 0.0)
-    gui._button_pressed(Empty())
+    gui._button_pressed(_press())
     assert not gui.trial_started
     assert not gui.is_running
+
+
+def test_press_from_an_old_trial_is_ignored():
+    gui = _gui()
+    gui._mapping_ready(Bool(data=True))
+
+    gui._button_pressed(_press(trial_id=1))
+
+    assert gui.start_requested_pub.messages == []
 
 
 def test_press_event_at_start_starts_trial():
     gui = _gui()
     gui._mapping_ready(Bool(data=True))
-    gui._button_pressed(Empty())
+    gui._button_pressed(_press())
     gui._trial_state(_state("RUNNING"))
     assert gui.trial_started
     assert gui.is_running
@@ -129,7 +145,7 @@ def test_press_event_at_start_starts_trial():
 def test_no_press_event_is_reused_for_next_scenario():
     gui = _gui()
     gui._mapping_ready(Bool(data=True))
-    gui._button_pressed(Empty())
+    gui._button_pressed(_press())
     gui._trial_state(_state("RUNNING"))
     gui._trial_state(_state("COMPLETED"))
     gui._study_task(_task(trial_id=1, start=(0.1, 0.0)))
@@ -137,10 +153,21 @@ def test_no_press_event_is_reused_for_next_scenario():
     assert not gui.is_running
 
 
+def test_new_task_requires_a_matching_cursor_before_start():
+    gui = _gui()
+    gui._mapping_ready(Bool(data=True))
+    gui._study_task(_task(trial_id=1, start=(0.0, 0.0)))
+
+    assert not gui.cursor_received
+    assert not gui.input_valid
+    gui._button_pressed(_press())
+    assert gui.start_requested_pub.messages == []
+
+
 def test_path_continues_without_holding_button():
     gui = _gui()
     gui._mapping_ready(Bool(data=True))
-    gui._button_pressed(Empty())
+    gui._button_pressed(_press())
     gui._trial_state(_state("RUNNING"))
     gui.current_position = _point(0.2, 0.0)
     gui._update_line_drawing()
@@ -171,6 +198,7 @@ def test_canvas_transform_preserves_scale_and_round_trips():
     assert abs(restored.x - point.x) < 0.001
     assert abs(restored.y - point.y) < 0.001
     assert gui._canvas_transform()[0] > 0.0
+    assert gui._canvas_transform()[0] != gui._canvas_transform()[1]
 
 
 def test_mouse_workspace_includes_task_boundary():
@@ -190,7 +218,7 @@ def test_out_of_bounds_cursor_cannot_start_a_trial():
     gui._mapping_ready(Bool(data=True))
     gui._experiment_cursor_position(_cursor(2.0, 0.0))
 
-    gui._button_pressed(Empty())
+    gui._button_pressed(_press())
 
     assert gui.cursor_in_bounds is False
     assert gui.trial_started is False
@@ -252,24 +280,31 @@ def test_mode_change_shows_overlay_and_delays_start(monkeypatch):
     gui._mapping_ready(Bool(data=True))
 
     assert gui._mode_overlay_visible()
-    gui._button_pressed(Empty())
+    gui._button_pressed(_press())
     assert gui.trial_started is False
 
     clock[0] = 12.1
     assert not gui._mode_overlay_visible()
-    gui._button_pressed(Empty())
+    gui._button_pressed(_press())
     assert gui.trial_started is True
 
 
 def test_sidebar_status_values_wrap_to_three_lines():
     gui = _gui()
-    gui.body_font = FakeFont()
+    gui.label_font = FakeFont()
 
     lines = gui._wrap_sidebar_text(
         "move to start then press A after calibration", max_width=100
     )
 
     assert lines == ["move to", "start then", "press A"]
+
+
+def test_controller_family_label_is_participant_facing():
+    gui = _gui()
+    gui.controller_family = "state_feedback"
+
+    assert gui._controller_family_label() == "State Feedback"
 
 
 def test_gui_exit_requests_abort_for_running_trial(monkeypatch):

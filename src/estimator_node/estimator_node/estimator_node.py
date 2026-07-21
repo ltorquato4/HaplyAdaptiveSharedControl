@@ -7,6 +7,7 @@ from geometry_msgs.msg import Point, Vector3
 from haply_msgs.msg import HaplyState
 from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float64MultiArray
 
 from estimator_node.estimator.rls_estimator import RLSEstimator
@@ -56,10 +57,19 @@ class RLSEstimatorNode(Node):
 
         self.kh_pub = self.create_publisher(Float64MultiArray, "/estimation/K_h", 10)
         self.uh_pub = self.create_publisher(Vector3, "/estimation/u_h", 10)
+        self.ready_pub = self.create_publisher(
+            Bool, "/study_estimator_ready",
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                       reliability=ReliabilityPolicy.RELIABLE),
+        )
+        self.ready_timer = self.create_timer(0.5, self._publish_ready)
 
         self.timer = self.create_timer(0.01, self.update_estimator)
 
         self.get_logger().info("RLS Estimator node started.")                
+
+    def _publish_ready(self):
+        self.ready_pub.publish(Bool(data=self.start_point is not None and self.goal is not None))
 
     def start_callback(self, msg):
 

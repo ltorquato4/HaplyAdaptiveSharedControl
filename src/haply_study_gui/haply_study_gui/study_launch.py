@@ -12,6 +12,7 @@ def create_study_stack(
     controller=None,
     include_driver=False,
     controller_log_level="INFO",
+    require_system_ready=False,
 ):
     """Return common study nodes and the GUI node used for shutdown handling."""
     config_dir = get_package_share_directory("study_orchestration") + "/config"
@@ -19,6 +20,12 @@ def create_study_stack(
         config_dir + "/study_base.yaml",
         config_dir + f"/study_{source}.yaml",
     ]
+    scenario_parameters = [*parameters, {
+        "task_file": config_dir + "/default_tasks.yaml",
+        "require_controller_ready": require_system_ready,
+        "require_estimator_ready": require_system_ready,
+        "require_logger_ready": require_system_ready,
+    }]
     nodes = []
     if include_driver:
         nodes.append(
@@ -44,7 +51,7 @@ def create_study_stack(
                 executable="scenario_generator",
                 name="scenario_generator",
                 output="screen",
-                parameters=parameters,
+                parameters=scenario_parameters,
             ),
         ]
     )
@@ -93,7 +100,10 @@ def create_study_stack(
             "PYGAME_HIDE_SUPPORT_PROMPT": "1",
             "AUDIODEV": "null",
         },
-        parameters=parameters,
+        parameters=[*parameters, {
+            "require_system_ready": require_system_ready,
+            "controller_family": controller or "none",
+        }],
     )
     nodes.append(gui)
     return nodes, gui
