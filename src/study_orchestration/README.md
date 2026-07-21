@@ -23,7 +23,11 @@ points never silently recalibrate the device.
 Subscribes to `/haply_state` (`haply_msgs/HaplyState`). Publishes:
 
 - `/experiment_cursor_position` (`geometry_msgs/Point`)
-- `/experiment_input_valid` (`std_msgs/Bool`)
+- `/study_cursor` (`haply_msgs/StudyCursor`): timestamped mapped task-frame
+  sample with `session_id`, `trial_id`, position, and validity. GUI and
+  Scenario reject samples for any other task. `/experiment_cursor_position`
+  and `/experiment_input_valid` remain temporary Controller/Estimator/Logger
+  compatibility topics.
 - `/study_mapping_ready` (`std_msgs/Bool`, reliable transient-local)
 - `/study_button_pressed` (`std_msgs/Empty`)
 
@@ -64,8 +68,8 @@ Branch 51 temporarily also publishes `/study_start_point`, `/study_end_point`,
 consume them. They are compatibility outputs only and must be removed when
 those nodes migrate to the typed protocol.
 
-It subscribes to `/study_start_requested`, `/study_abort_requested`,
-`/experiment_cursor_position`, and `/experiment_input_valid`.
+It subscribes to `/study_start_requested`, `/study_abort_requested`, and the
+typed `/study_cursor` topic.
 
 Endpoint completion requires all of the following:
 

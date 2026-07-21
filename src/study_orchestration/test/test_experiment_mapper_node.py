@@ -1,5 +1,5 @@
 from geometry_msgs.msg import Point
-from haply_msgs.msg import HaplyState
+from haply_msgs.msg import HaplyState, StudyCursor, StudyTask
 from std_msgs.msg import Empty
 from study_orchestration import experiment_mapper_node
 from study_orchestration.experiment_mapper_node import ExperimentMapper
@@ -17,6 +17,17 @@ class FakePublisher:
 class FakeLogger:
     def info(self, _msg):
         pass
+
+
+class FakeClock:
+    class Now:
+        def to_msg(self):
+            from builtin_interfaces.msg import Time
+
+            return Time(sec=123, nanosec=456)
+
+    def now(self):
+        return self.Now()
 
 
 def _point(x, y, z=0.0):
@@ -37,6 +48,9 @@ def _mapper():
     node.mapping_mode = "anchored_delta"
     node.anchored_mapper = AnchoredDeltaMapper(MappingConfig())
     node.latest_raw_position = None
+    node.latest_mapped_position = None
+    node.current_session_id = None
+    node.current_trial_id = None
     node.mapping_ready = False
     node.previous_button_a = False
     node.last_button_edge_time = float("-inf")
@@ -46,10 +60,12 @@ def _mapper():
     node.input_valid = False
     node.task_anchor = TaskPoint(0.0, 0.0, 0.0)
     node.cursor_pub = FakePublisher()
+    node.study_cursor_pub = FakePublisher()
     node.mapping_ready_pub = FakePublisher()
     node.button_pressed_pub = FakePublisher()
     node.input_valid_pub = FakePublisher()
     node.get_logger = lambda: FakeLogger()
+    node.get_clock = lambda: FakeClock()
     return node
 
 
@@ -74,6 +90,21 @@ def test_first_rising_edge_captures_anchor_without_press_event(monkeypatch):
     assert node.button_pressed_pub.messages == []
     assert node.cursor_pub.messages[-1].x == 0.0
     assert node.cursor_pub.messages[-1].y == 0.0
+
+
+def test_mapper_publishes_stamped_cursor_for_current_task(monkeypatch):
+    node = _mapper()
+    node._study_task(StudyTask(session_id="session-a", trial_id=7))
+    monkeypatch.setattr(experiment_mapper_node.time, "monotonic", lambda: 1.0)
+    node._haply_state(_haply_state(1.0, 2.0, 0.0, pressed=True))
+    node._publish_latest_cursor()
+
+    cursor = node.study_cursor_pub.messages[-1]
+    assert isinstance(cursor, StudyCursor)
+    assert (cursor.session_id, cursor.trial_id) == ("session-a", 7)
+    assert (cursor.stamp.sec, cursor.stamp.nanosec) == (123, 456)
+    assert cursor.input_valid
+    assert (cursor.position.x, cursor.position.y) == (0.0, 0.0)
 
 
 def test_held_button_does_not_emit_another_event(monkeypatch):

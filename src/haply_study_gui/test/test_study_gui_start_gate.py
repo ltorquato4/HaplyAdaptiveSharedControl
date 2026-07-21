@@ -1,5 +1,5 @@
 from geometry_msgs.msg import Point
-from haply_msgs.msg import StudyDwellProgress, StudyTask, StudyTrialState
+from haply_msgs.msg import StudyCursor, StudyDwellProgress, StudyTask, StudyTrialState
 from haply_study_gui.study_gui_node import StudyGui
 from std_msgs.msg import Bool, Empty
 
@@ -34,6 +34,15 @@ def _state(state, trial_id=0):
     )
 
 
+def _cursor(x, y, trial_id=0, valid=True):
+    return StudyCursor(
+        session_id="test-session",
+        trial_id=trial_id,
+        position=_point(x, y),
+        input_valid=valid,
+    )
+
+
 def _task(trial_id=0, start=(0.0, 0.0), end=(1.0, 0.0), phase="normal"):
     return StudyTask(
         session_id="test-session",
@@ -58,9 +67,8 @@ def _gui():
     gui.start_reached_radius = 0.1
     gui.workspace = {"x_min": -1.0, "x_max": 1.0, "y_min": -1.0, "y_max": 1.0}
     gui.cursor_in_bounds = True
-    gui.is_drawing_line = False
-    gui.finished_line_this_frame = False
     gui.drawn_line = []
+    gui.max_drawn_points = 4
     gui.trial_started = False
     gui.is_running = False
     gui.endpoint_reached = False
@@ -94,7 +102,7 @@ def test_invalid_input_aborts_an_active_trial():
     gui._button_pressed(Empty())
     gui._trial_state(_state("RUNNING"))
 
-    gui._input_valid(Bool(data=False))
+    gui._experiment_cursor_position(_cursor(0.0, 0.0, valid=False))
 
     assert not gui.is_running
 
@@ -180,13 +188,30 @@ def test_mouse_workspace_includes_task_boundary():
 def test_out_of_bounds_cursor_cannot_start_a_trial():
     gui = _gui()
     gui._mapping_ready(Bool(data=True))
-    gui._experiment_cursor_position(_point(2.0, 0.0))
+    gui._experiment_cursor_position(_cursor(2.0, 0.0))
 
     gui._button_pressed(Empty())
 
     assert gui.cursor_in_bounds is False
     assert gui.trial_started is False
     assert gui.start_requested_pub.messages == []
+
+
+def test_cursor_from_an_old_trial_is_ignored():
+    gui = _gui()
+    gui.current_position = _point(0.0, 0.0)
+
+    gui._experiment_cursor_position(_cursor(0.5, 0.0, trial_id=1))
+
+    assert (gui.current_position.x, gui.current_position.y) == (0.0, 0.0)
+
+
+def test_display_path_is_bounded_by_decimation():
+    gui = _gui()
+    for index in range(20):
+        gui._append_drawn_point(_point(index * 0.01, 0.0), force=True)
+
+    assert len(gui.drawn_line) <= gui.max_drawn_points
 
 
 def test_dwell_progress_requires_matching_task_identity():

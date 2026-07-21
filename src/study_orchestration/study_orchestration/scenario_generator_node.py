@@ -16,6 +16,7 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from haply_msgs.msg import (
     StudyAbortRequest,
     StudyDwellProgress,
+    StudyCursor,
     StudyStartRequest,
     StudyTask,
     StudyTrialState,
@@ -204,10 +205,7 @@ class ScenarioGenerator(Node):
             StudyAbortRequest, "study_abort_requested", self._abort_requested, 10
         )
         self.create_subscription(
-            Point, "experiment_cursor_position", self._cursor_position, self._state_qos()
-        )
-        self.create_subscription(
-            Bool, "experiment_input_valid", self._input_valid, task_qos
+            StudyCursor, "study_cursor", self._cursor_position, self._state_qos()
         )
 
         publish_period_s = 1.0 / max(float(self.get_parameter("publish_hz").value), 0.1)
@@ -297,8 +295,21 @@ class ScenarioGenerator(Node):
         self._publish_running(True)
         self._publish_trial_state("RUNNING")
 
-    def _cursor_position(self, msg: Point) -> None:
-        self.cursor_position = StudyPoint(x=float(msg.x), y=float(msg.y), z=0.0)
+    def _cursor_position(self, msg: StudyCursor) -> None:
+        """Accept only fresh cursor state belonging to the active task."""
+        if (
+            str(msg.session_id) != self.session_id
+            or int(msg.trial_id) != self.trial_id
+        ):
+            return
+        self.input_valid = bool(msg.input_valid)
+        if not self.input_valid:
+            if self.is_running:
+                self._abort_trial("input_lost")
+            return
+        self.cursor_position = StudyPoint(
+            x=float(msg.position.x), y=float(msg.position.y), z=0.0
+        )
 
     def _abort_requested(self, msg: StudyAbortRequest) -> None:
         """Abort only the currently active task requested by the GUI."""
@@ -317,12 +328,6 @@ class ScenarioGenerator(Node):
             # callback is processed. Latching the abort keeps that queued
             # request from activating the controller during teardown.
             self._publish_trial_state("ABORTED", reason)
-
-    def _input_valid(self, msg: Bool) -> None:
-        self.input_valid = bool(msg.data)
-        if not self.input_valid:
-            if self.is_running:
-                self._abort_trial("input_lost")
 
     def _tick(self) -> None:
         if self.session_finished:
@@ -531,7 +536,8 @@ def main(args=None):
     except ExternalShutdownException:
         pass
     except KeyboardInterrupt:
-        node.get_logger().info("Shutting down...")
+        if rclpy.ok():
+            node.get_logger().info("Shutting down...")
     finally:
         node.destroy_node()
         if rclpy.ok():

@@ -1,6 +1,6 @@
 import random
 
-from haply_msgs.msg import StudyAbortRequest, StudyStartRequest
+from haply_msgs.msg import StudyAbortRequest, StudyCursor, StudyStartRequest
 from study_orchestration.scenario_generator_node import ScenarioGenerator
 from study_orchestration.scenario_logic import StudyPoint
 
@@ -106,6 +106,36 @@ def test_start_request_requires_current_trial_id(monkeypatch):
     node._start_requested(StudyStartRequest(session_id="test-session", trial_id=0))
     assert node.is_running
     assert node.trial_state_pub.messages[-1].state == "RUNNING"
+
+
+def test_cursor_from_old_trial_cannot_replace_current_cursor():
+    node = _generator()
+    node.cursor_position = StudyPoint(0.25, 0.0, 0.0)
+
+    node._cursor_position(
+        StudyCursor(
+            session_id="test-session",
+            trial_id=1,
+            input_valid=True,
+        )
+    )
+
+    assert node.cursor_position == StudyPoint(0.25, 0.0, 0.0)
+
+
+def test_invalid_cursor_for_current_trial_aborts_running_trial():
+    node = _generator()
+    node._cursor_position(
+        StudyCursor(
+            session_id="test-session",
+            trial_id=0,
+            input_valid=False,
+        )
+    )
+
+    assert not node.is_running
+    assert node.trial_state_pub.messages[-1].state == "ABORTED"
+    assert node.trial_state_pub.messages[-1].reason == "input_lost"
 
 
 def test_scenario_keeps_current_task_during_delay(monkeypatch):

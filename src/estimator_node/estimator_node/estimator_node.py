@@ -221,7 +221,11 @@ def main(args=None):
 
     finally:
         node.destroy_node()
-        rclpy.shutdown()
+        # Launch shutdown may already have closed the shared ROS context.
+        # Avoid turning an otherwise clean state-feedback safety stop into a
+        # process failure during teardown.
+        if rclpy.ok():
+            rclpy.shutdown()
 
 
 if __name__ == "__main__":

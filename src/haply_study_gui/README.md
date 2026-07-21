@@ -33,8 +33,10 @@ anchored-delta mapping from its neutral calibration pose.
 
 Subscribes to:
 
-- `/experiment_cursor_position` (`geometry_msgs/Point`): mapped cursor.
-- `/experiment_input_valid` (`std_msgs/Bool`): mapper input-freshness state.
+- `/experiment_cursor_position` (`geometry_msgs/Point`): legacy mapped cursor
+  retained only for Controller/Estimator/Logger compatibility.
+- `/study_cursor` (`haply_msgs/StudyCursor`): timestamped, ID-bearing mapped
+  cursor sample. The GUI rejects stale-session/trial samples and invalid input.
 - `/study_mapping_ready` (`std_msgs/Bool`): latched calibration state.
 - `/study_button_pressed` (`std_msgs/Empty`): post-calibration press events.
 - `/study_task` (`haply_msgs/StudyTask`): atomic task definition, including

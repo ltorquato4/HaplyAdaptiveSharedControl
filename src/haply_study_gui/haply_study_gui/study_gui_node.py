@@ -17,6 +17,7 @@ from haply_msgs.msg import (  # noqa: E402
     HaplyState,
     StudyAbortRequest,
     StudyDwellProgress,
+    StudyCursor,
     StudyStartRequest,
     StudyTask,
     StudyTrialState,
@@ -85,6 +86,7 @@ class StudyGui(Node):
         self.declare_parameter("auto_start", False)
         self.declare_parameter("debug_controls_enabled", False)
         self.declare_parameter("max_callbacks_per_frame", 16)
+        self.declare_parameter("max_drawn_points", 2000)
         self.declare_parameter("mode_overlay_duration_s", 2.0)
         self.declare_parameter("start_x", -0.08)
         self.declare_parameter("start_y", -0.08)
@@ -124,6 +126,9 @@ class StudyGui(Node):
             self.auto_start = False
         self.max_callbacks_per_frame = max(
             1, int(self.get_parameter("max_callbacks_per_frame").value)
+        )
+        self.max_drawn_points = max(
+            2, int(self.get_parameter("max_drawn_points").value)
         )
         self.mode_overlay_duration_s = max(
             0.0, float(self.get_parameter("mode_overlay_duration_s").value)
@@ -169,8 +174,6 @@ class StudyGui(Node):
         self.study_phase = "normal"
         self.mode_overlay_until = None
         self.controller_mode = "adaptive"
-        self.is_drawing_line = False
-        self.finished_line_this_frame = False
         self.drawn_line = []
         self.trial_started = self.auto_start
         self.is_running = self.auto_start
@@ -189,15 +192,12 @@ class StudyGui(Node):
 
         state_qos = self._state_qos()
         self.create_subscription(
-            Point, "experiment_cursor_position", self._experiment_cursor_position, state_qos
+            StudyCursor, "study_cursor", self._experiment_cursor_position, state_qos
         )
         self.create_subscription(
             Bool, "study_mapping_ready", self._mapping_ready, task_qos
         )
         self.create_subscription(Empty, "study_button_pressed", self._button_pressed, 10)
-        self.create_subscription(
-            Bool, "experiment_input_valid", self._input_valid, task_qos
-        )
         self.create_subscription(
             StudyDwellProgress,
             "study_endpoint_dwell_progress",
@@ -287,7 +287,20 @@ class StudyGui(Node):
         return self.COLORS[self.current_condition]["behavior"]
 
     def _experiment_cursor_position(self, msg):
-        self.current_position = self._copy_point_2d(msg)
+        if (
+            self.current_session_id is None
+            or self.current_trial_id is None
+            or str(msg.session_id) != self.current_session_id
+            or int(msg.trial_id) != self.current_trial_id
+        ):
+            return
+        self.input_valid = bool(msg.input_valid)
+        if not self.input_valid:
+            self.cursor_in_bounds = False
+            if self.is_running:
+                self.is_running = False
+            return
+        self.current_position = self._copy_point_2d(msg.position)
         self.cursor_received = True
         self.cursor_in_bounds = self._point_in_workspace(self.current_position)
 
@@ -340,20 +353,11 @@ class StudyGui(Node):
             self.endpoint_reached = True
             self.trial_completion_latched = True
             self.is_running = False
-            self.is_drawing_line = False
-            self.finished_line_this_frame = False
         elif msg.state == "SESSION_FINISHED":
             self.session_finished = True
             self.is_running = False
-            self.is_drawing_line = False
         elif msg.state == "READY" and self.trial_started and not self.is_running:
             self._reset_drawn_path()
-
-    def _input_valid(self, msg):
-        self.input_valid = bool(msg.data)
-        if not self.input_valid and self.is_running:
-            self.is_running = False
-            self.is_drawing_line = False
 
     def _dwell_progress(self, msg):
         if (
@@ -426,7 +430,6 @@ class StudyGui(Node):
             self.trial_started = True
             self.last_abort_reason = ""
             self._append_drawn_point(self.current_position, force=True)
-            self.is_drawing_line = True
             request = StudyStartRequest()
             request.session_id = getattr(self, "current_session_id", "") or ""
             request.trial_id = getattr(self, "current_trial_id", 0) or 0
@@ -439,7 +442,6 @@ class StudyGui(Node):
         if not self.trial_started:
             return
 
-        self.is_drawing_line = True
         self._append_drawn_point(self.current_position)
 
 
@@ -802,6 +804,10 @@ class StudyGui(Node):
         dy = new_point.y - last_point.y
         min_step = 0.001
         if force or ((dx * dx + dy * dy) ** 0.5) >= min_step:
+            if len(self.drawn_line) >= self.max_drawn_points:
+                # Keep the visual trajectory bounded while preserving its
+                # overall shape. Full-rate samples belong in the logger.
+                self.drawn_line = self.drawn_line[::2]
             self.drawn_line.append(new_point)
 
     def _is_near(self, first, second, radius):
@@ -811,7 +817,6 @@ class StudyGui(Node):
 
     def _reset_drawn_path(self):
         self.drawn_line = []
-        self.is_drawing_line = False
         self.trial_started = False
         self.is_running = False
         self.endpoint_reached = False

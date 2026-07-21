@@ -7,7 +7,7 @@ import time
 
 import rclpy
 from geometry_msgs.msg import Point
-from haply_msgs.msg import HaplyState
+from haply_msgs.msg import HaplyState, StudyCursor, StudyTask
 from rclpy.executors import ExternalShutdownException
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
@@ -74,6 +74,9 @@ class ExperimentMapper(Node):
         )
         self.anchored_mapper = AnchoredDeltaMapper(config)
         self.latest_raw_position: TaskPoint | None = None
+        self.latest_mapped_position: TaskPoint | None = None
+        self.current_session_id: str | None = None
+        self.current_trial_id: int | None = None
         self.mapping_ready = False
         self.previous_button_a = False
         self.last_button_edge_time = float("-inf")
@@ -106,6 +109,9 @@ class ExperimentMapper(Node):
         self.cursor_pub = self.create_publisher(
             Point, "experiment_cursor_position", state_qos
         )
+        self.study_cursor_pub = self.create_publisher(
+            StudyCursor, "study_cursor", state_qos
+        )
         task_qos = self._task_qos()
         self.mapping_ready_pub = self.create_publisher(
             Bool, "study_mapping_ready", task_qos
@@ -119,6 +125,7 @@ class ExperimentMapper(Node):
         self.create_subscription(
             HaplyState, "haply_state", self._haply_state, state_qos
         )
+        self.create_subscription(StudyTask, "study_task", self._study_task, task_qos)
         publish_hz = max(float(self.get_parameter("publish_hz").value), 1.0)
         self.publish_timer = self.create_timer(
             1.0 / publish_hz,
@@ -152,6 +159,11 @@ class ExperimentMapper(Node):
         self.previous_button_a = pressed
         if rising_edge:
             self._handle_button_press(now)
+
+    def _study_task(self, msg: StudyTask) -> None:
+        """Associate mapped samples with the atomically received task."""
+        self.current_session_id = str(msg.session_id)
+        self.current_trial_id = int(msg.trial_id)
 
     def _handle_button_press(self, now: float | None = None) -> None:
         if now is None:
@@ -195,6 +207,8 @@ class ExperimentMapper(Node):
         msg = Bool()
         msg.data = valid
         self.input_valid_pub.publish(msg)
+        if not valid:
+            self._publish_study_cursor(self.latest_mapped_position, False)
 
     def _publish_latest_cursor(self) -> None:
         if time.monotonic() - self.last_raw_update_time > self.input_timeout_s:
@@ -226,11 +240,30 @@ class ExperimentMapper(Node):
             self._publish_cursor(mapped_position)
 
     def _publish_cursor(self, position: TaskPoint) -> None:
+        self.latest_mapped_position = position
         msg = Point()
         msg.x = position.x
         msg.y = position.y
         msg.z = position.z
         self.cursor_pub.publish(msg)
+        self._publish_study_cursor(position, True)
+
+    def _publish_study_cursor(
+        self, position: TaskPoint | None, input_valid: bool
+    ) -> None:
+        """Publish a timestamped, task-identified cursor state when known."""
+        if self.current_session_id is None or self.current_trial_id is None:
+            return
+        msg = StudyCursor()
+        msg.session_id = self.current_session_id
+        msg.trial_id = self.current_trial_id
+        msg.stamp = self.get_clock().now().to_msg()
+        if position is not None:
+            msg.position.x = position.x
+            msg.position.y = position.y
+            msg.position.z = position.z
+        msg.input_valid = bool(input_valid)
+        self.study_cursor_pub.publish(msg)
 
     def _from_point_msg(self, msg: Point) -> TaskPoint:
         return TaskPoint(x=float(msg.x), y=float(msg.y), z=float(msg.z))
@@ -244,7 +277,8 @@ def main(args=None):
     except ExternalShutdownException:
         pass
     except KeyboardInterrupt:
-        node.get_logger().info("Shutting down...")
+        if rclpy.ok():
+            node.get_logger().info("Shutting down...")
     finally:
         node.destroy_node()
         if rclpy.ok():

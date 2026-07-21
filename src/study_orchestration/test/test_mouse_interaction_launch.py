@@ -14,7 +14,13 @@ import launch_testing
 import pytest
 import rclpy
 from geometry_msgs.msg import Point
-from haply_msgs.msg import HaplyState, StudyStartRequest, StudyTask, StudyTrialState
+from haply_msgs.msg import (
+    HaplyState,
+    StudyCursor,
+    StudyStartRequest,
+    StudyTask,
+    StudyTrialState,
+)
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Empty
@@ -79,6 +85,7 @@ class TestMouseInteractionLaunch(unittest.TestCase):
         self.tasks = []
         self.states = []
         self.cursors = []
+        self.study_cursors = []
         task_qos = QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -97,6 +104,7 @@ class TestMouseInteractionLaunch(unittest.TestCase):
             StudyTrialState, "study_trial_state", self.states.append, task_qos
         )
         self.node.create_subscription(Point, "experiment_cursor_position", self.cursors.append, 10)
+        self.node.create_subscription(StudyCursor, "study_cursor", self.study_cursors.append, 10)
 
     def tearDown(self):
         self.node.destroy_node()
@@ -150,6 +158,12 @@ class TestMouseInteractionLaunch(unittest.TestCase):
             lambda: self.cursors
             and abs(self.cursors[-1].x - first_task.start_point.x) < 0.01
             and abs(self.cursors[-1].y - first_task.start_point.y) < 0.01
+        )
+        self._spin_until(
+            lambda: self.study_cursors
+            and self.study_cursors[-1].session_id == first_task.session_id
+            and self.study_cursors[-1].trial_id == first_task.trial_id
+            and self.study_cursors[-1].input_valid
         )
 
         # Second edge is the post-calibration mouse click; send its matching

@@ -59,6 +59,7 @@ study_gui:
     auto_start: false
     debug_controls_enabled: false
     max_callbacks_per_frame: 16
+    max_drawn_points: 2000
     workspace_x_min: -0.12
     workspace_x_max: 0.12
     workspace_y_min: -0.18
