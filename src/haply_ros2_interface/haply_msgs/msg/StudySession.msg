@@ -1,0 +1,10 @@
+uint32 schema_version
+string session_id
+string input_source
+string controller_family
+string order_strategy
+uint32 order_seed
+string estimator_state_policy
+float64 max_control_amplitude
+bool loop_tasks
+StudyTask[] schedule

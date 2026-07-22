@@ -14,11 +14,16 @@ import launch_ros.actions
 import launch_testing
 import pytest
 import rclpy
-from geometry_msgs.msg import Point, Vector3
-from haply_msgs.msg import HaplyControl, HaplyState, StudyStartRequest, StudyTask, StudyTrialState
+from geometry_msgs.msg import Vector3
+from haply_msgs.msg import (
+    HaplyControl,
+    HaplyState,
+    StudyStartRequest,
+    StudyTask,
+    StudyTrialState,
+)
 from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
-from std_msgs.msg import String
 
 
 @pytest.mark.launch_test
@@ -55,11 +60,9 @@ def generate_test_description():
                 ),
                 launch_ros.actions.Node(
                     package="control_node",
-                    executable="control_node",
+                    executable="state_feedback_control_node",
                     name="control_node",
-                    parameters=[
-                        {"use_mpc_controller": False, "log_level": "WARN"}
-                    ],
+                    parameters=[{"log_level": "WARN"}],
                 ),
                 launch_ros.actions.Node(
                     package="estimator_node",
@@ -84,25 +87,30 @@ class TestStateFeedbackSafetyLaunch(unittest.TestCase):
         self.start_request_pub = self.node.create_publisher(
             StudyStartRequest, "study_start_requested", 10
         )
-        # Compatibility publications initialise the still-legacy Controller.
-        self.start_pub = self.node.create_publisher(Point, "study_start_point", 10)
-        self.end_pub = self.node.create_publisher(Point, "study_end_point", 10)
-        self.mode_pub = self.node.create_publisher(String, "study_controller_mode", 10)
         self.tasks = []
         self.states = []
         self.force_commands = []
         self.estimates = []
-        task_qos = QoSProfile(
+        retained_state_qos = QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             reliability=ReliabilityPolicy.RELIABLE,
         )
-        self.node.create_subscription(StudyTask, "study_task", self.tasks.append, task_qos)
         self.node.create_subscription(
-            StudyTrialState, "study_trial_state", self.states.append, task_qos
+            StudyTask, "study_task", self.tasks.append, retained_state_qos
         )
-        self.node.create_subscription(HaplyControl, "/haply_target", self.force_commands.append, 10)
-        self.node.create_subscription(Vector3, "/estimation/u_h", self.estimates.append, 10)
+        self.node.create_subscription(
+            StudyTrialState,
+            "study_trial_state",
+            self.states.append,
+            retained_state_qos,
+        )
+        self.node.create_subscription(
+            HaplyControl, "/haply_target", self.force_commands.append, 10
+        )
+        self.node.create_subscription(
+            Vector3, "/estimation/u_h", self.estimates.append, 10
+        )
 
     def tearDown(self):
         self.node.destroy_node()
@@ -128,11 +136,6 @@ class TestStateFeedbackSafetyLaunch(unittest.TestCase):
             rclpy.spin_once(self.node, timeout_sec=0.01)
             time.sleep(0.02)
 
-    def _publish_legacy_task_for_controller(self, task):
-        self.start_pub.publish(task.start_point)
-        self.end_pub.publish(task.end_point)
-        self.mode_pub.publish(String(data=task.controller_mode))
-
     @staticmethod
     def _is_zero_force(command):
         return (
@@ -147,19 +150,13 @@ class TestStateFeedbackSafetyLaunch(unittest.TestCase):
         self._spin_until(lambda: self.haply_pub.get_subscription_count() >= 1)
         task = self.tasks[-1]
 
-        # The production Controller is still a legacy-topic consumer. Publish
-        # the atomic task's fields once it is subscribed so this test isolates
-        # its safe-stop behavior rather than late-subscriber migration work.
-        self._spin_until(lambda: self.start_pub.get_subscription_count() >= 2)
-        self._spin_until(lambda: self.end_pub.get_subscription_count() >= 2)
-        self._publish_legacy_task_for_controller(task)
-        time.sleep(0.15)
-
         # First edge calibrates; the second begins a valid state-feedback run.
         self._publish_input(0.0, 0.0, pressed=False)
         self._publish_input(0.0, 0.0, pressed=True)
         self._publish_input(0.0, 0.0, pressed=False)
-        self._publish_input(task.start_point.x, task.start_point.y, pressed=False, samples=8)
+        self._publish_input(
+            task.start_point.x, task.start_point.y, pressed=False, samples=8
+        )
         self._publish_input(task.start_point.x, task.start_point.y, pressed=True)
         self._publish_input(task.start_point.x, task.start_point.y, pressed=False)
         self.start_request_pub.publish(
@@ -178,7 +175,9 @@ class TestStateFeedbackSafetyLaunch(unittest.TestCase):
                 for state in self.states
             )
         )
-        self._spin_until(lambda: self.force_commands and self._is_zero_force(self.force_commands[-1]))
+        self._spin_until(
+            lambda: self.force_commands and self._is_zero_force(self.force_commands[-1])
+        )
 
         estimate_count = len(self.estimates)
         deadline = time.monotonic() + 0.25

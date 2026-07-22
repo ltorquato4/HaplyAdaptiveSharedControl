@@ -1,10 +1,12 @@
+import os
+
 import pygame
 import rclpy
-
 from haply_study_gui.study_gui_node import StudyGui
 
 
 def test_readiness_gated_gui_constructs_before_display_opens():
+    os.environ.setdefault("SDL_VIDEODRIVER", "dummy")
     rclpy.init(args=["--ros-args", "-p", "require_system_ready:=true"])
     gui = StudyGui()
     try:

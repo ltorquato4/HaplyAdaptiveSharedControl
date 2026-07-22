@@ -1,0 +1,32 @@
+control_node:
+  ros__parameters:
+    # Legacy MPC profile. Keep these parameters isolated from state feedback so
+    # changes to the virtual-fixture controller cannot change MPC behavior.
+    delta_time: 0.1
+    use_mpc_controller: true
+    adaptive_control_enabled: false
+    # Legacy component-wise control limit. With the unchanged 0.2 conversion
+    # below, this produces a 2 N limit on each device force axis; it is not the
+    # State Feedback controller's 2 N Euclidean vector-norm limit.
+    max_control_amplitude: 10.0
+    max_velocity_amplitude: 10.0
+    acceleration_to_force_factor: 0.2
+    mpc_control_every_i_th_iteration: 1
+    adapt_every_i_th_iterarion: 3
+    prediction_horizon: 5
+
+    # Match the current Scenario/GUI workspace constraints.
+    x_bounds: 0.12
+    y_bounds: 0.18
+
+    # Existing adaptive-MPC terminal docking behavior, formerly hard-coded in
+    # AdaptiveMpcController. These defaults preserve the previous behavior.
+    docking_enabled: true
+    docking_start_percent: 85.0
+    docking_comfort_reduction: 0.9
+    docking_trajectory_weight_scale: 2.0
+    docking_goal_weight_scale: 1000000.0
+
+scenario_generator:
+  ros__parameters:
+    max_control_amplitude: 10.0

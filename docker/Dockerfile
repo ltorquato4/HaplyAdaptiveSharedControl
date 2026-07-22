@@ -33,6 +33,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-rclpy \
     ros-${ROS_DISTRO}-rosidl-default-generators \
     ros-${ROS_DISTRO}-rosidl-default-runtime \
+    ros-${ROS_DISTRO}-rqt-plot \
     ros-${ROS_DISTRO}-rviz2 \
     ros-${ROS_DISTRO}-std-msgs \
     && rm -rf /var/lib/apt/lists/*
