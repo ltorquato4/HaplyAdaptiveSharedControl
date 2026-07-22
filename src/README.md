@@ -16,6 +16,7 @@ cursor, button press, start request, dwell update, and trial-state message.
 | `control_node` | Retains the separately selected legacy MPC implementation. |
 | `estimator_node` | Estimates effective closed-loop interaction dynamics, retaining RLS learning within one identified session. |
 | `data_logger_node` | Records session manifests, retry-aware attempt outcomes, task metadata, and sampled signals. |
+| `study_analysis` | Validates deterministic Controller/Estimator behavior and produces descriptive CSV/PDF study reports. |
 
 ## Trial flow
 
@@ -72,8 +73,8 @@ Logger, task, and cursor behavior uses the typed interfaces above.
 > **Removal note:** After the team approves migrating legacy MPC to
 > `StudyTrialState`, remove its `/study_is_running` subscription, Scenario's
 > compatibility publisher, and the corresponding legacy test publishers. No
-> State Feedback, Estimator, Logger, GUI, or Mapper code should need changes at
-> that point.
+> State Feedback, Estimator, Logger, GUI, Mapper, or analysis code should need
+> changes at that point.
 
 Retained configuration/state topics (`StudySession`, `StudyTask`, the latest
 `StudyTrialState`, readiness, and `/control/K_a`) use reliable transient-local
@@ -169,3 +170,23 @@ The two `control_node` debug launches are compatibility wrappers. They include
 the corresponding production GUI launch unchanged and add only the controller
 output visualizer plus debug logging, so they no longer define a second set of
 study/controller defaults.
+
+## Evaluation
+
+Production logs are written under `logs/<session-id>/`. Each run contains a
+reproducible session manifest, retry-aware trial CSVs, and `trial_attempts.csv`.
+
+```bash
+ros2 run study_analysis analyze_session \
+  --input logs/<session-id> \
+  --output analysis_results/<session-id>
+
+ros2 run study_analysis run_benchmark \
+  --output analysis_results/benchmark \
+  --seed 20260721
+```
+
+The session analyzer writes `trial_metrics.csv`, `condition_summary.csv`,
+`data_quality.csv`, and `analysis_report.pdf`. The benchmark uses known
+synthetic estimator coefficients and the production state-feedback force class;
+participant logs alone are not estimator ground truth.

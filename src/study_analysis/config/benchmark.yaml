@@ -1,0 +1,9 @@
+seed: 20260721
+estimator_samples: 2500
+estimator_noise_std: 0.05
+estimator_noiseless_relative_error_max: 0.01
+estimator_noisy_relative_error_max: 0.15
+simulation_dt: 0.01
+simulation_duration_s: 20.0
+target_radius: 0.01
+max_force: 0.5

@@ -35,3 +35,17 @@ ros2 topic hz /study_cursor
 ros2 topic echo /study_trial_state
 ros2 topic echo /estimation/K_h
 ```
+
+For a ground-truth check independent of hardware, run the deterministic
+benchmark. It tests RLS with known coefficients in noiseless and seeded-noise
+cases, then exercises fixed and adaptive state-feedback and MPC controllers:
+
+```bash
+ros2 run study_analysis run_benchmark \
+  --output analysis_results/benchmark \
+  --seed 20260721
+```
+
+Participant logs do not contain estimator ground truth, so session analysis is
+descriptive. Use the benchmark to establish coefficient-recovery accuracy and
+the session report to inspect runtime behavior.

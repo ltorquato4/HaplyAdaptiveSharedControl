@@ -24,5 +24,13 @@ process steady-clock time (`monotonic_timestamp`), and the timestamp of the
 latest typed Mapper sample (`cursor_timestamp`). `missed_cycle_count` records
 cumulative 100 Hz Logger deadlines that were missed, while
 `cursor_sample_sequence` distinguishes new source samples from repeated rows.
-This lets downstream processing separate wall-clock corrections, Logger
-scheduling stalls, and missing Mapper input.
+This lets analysis separate wall-clock corrections, Logger scheduling stalls,
+and missing Mapper input.
+
+Analyze a completed directory with:
+
+```bash
+ros2 run study_analysis analyze_session \
+  --input logs/<session-id> \
+  --output analysis_results/<session-id>
+```

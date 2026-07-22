@@ -23,9 +23,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-ament-flake8 \
     python3-ament-pep257 \
     python3-colcon-common-extensions \
+    python3-matplotlib \
+    python3-pandas \
     python3-pip \
     python3-pygame \
     python3-rosdep \
+    python3-scipy \
     python3-yaml \
     software-properties-common \
     ros-${ROS_DISTRO}-builtin-interfaces \
