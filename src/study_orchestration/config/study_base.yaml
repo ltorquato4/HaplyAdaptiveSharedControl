@@ -66,9 +66,3 @@ study_gui:
     workspace_y_max: 0.15
     start_reached_radius: 0.01
     endpoint_reached_radius: 0.01
-
-control_node:
-  ros__parameters:
-    # Keep MPC hard constraints aligned with the Scenario/GUI workspace.
-    x_bounds: 0.12
-    y_bounds: 0.18

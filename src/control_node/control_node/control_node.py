@@ -68,6 +68,21 @@ class ControlNode(Node):
         self.prediction_horizon = self.get_or_declare_parameter("prediction_horizon", 5)
         self.x_bounds_limit = self.get_or_declare_parameter("x_bounds", 0.10)
         self.y_bounds_limit = self.get_or_declare_parameter("y_bounds", 0.10)
+        self.mpc_docking_enabled = self.get_or_declare_parameter(
+            "docking_enabled", True
+        )
+        self.mpc_docking_start_percent = self.get_or_declare_parameter(
+            "docking_start_percent", 85.0
+        )
+        self.mpc_docking_comfort_reduction = self.get_or_declare_parameter(
+            "docking_comfort_reduction", 0.9
+        )
+        self.mpc_docking_trajectory_weight_scale = self.get_or_declare_parameter(
+            "docking_trajectory_weight_scale", 2.0
+        )
+        self.mpc_docking_goal_weight_scale = self.get_or_declare_parameter(
+            "docking_goal_weight_scale", 10e5
+        )
 
     def reset_scenario_state(self):
         self.start_point: list[float] = []
@@ -85,9 +100,13 @@ class ControlNode(Node):
 
     def define_publishers(self):
         self.control_output_pub = self.create_publisher(Vector3, "/control/U_a", 10)
-        self.control_parameter_pub = self.create_publisher(String, "/control/K_a", 10)
+        self.control_parameter_pub = self.create_publisher(
+            String, "/control/K_a", self._retained_state_qos()
+        )
         self.force_output_pub = self.create_publisher(HaplyControl, "/haply_target", 10)
-        self.ready_pub = self.create_publisher(Bool, "/study_controller_ready", self._task_qos())
+        self.ready_pub = self.create_publisher(
+            Bool, "/study_controller_ready", self._retained_state_qos()
+        )
         self.ready_timer = self.create_timer(0.5, self._publish_ready)
 
     def _publish_ready(self):
@@ -102,7 +121,10 @@ class ControlNode(Node):
         
     def define_subscribers(self):
         self.study_task_sub = self.create_subscription(
-            StudyTask, "/study_task", self.study_task_callback, self._task_qos()
+            StudyTask,
+            "/study_task",
+            self.study_task_callback,
+            self._retained_state_qos(),
         )
         self.controller_mode_sub = self.create_subscription(String, "/study_controller_mode", self.controller_mode_callback, 10)
         self.start_point_sub = self.create_subscription(Point, "/study_start_point", self.start_point_callback, 10)
@@ -111,7 +133,7 @@ class ControlNode(Node):
         self.current_point_sub = self.create_subscription(Point, "/experiment_cursor_position", self.current_point_callback, 10)
         self.estimation_kh_sub = self.create_subscription(Float64MultiArray, "/estimation/K_h", self.estimation_kh_callback, 10)
 
-    def _task_qos(self):
+    def _retained_state_qos(self):
         return QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
@@ -123,7 +145,10 @@ class ControlNode(Node):
         self.start_point = [msg.start_point.x, msg.start_point.y]
         self.end_point = [msg.end_point.x, msg.end_point.y]
         self.controller_mode = str(msg.controller_mode).lower()
-        self.initialize_controller()
+        if self.initialize_controller():
+            control_parameter_msg = String()
+            control_parameter_msg.data = self.controller.publish_control_parameter()
+            self.control_parameter_pub.publish(control_parameter_msg)
 
     def publish_zero_force(self):
         """Forces the haptic device to clear commands and neutralise safely."""
@@ -166,6 +191,15 @@ class ControlNode(Node):
                     max_velocity=(self.max_velocity_amplitude, self.max_velocity_amplitude),
                     x_bounds=(-self.x_bounds_limit, self.x_bounds_limit),
                     y_bounds=(-self.y_bounds_limit, self.y_bounds_limit),
+                    docking_enabled=self.mpc_docking_enabled,
+                    docking_start_percent=self.mpc_docking_start_percent,
+                    docking_comfort_reduction=(
+                        self.mpc_docking_comfort_reduction
+                    ),
+                    docking_trajectory_weight_scale=(
+                        self.mpc_docking_trajectory_weight_scale
+                    ),
+                    docking_goal_weight_scale=self.mpc_docking_goal_weight_scale,
                 )
             else:
                 self.controller = AdaptiveStateFeedbackController(

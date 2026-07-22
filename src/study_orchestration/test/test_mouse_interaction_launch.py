@@ -16,8 +16,8 @@ import rclpy
 from geometry_msgs.msg import Point
 from haply_msgs.msg import (
     HaplyState,
-    StudyCursor,
     StudyButtonPress,
+    StudyCursor,
     StudyStartRequest,
     StudyTask,
     StudyTrialState,
@@ -87,25 +87,40 @@ class TestMouseInteractionLaunch(unittest.TestCase):
         self.states = []
         self.cursors = []
         self.study_cursors = []
-        task_qos = QoSProfile(
+        retained_state_qos = QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             reliability=ReliabilityPolicy.RELIABLE,
         )
+        state_history_qos = QoSProfile(
+            depth=10,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
         self.node.create_subscription(
-            Bool, "study_mapping_ready", self._mapping_ready, task_qos
+            Bool,
+            "study_mapping_ready",
+            self._mapping_ready,
+            retained_state_qos,
         )
         self.node.create_subscription(
             StudyButtonPress, "study_button_pressed", self._button_pressed, 10
         )
         self.node.create_subscription(
-            StudyTask, "study_task", self.tasks.append, task_qos
+            StudyTask, "study_task", self.tasks.append, retained_state_qos
         )
         self.node.create_subscription(
-            StudyTrialState, "study_trial_state", self.states.append, task_qos
+            StudyTrialState,
+            "study_trial_state",
+            self.states.append,
+            state_history_qos,
         )
-        self.node.create_subscription(Point, "experiment_cursor_position", self.cursors.append, 10)
-        self.node.create_subscription(StudyCursor, "study_cursor", self.study_cursors.append, 10)
+        self.node.create_subscription(
+            Point, "experiment_cursor_position", self.cursors.append, 10
+        )
+        self.node.create_subscription(
+            StudyCursor, "study_cursor", self.study_cursors.append, 10
+        )
 
     def tearDown(self):
         self.node.destroy_node()
@@ -156,15 +171,19 @@ class TestMouseInteractionLaunch(unittest.TestCase):
         # Anchored-delta mapping: raw displacement reaches the task start.
         self._publish_input(first_task.start_point.x, first_task.start_point.y)
         self._spin_until(
-            lambda: self.cursors
-            and abs(self.cursors[-1].x - first_task.start_point.x) < 0.01
-            and abs(self.cursors[-1].y - first_task.start_point.y) < 0.01
+            lambda: (
+                self.cursors
+                and abs(self.cursors[-1].x - first_task.start_point.x) < 0.01
+                and abs(self.cursors[-1].y - first_task.start_point.y) < 0.01
+            )
         )
         self._spin_until(
-            lambda: self.study_cursors
-            and self.study_cursors[-1].session_id == first_task.session_id
-            and self.study_cursors[-1].trial_id == first_task.trial_id
-            and self.study_cursors[-1].input_valid
+            lambda: (
+                self.study_cursors
+                and self.study_cursors[-1].session_id == first_task.session_id
+                and self.study_cursors[-1].trial_id == first_task.trial_id
+                and self.study_cursors[-1].input_valid
+            )
         )
 
         # Second edge is the post-calibration mouse click; send its matching
@@ -178,14 +197,13 @@ class TestMouseInteractionLaunch(unittest.TestCase):
                 trial_id=first_task.trial_id,
             )
         )
-        self._spin_until(
-            lambda: any(state.state == "RUNNING" for state in self.states)
-        )
+        self._spin_until(lambda: any(state.state == "RUNNING" for state in self.states))
 
         # Endpoint must be held continuously long enough to complete the task.
         deadline = time.monotonic() + 0.30
         while time.monotonic() < deadline:
             self._publish_input(first_task.end_point.x, first_task.end_point.y)
+            rclpy.spin_once(self.node, timeout_sec=0.01)
         self._spin_until(
             lambda: any(state.state == "COMPLETED" for state in self.states)
         )

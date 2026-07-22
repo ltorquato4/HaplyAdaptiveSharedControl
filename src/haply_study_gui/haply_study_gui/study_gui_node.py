@@ -197,29 +197,50 @@ class StudyGui(Node):
         self.abort_requested_pub = self.create_publisher(
             StudyAbortRequest, "study_abort_requested", 10
         )
-        task_qos = self._task_qos()
+        retained_state_qos = self._retained_state_qos()
 
         state_qos = self._state_qos()
         self.create_subscription(
             StudyCursor, "study_cursor", self._experiment_cursor_position, state_qos
         )
         self.create_subscription(
-            Bool, "study_mapping_ready", self._mapping_ready, task_qos
+            Bool,
+            "study_mapping_ready",
+            self._mapping_ready,
+            retained_state_qos,
         )
         self.create_subscription(
-            Bool, "experiment_input_valid", self._raw_input_valid, task_qos
+            Bool,
+            "experiment_input_valid",
+            self._raw_input_valid,
+            retained_state_qos,
         )
-        self.create_subscription(Bool, "study_system_ready", self._system_ready, task_qos)
-        self.create_subscription(StudyButtonPress, "study_button_pressed", self._button_pressed, 10)
+        self.create_subscription(
+            Bool,
+            "study_system_ready",
+            self._system_ready,
+            retained_state_qos,
+        )
+        self.create_subscription(
+            StudyButtonPress,
+            "study_button_pressed",
+            self._button_pressed,
+            10,
+        )
         self.create_subscription(
             StudyDwellProgress,
             "study_endpoint_dwell_progress",
             self._dwell_progress,
-            task_qos,
+            retained_state_qos,
         )
-        self.create_subscription(StudyTask, "study_task", self._study_task, task_qos)
         self.create_subscription(
-            StudyTrialState, "study_trial_state", self._trial_state, task_qos
+            StudyTask, "study_task", self._study_task, retained_state_qos
+        )
+        self.create_subscription(
+            StudyTrialState,
+            "study_trial_state",
+            self._trial_state,
+            retained_state_qos,
         )
         if self.source == "mouse":
             self.mouse_state_pub = self.create_publisher(
@@ -252,7 +273,7 @@ class StudyGui(Node):
         if self.source == "mouse":
             self.previous_mouse_position = self._screen_to_world(pygame.mouse.get_pos())
 
-    def _task_qos(self) -> QoSProfile:
+    def _retained_state_qos(self) -> QoSProfile:
         return QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,

@@ -17,7 +17,7 @@ from std_msgs.msg import Bool
 
 @pytest.mark.launch_test
 def generate_test_description():
-    task_qos = QoSProfile(
+    retained_state_qos = QoSProfile(
         depth=1,
         durability=DurabilityPolicy.TRANSIENT_LOCAL,
         reliability=ReliabilityPolicy.RELIABLE,
@@ -50,7 +50,9 @@ def generate_test_description():
             ),
         ],
     )
-    return launch.LaunchDescription([scenario, late_consumers, launch_testing.actions.ReadyToTest()]), {"task_qos": task_qos}
+    return launch.LaunchDescription(
+        [scenario, late_consumers, launch_testing.actions.ReadyToTest()]
+    ), {"retained_state_qos": retained_state_qos}
 
 
 class TestLateReadinessLaunch(unittest.TestCase):
@@ -59,13 +61,20 @@ class TestLateReadinessLaunch(unittest.TestCase):
         self.node = Node("late_readiness_launch_test")
         self.tasks = []
         self.system_ready = []
-        task_qos = QoSProfile(
+        retained_state_qos = QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             reliability=ReliabilityPolicy.RELIABLE,
         )
-        self.node.create_subscription(StudyTask, "study_task", self.tasks.append, task_qos)
-        self.node.create_subscription(Bool, "study_system_ready", self.system_ready.append, task_qos)
+        self.node.create_subscription(
+            StudyTask, "study_task", self.tasks.append, retained_state_qos
+        )
+        self.node.create_subscription(
+            Bool,
+            "study_system_ready",
+            self.system_ready.append,
+            retained_state_qos,
+        )
 
     def tearDown(self):
         self.node.destroy_node()

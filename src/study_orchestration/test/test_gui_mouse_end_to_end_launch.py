@@ -87,17 +87,25 @@ class TestGuiMouseEndToEnd(unittest.TestCase):
         self.ready_values = []
         self.tasks = []
         self.states = []
-        task_qos = QoSProfile(
+        retained_state_qos = QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             reliability=ReliabilityPolicy.RELIABLE,
         )
         self.node.create_subscription(
-            Bool, "study_mapping_ready", self.ready_values.append, task_qos
+            Bool,
+            "study_mapping_ready",
+            self.ready_values.append,
+            retained_state_qos,
         )
-        self.node.create_subscription(StudyTask, "study_task", self.tasks.append, task_qos)
         self.node.create_subscription(
-            StudyTrialState, "study_trial_state", self.states.append, task_qos
+            StudyTask, "study_task", self.tasks.append, retained_state_qos
+        )
+        self.node.create_subscription(
+            StudyTrialState,
+            "study_trial_state",
+            self.states.append,
+            retained_state_qos,
         )
 
     def tearDown(self):
