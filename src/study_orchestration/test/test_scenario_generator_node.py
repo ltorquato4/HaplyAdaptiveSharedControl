@@ -2,7 +2,6 @@ import random
 from pathlib import Path
 
 import yaml
-
 from haply_msgs.msg import StudyAbortRequest, StudyCursor, StudyStartRequest
 from study_orchestration.scenario_generator_node import ScenarioGenerator
 from study_orchestration.scenario_logic import StudyPoint
@@ -52,11 +51,19 @@ def _generator():
     node.task_index = 0
     node.trial_id = 0
     node.session_id = "test-session"
+    node.input_source = "haply"
+    node.controller_family = "mpc"
+    node.estimator_state_policy = "persist_session"
+    node.max_control_amplitude = 10.0
     node.loop_tasks = False
     node.session_finished = False
     node.component_ready = {"controller": True, "estimator": True, "logger": True}
     node.component_required = {"controller": False, "estimator": False, "logger": False}
-    node.component_last_seen = {"controller": float("-inf"), "estimator": float("-inf"), "logger": float("-inf")}
+    node.component_last_seen = {
+        "controller": float("-inf"),
+        "estimator": float("-inf"),
+        "logger": float("-inf"),
+    }
     node.component_heartbeat_timeout_s = 2.0
     node.cursor_max_age_s = 0.5
     node.is_running = True
@@ -76,11 +83,29 @@ def _generator():
     node.running_pub = FakePublisher()
     node.endpoint_pub = FakePublisher()
     node.task_pub = FakePublisher()
+    node.session_pub = FakePublisher()
     node.trial_state_pub = FakePublisher()
     node.system_ready_pub = FakePublisher()
     node.get_logger = lambda: FakeLogger()
-    node.get_clock = lambda: type("Clock", (), {"now": lambda _self: type("Now", (), {"nanoseconds": 0})()})()
+    node.get_clock = lambda: type(
+        "Clock", (), {"now": lambda _self: type("Now", (), {"nanoseconds": 0})()}
+    )()
     return node
+
+
+def test_session_definition_contains_reproducible_schedule():
+    node = _generator()
+
+    node._publish_session_definition()
+
+    message = node.session_pub.messages[-1]
+    assert message.schema_version == 2
+    assert message.session_id == "test-session"
+    assert message.input_source == "haply"
+    assert message.controller_family == "mpc"
+    assert message.order_seed == 1
+    assert len(message.schedule) == len(node.tasks)
+    assert [task.trial_id for task in message.schedule] == list(range(len(node.tasks)))
 
 
 def test_endpoint_dwell_requires_continuous_second(monkeypatch):
@@ -238,9 +263,16 @@ def test_schedule_covers_each_phase_segment_mode_combination():
 
 def test_default_yaml_paths_fit_the_configured_mpc_workspace():
     config_dir = Path(__file__).resolve().parents[1] / "config"
-    base = yaml.safe_load((config_dir / "study_base.yaml").read_text())
     paths = yaml.safe_load((config_dir / "default_tasks.yaml").read_text())["paths"]
-    bounds = base["control_node"]["ros__parameters"]
+    mpc_config = (
+        Path(__file__).resolve().parents[2]
+        / "control_node"
+        / "config"
+        / "mpc.yaml"
+    )
+    bounds = yaml.safe_load(mpc_config.read_text())["control_node"][
+        "ros__parameters"
+    ]
 
     for path in paths:
         for point in (path["start_point"], path["end_point"]):
@@ -275,7 +307,10 @@ def test_seeded_random_schedule_shuffles_phases_and_segments_reproducibly():
         phase_order = [first.tasks[offset + (index * 5)].phase for index in range(3)]
         assert set(phase_order) == set(ScenarioGenerator.PHASES)
         segment_orders = [
-            [task.segment_index for task in first.tasks[offset + index * 5:offset + (index + 1) * 5]]
+            [
+                task.segment_index
+                for task in first.tasks[offset + index * 5 : offset + (index + 1) * 5]
+            ]
             for index in range(3)
         ]
         assert all(set(order) == set(range(5)) for order in segment_orders)

@@ -34,7 +34,7 @@ anchored-delta mapping from its neutral calibration pose.
 Subscribes to:
 
 - `/experiment_cursor_position` (`geometry_msgs/Point`): legacy mapped cursor
-  retained only for Controller/Estimator/Logger compatibility.
+  retained for Controller/Logger compatibility and Estimator debug fallback.
 - `/study_cursor` (`haply_msgs/StudyCursor`): timestamped, ID-bearing mapped
   cursor sample. The GUI rejects stale-session/trial samples and invalid input.
 - `/study_mapping_ready` (`std_msgs/Bool`): latched calibration state.
@@ -75,17 +75,44 @@ source install/setup.bash
 | Purpose | Command |
 | --- | --- |
 | Mouse simulation | `ros2 launch haply_study_gui study_gui_mouse.launch.py` |
-| Hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py` |
+| Full state-feedback hardware stack (default) | `ros2 launch haply_study_gui study_gui.launch.py` |
 | Full MPC hardware stack (includes Estimator, Data Logger, and readiness gate) | `ros2 launch haply_study_gui study_gui.launch.py controller:=mpc` |
 | Start state-feedback controller with hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback` |
 
-The hardware launch requires the Haply Inverse SDK Service to be running at
+The hardware launch defaults to state feedback and requires the Haply Inverse SDK Service to be running at
 `ws://localhost:10001` before ROS starts.
 
 When launched with `controller:=mpc` or `controller:=state_feedback`, the
-hardware GUI waits for Controller, Estimator, and Logger readiness before it
-opens. The mouse launch is intentionally a lightweight/debug path and does not
-wait for that production gate.
+hardware GUI waits until Controller has applied its task and Estimator and
+Logger have applied matching session/task metadata. Logger must also have its
+session manifest ready before the GUI opens. The mouse launch does not wait for
+that production gate. When its `controller` is `mpc` or `state_feedback`, it
+nevertheless starts Data Logger automatically so the run can be consumed by
+`study_analysis`. With `controller:=none`, it keeps the lightweight GUI-only
+behavior and does not start Logger.
+
+State feedback uses a dedicated executable and docking is disabled by default.
+Enable it with one argument:
+
+```bash
+ros2 launch haply_study_gui study_gui.launch.py \
+  docking_enabled:=true
+```
+
+This activates `docking_start_percent=85`, `docking_stiffness_scale=2.0`, and
+`docking_max_cross_track_m=0.02`. These modifiers remain inert when docking is
+disabled. The independent global force limit is `max_force_n=2.0` for both
+modes. Numeric State Feedback defaults are centralized in
+`control_node/config/state_feedback.yaml`; they are not duplicated as launch
+arguments. Docking uses directed path projection and is suppressed while the
+cursor is outside the configured lateral corridor. The force-norm limit is
+stored in session metadata for saturation analysis.
+
+The launch applies configuration in three layers: shared study settings from
+`study_base.yaml`, a `study_mouse.yaml` or `study_haply.yaml` source overlay,
+and only the selected `state_feedback.yaml` or `mpc.yaml` controller profile.
+The only State Feedback numeric override intended for a normal run is therefore
+a deliberate edit to its profile; `docking_enabled` remains a run-time switch.
 
 ## GUI behavior and parameters
 

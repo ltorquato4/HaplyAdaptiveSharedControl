@@ -1,0 +1,31 @@
+control_node:
+  ros__parameters:
+    # Goal-directed assistance along the start-to-end path.
+    along_stiffness_n_per_m: 10.0
+    along_damping_ns_per_m: 2.0
+
+    # Lateral virtual-fixture guidance.
+    fixture_stiffness_n_per_m: 20.0
+    fixture_damping_ns_per_m: 2.0
+
+    # Global task-plane force-norm limit. This is independent of docking.
+    max_force_n: 2.0
+    velocity_filter_alpha: 0.25
+    cursor_timeout_s: 0.2
+
+    # Optional terminal assistance. The launch-time switch remains false by
+    # default; these values are used only when docking_enabled is true.
+    docking_enabled: false
+    docking_start_percent: 85.0
+    docking_stiffness_scale: 2.0
+    docking_max_cross_track_m: 0.02
+
+    # Effective closed-loop-model adaptation. K_h is not isolated human force.
+    adaptation_normalization: 50.0
+    adaptation_strength: 0.7
+
+# Store the matching analysis limit in the same profile so StudySession and the
+# controller cannot silently disagree about force saturation.
+scenario_generator:
+  ros__parameters:
+    max_control_amplitude: 2.0

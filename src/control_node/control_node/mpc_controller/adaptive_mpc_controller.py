@@ -20,6 +20,11 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         weight_comfort=1.0,
         weight_trajectory=1.0,
         weight_goal=1.0,
+        docking_enabled=True,
+        docking_start_percent=85.0,
+        docking_comfort_reduction=0.9,
+        docking_trajectory_weight_scale=2.0,
+        docking_goal_weight_scale=10e5,
     ):
         super().__init__(
             start_point,
@@ -41,6 +46,13 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
 
         self.progress_along_path = 0.0
         self.in_docking_zone_already_once = False
+        self.docking_enabled = bool(docking_enabled)
+        self.docking_start_percent = float(docking_start_percent)
+        self.docking_comfort_reduction = float(docking_comfort_reduction)
+        self.docking_trajectory_weight_scale = float(
+            docking_trajectory_weight_scale
+        )
+        self.docking_goal_weight_scale = float(docking_goal_weight_scale)
 
     def adapt(self, K_h: Sequence[Sequence[float]] | Sequence[float]) -> None:
         """
@@ -105,16 +117,26 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         goal_weight = max(goal_weight, self.weight_goal_base * 0.1)
 
         # 6. Terminal Docking Zone Override (Last 20% of path)
-        TERMINAL_THRESHOLD = 0.85 
-        if progress_along_path > TERMINAL_THRESHOLD or self.in_docking_zone_already_once:
+        terminal_threshold = self.docking_start_percent / 100.0
+        docking_active = self.docking_enabled and (
+            progress_along_path > terminal_threshold
+            or self.in_docking_zone_already_once
+        )
+        if docking_active:
             self.in_docking_zone_already_once = True
-            terminal_fraction = (progress_along_path - TERMINAL_THRESHOLD) / (1.0 - TERMINAL_THRESHOLD)
+            terminal_fraction = (progress_along_path - terminal_threshold) / (
+                1.0 - terminal_threshold
+            )
             t_scale = terminal_fraction ** 2
 
             # Smoothly shift authority to the computer to lock onto the target
-            comfort_weight   *= (1.0 - 0.9 * t_scale)
-            trajectory_weight *= (1.0 + 2.0 * t_scale)
-            goal_weight *= (1.0 + 10e5 * t_scale)
+            comfort_weight *= (
+                1.0 - self.docking_comfort_reduction * t_scale
+            )
+            trajectory_weight *= (
+                1.0 + self.docking_trajectory_weight_scale * t_scale
+            )
+            goal_weight *= 1.0 + self.docking_goal_weight_scale * t_scale
 
         # Push calculated changes down to active solver parameters
         self.cost_function.set_weights(

@@ -12,9 +12,11 @@ cursor, button press, start request, dwell update, and trial-state message.
 | `experiment_mapper` | Calibrates on the first Button-A rising edge, maps raw Haply or mouse input into task coordinates, and emits later ID-bearing button presses. |
 | `scenario_generator` | Owns YAML task scheduling, trial IDs, start acceptance, dwell, completion, abort, timeout policy, and readiness gating. |
 | `study_gui` | Shows the task and mapped cursor, sends validated start/abort requests, and never decides whether a trial is running. |
-| `control_node` | Configures MPC or state-feedback control from atomic `StudyTask` messages and emits force commands only while Scenario has accepted a run. |
-| `estimator_node` | Estimates participant dynamics for adaptive control. |
-| `data_logger_node` | Records compatibility study, controller, estimator, raw-input, and cursor topics to CSV. |
+| `state_feedback_control_node` | Applies timestamped, bounded Cartesian force with independent goal and straight-line virtual-fixture components. |
+| `control_node` | Retains the separately selected legacy MPC implementation. |
+| `estimator_node` | Estimates effective closed-loop interaction dynamics, retaining RLS learning within one identified session. |
+| `data_logger_node` | Records session manifests, retry-aware attempt outcomes, task metadata, and sampled signals. |
+| `study_analysis` | Validates deterministic Controller/Estimator behavior and produces descriptive CSV/PDF study reports. |
 
 ## Trial flow
 
@@ -31,10 +33,12 @@ flowchart LR
     Mapper -->|"StudyButtonPress"| GUI
     Scenario -->|"StudyTask"| Mapper
     Scenario -->|"StudyTask"| GUI
-    Scenario -->|"StudyTask"| Controller
+    Scenario -->|"StudyTask and StudyTrialState"| Controller
+    Scenario -->|"StudySession and StudyTask"| Estimator
+    Scenario -->|"StudySession and StudyTask"| Logger
+    Controller -->|"retained K_a"| Logger
     GUI -->|"StudyStartRequest"| Scenario
     Scenario -->|"StudyTrialState"| GUI
-    Scenario -->|"study_is_running"| Controller
     Controller -->|"HaplyControl"| Driver
 ```
 
@@ -47,6 +51,7 @@ the request. Input loss aborts the trial and Controller publishes zero force.
 | Topic | Type | Publisher | Purpose |
 | --- | --- | --- | --- |
 | `/study_task` | `haply_msgs/StudyTask` | Scenario | Atomic task start/end, phase, controller mode, session and trial IDs. |
+| `/study_session` | `haply_msgs/StudySession` | Scenario | Retained schema, input/controller configuration, resolved seed, estimator policy, and complete ordered schedule. |
 | `/study_cursor` | `haply_msgs/StudyCursor` | Mapper | Timestamped mapped cursor and task-specific validity. |
 | `/study_button_pressed` | `haply_msgs/StudyButtonPress` | Mapper | Post-calibration, task-identified Button-A edge. |
 | `/study_start_requested` | `haply_msgs/StudyStartRequest` | GUI | Request to start the active task. |
@@ -56,28 +61,44 @@ the request. Input loss aborts the trial and Controller publishes zero force.
 | `/study_system_ready` | `std_msgs/Bool` | Scenario | Whether required production components are healthy. |
 
 `/experiment_cursor_position`, `/study_start_point`, `/study_end_point`,
-`/study_controller_mode`, `/study_is_running`, and related topics remain for
-Estimator and Logger compatibility. New GUI and Scenario behavior uses the
-typed interfaces above.
+`/study_controller_mode`, `/study_is_running`, and related topics remain as a
+temporary legacy-MPC compatibility layer. Production State Feedback, Estimator,
+Logger, task, and cursor behavior uses the typed interfaces above.
 
-> **Migration note:** Controller currently still uses `/study_is_running` as a
-> compatibility run gate. It should eventually consume `StudyTrialState`
-> directly: configure from `StudyTask`, enable force for `RUNNING` (and any
-> chosen dwell behavior), and stop safely for `READY`, `COMPLETED`, `ABORTED`,
-> and `SESSION_FINISHED`. That removes the remaining untyped lifecycle signal.
+> **Legacy MPC note:** State Feedback, Estimator, and Logger consume identified
+> `StudyTrialState` messages directly and do not subscribe to
+> `/study_is_running`. Scenario retains that Boolean solely because the legacy
+> MPC executable still uses it as its run gate.
+>
+> **Removal note:** After the team approves migrating legacy MPC to
+> `StudyTrialState`, remove its `/study_is_running` subscription, Scenario's
+> compatibility publisher, and the corresponding legacy test publishers. No
+> State Feedback, Estimator, Logger, GUI, Mapper, or analysis code should need
+> changes at that point.
+
+Retained configuration/state topics (`StudySession`, `StudyTask`, the latest
+`StudyTrialState`, readiness, and `/control/K_a`) use reliable transient-local
+QoS so late-starting nodes receive the current definition. High-rate cursor and
+force streams use volatile, shallow QoS so stale samples are not replayed.
+Button/start/abort messages are one-shot events and are also deliberately not
+transient-local. The corresponding helper is named `_retained_state_qos` to
+describe this boundary explicitly.
 
 ## Readiness and controller modes
 
 Production hardware runs with `controller:=mpc` or
 `controller:=state_feedback` wait for Controller, Estimator, and Logger
 heartbeats before opening the participant window or accepting a start.
-Estimator and Logger report ready only after they have received the retained,
-atomic `StudyTask`; Logger also has its CSV output prepared. Missing heartbeats
-block a start and abort an active production trial. Mouse and GUI-only launches
-deliberately do not require that gate.
+Estimator and Logger report ready only after they have received matching retained
+`StudySession` and `StudyTask` definitions. Logger also requires its session
+directory and manifest to be writable. Missing heartbeats block a start and abort
+an active production trial. Mouse and GUI-only launches deliberately do not
+require that gate.
 
 `mpc` and `state_feedback` are controller families. `adaptive` and `fixed` are
 task conditions selected by Scenario; the GUI displays both separately.
+State feedback uses its own ROS executable and does not import MPC. Its output
+is a Cartesian force in newtons; optional docking is disabled by default.
 
 ## Launches
 
@@ -85,17 +106,87 @@ task conditions selected by Scenario; the GUI displays both separately.
 # GUI, Mapper, and Scenario with mouse input
 ros2 launch haply_study_gui study_gui_mouse.launch.py
 
-# Mouse input with a controller and estimator
+# Mouse input with Controller, Estimator, and automatic Data Logger
 ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback
 
-# Hardware GUI; controller defaults to none
+# Full state-feedback hardware stack (the default production controller)
 ros2 launch haply_study_gui study_gui.launch.py
 
-# Full MPC hardware stack: driver, Mapper, Scenario, MPC, Estimator, Logger, GUI
-# Includes the production readiness gate.
+# Optional state-feedback docking (uses the documented safe defaults)
+ros2 launch haply_study_gui study_gui.launch.py docking_enabled:=true
+
+# Select the optional MPC family explicitly.
 ros2 launch haply_study_gui study_gui.launch.py controller:=mpc
 ```
+
+### Controller visualization launches
+
+After building and sourcing the workspace, launch the production mouse stack
+with the additional controller-output visualization window:
+
+```bash
+ros2 launch control_node mouse_control_debug_launch.py
+```
+
+For the real device, first start the Haply Inverse Service and then launch the
+production hardware stack, readiness gate, and visualization window:
+
+```bash
+ros2 launch control_node haply_control_debug_launch.py
+```
+
+Both wrappers default to `controller:=state_feedback` and DEBUG logging. MPC
+can still be selected explicitly when required:
+
+```bash
+ros2 launch control_node mouse_control_debug_launch.py controller:=mpc
+ros2 launch control_node haply_control_debug_launch.py controller:=mpc
+```
+
+These are visualization wrappers around the same production launches above;
+they do not use separate Scenario, Mapper, GUI, Logger, Estimator, or controller
+configuration.
 
 Task paths are configured in `study_orchestration/config/default_tasks.yaml`.
 Each YAML path has independent `start_point` and `end_point` values; it need
 not be a closed chain.
+
+## Configuration layers
+
+Configuration is divided by ownership instead of repeated in launch files:
+
+1. `study_orchestration/config/study_base.yaml` contains shared Scenario,
+   Mapper, workspace, and GUI settings.
+2. `study_mouse.yaml` or `study_haply.yaml` overlays source-specific mapping and
+   rendering settings.
+3. `control_node/config/state_feedback.yaml` or `mpc.yaml` contains only the
+   selected controller family's parameters. The shared launch loads the matching
+   file conditionally; State Feedback never receives MPC parameters and MPC
+   never receives State Feedback parameters.
+4. Launch arguments are reserved for run-time choices: controller family, log
+   level, and the optional `docking_enabled` switch.
+
+The two `control_node` debug launches are compatibility wrappers. They include
+the corresponding production GUI launch unchanged and add only the controller
+output visualizer plus debug logging, so they no longer define a second set of
+study/controller defaults.
+
+## Evaluation
+
+Production logs are written under `logs/<session-id>/`. Each run contains a
+reproducible session manifest, retry-aware trial CSVs, and `trial_attempts.csv`.
+
+```bash
+ros2 run study_analysis analyze_session \
+  --input logs/<session-id> \
+  --output analysis_results/<session-id>
+
+ros2 run study_analysis run_benchmark \
+  --output analysis_results/benchmark \
+  --seed 20260721
+```
+
+The session analyzer writes `trial_metrics.csv`, `condition_summary.csv`,
+`data_quality.csv`, and `analysis_report.pdf`. The benchmark uses known
+synthetic estimator coefficients and the production state-feedback force class;
+participant logs alone are not estimator ground truth.
