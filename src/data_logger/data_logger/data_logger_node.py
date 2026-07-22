@@ -6,9 +6,10 @@ from datetime import datetime
 
 import rclpy
 from geometry_msgs.msg import Point, Vector3
-from haply_msgs.msg import HaplyState
+from haply_msgs.msg import HaplyState, StudyTask
 from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float64MultiArray, String
 
 from .csv_logger import CSVLogger
@@ -55,6 +56,7 @@ class DataLoggerNode(Node):
         self.trial_metadata = {}  
         self.latest_sample = {}  
         self.flush_counter = 0
+        self.task_received = False
 
         self.csv_logger = CSVLogger(
             self.save_directory,
@@ -63,6 +65,12 @@ class DataLoggerNode(Node):
         )
 
         self.setup_subscribers()
+        self.ready_pub = self.create_publisher(
+            Bool, "/study_logger_ready",
+            QoSProfile(depth=1, durability=DurabilityPolicy.TRANSIENT_LOCAL,
+                       reliability=ReliabilityPolicy.RELIABLE),
+        )
+        self.ready_timer = self.create_timer(0.5, self._publish_ready)
 
         self.timer = self.create_timer(
             1.0 / self.config.log_rate_hz,
@@ -70,6 +78,17 @@ class DataLoggerNode(Node):
         )
 
         self.get_logger().info(f"Data logger ready. Saving to: {self.save_directory}")
+
+    def _publish_ready(self):
+        self.ready_pub.publish(Bool(data=self.task_received and self.csv_logger is not None))
+
+    @staticmethod
+    def _task_qos():
+        return QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
 
     def _message_to_debug_value(self, msg):
         if hasattr(msg, "data"):
@@ -112,6 +131,8 @@ class DataLoggerNode(Node):
     def fieldnames(self):
         return [
             "timestamp",
+            "session_id",
+            "trial_id",
             "study_running",
             "study_phase",
             "study_controller_mode",
@@ -163,6 +184,12 @@ class DataLoggerNode(Node):
         self.get_logger().info("Study stopped. Data logging stopped.")
 
     def setup_subscribers(self):
+        self.create_subscription(
+            StudyTask,
+            "/study_task",
+            self.study_task_callback,
+            self._task_qos(),
+        )
         self.create_subscription(
             Bool,
             "/study_is_running",
@@ -263,20 +290,42 @@ class DataLoggerNode(Node):
             self.stop_recording()
 
     def phase_callback(self, msg):  
+        if self.task_received:
+            return
         self._log_received_message("/study_phase", msg)  
         self.trial_metadata["study_phase"] = msg.data  
 
     def mode_callback(self, msg):  
+        if self.task_received:
+            return
         self._log_received_message("/study_controller_mode", msg)  
         self.trial_metadata["study_controller_mode"] = msg.data  
 
     def start_point_callback(self, msg):  
+        if self.task_received:
+            return
         self._log_received_message("/study_start_point", msg)  
         self.trial_metadata["start"] = msg  
 
     def end_point_callback(self, msg):  
+        if self.task_received:
+            return
         self._log_received_message("/study_end_point", msg)  
         self.trial_metadata["end"] = msg  
+
+    def study_task_callback(self, msg: StudyTask):
+        """Set complete trial metadata atomically from the retained task."""
+        self.trial_metadata.update(
+            {
+                "session_id": str(msg.session_id),
+                "trial_id": int(msg.trial_id),
+                "study_phase": str(msg.phase),
+                "study_controller_mode": str(msg.controller_mode),
+                "start": msg.start_point,
+                "end": msg.end_point,
+            }
+        )
+        self.task_received = True
 
     def cursor_callback(self, msg):  
         self._log_received_message("/experiment_cursor_position", msg)  
@@ -312,6 +361,8 @@ class DataLoggerNode(Node):
 
         row = {}
         row["timestamp"] = self.get_clock().now().nanoseconds * 1e-9
+        row["session_id"] = self.trial_metadata.get("session_id")
+        row["trial_id"] = self.trial_metadata.get("trial_id")
         row["study_running"] = self.study_is_running  
         row["study_phase"] = self.trial_metadata.get("study_phase")  
         row["study_controller_mode"] = self.trial_metadata.get("study_controller_mode")  

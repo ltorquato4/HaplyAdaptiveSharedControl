@@ -1,0 +1,16 @@
+experiment_mapper:
+  ros__parameters:
+    mapping_mode: anchored_delta
+    use_z_as_y: true
+    scale_x: 2.0
+    scale_y: 2.0
+    clamp_raw: true
+    raw_x_min: -0.20
+    raw_x_max: 0.20
+    raw_second_min: -0.20
+    raw_second_max: 0.20
+
+study_gui:
+  ros__parameters:
+    source: haply
+    render_fps: 100.0

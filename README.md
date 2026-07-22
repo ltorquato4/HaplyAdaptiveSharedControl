@@ -177,15 +177,19 @@ Use this WSL-owned hardware path:
    ros2 launch haply_study_gui study_gui.launch.py
    ```
 
-   To include the controller and/or estimator:
+   To include a controller (and its required estimator):
    ```bash
-   ros2 launch haply_study_gui study_gui.launch.py use_controller:=true use_estimator:=true
+   ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback
    ```
 
    Until the hardware path is fixed, use the mouse test path instead, can also be tested with controller and estimator:
    ```bash
-   ros2 launch haply_study_gui study_gui_mouse.launch.py use_controller:=true use_estimator:=true
+   ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback
    ```
+
+   Use `controller:=mpc` only for the MPC path, or leave the default
+   `controller:=none` for GUI/mapper/scenario testing without either
+   controller or estimator.
 
 ## ROS Workspace Commands
 

@@ -1,8 +1,9 @@
 import rclpy
 from geometry_msgs.msg import Point, Vector3
-from haply_msgs.msg import HaplyControl
+from haply_msgs.msg import HaplyControl, StudyTask
 from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
+from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool, Float64MultiArray, String
 
 from control_node.controller_interface import Controller
@@ -86,14 +87,43 @@ class ControlNode(Node):
         self.control_output_pub = self.create_publisher(Vector3, "/control/U_a", 10)
         self.control_parameter_pub = self.create_publisher(String, "/control/K_a", 10)
         self.force_output_pub = self.create_publisher(HaplyControl, "/haply_target", 10)
+        self.ready_pub = self.create_publisher(Bool, "/study_controller_ready", self._task_qos())
+        self.ready_timer = self.create_timer(0.5, self._publish_ready)
+
+    def _publish_ready(self):
+        """Report readiness after a task has configured safe controller inputs.
+
+        The runtime controller is intentionally destroyed while stopped, so
+        `controller_initialized` alone would incorrectly block a safe retry.
+        """
+        self.ready_pub.publish(
+            Bool(data=bool(self.start_point and self.end_point and self.controller_mode))
+        )
         
     def define_subscribers(self):
+        self.study_task_sub = self.create_subscription(
+            StudyTask, "/study_task", self.study_task_callback, self._task_qos()
+        )
         self.controller_mode_sub = self.create_subscription(String, "/study_controller_mode", self.controller_mode_callback, 10)
         self.start_point_sub = self.create_subscription(Point, "/study_start_point", self.start_point_callback, 10)
         self.end_point_sub = self.create_subscription(Point, "/study_end_point", self.end_point_callback, 10)
         self.study_is_running_sub = self.create_subscription(Bool, "/study_is_running", self.study_is_running_callback, 10)
         self.current_point_sub = self.create_subscription(Point, "/experiment_cursor_position", self.current_point_callback, 10)
         self.estimation_kh_sub = self.create_subscription(Float64MultiArray, "/estimation/K_h", self.estimation_kh_callback, 10)
+
+    def _task_qos(self):
+        return QoSProfile(
+            depth=1,
+            durability=DurabilityPolicy.TRANSIENT_LOCAL,
+            reliability=ReliabilityPolicy.RELIABLE,
+        )
+
+    def study_task_callback(self, msg: StudyTask):
+        """Atomically configure every trial, including identical retries."""
+        self.start_point = [msg.start_point.x, msg.start_point.y]
+        self.end_point = [msg.end_point.x, msg.end_point.y]
+        self.controller_mode = str(msg.controller_mode).lower()
+        self.initialize_controller()
 
     def publish_zero_force(self):
         """Forces the haptic device to clear commands and neutralise safely."""
@@ -248,7 +278,12 @@ class ControlNode(Node):
         self.study_is_running = new_study_is_running
         self.get_logger().debug(f"Study execution flag modified: {self.study_is_running}")
         
-        if not self.study_is_running:
+        if self.study_is_running:
+            # Stopping destroys the controller as a safety measure.  A retry
+            # does not necessarily publish changed geometry, so recreate it.
+            if not self.controller_initialized:
+                self.initialize_controller()
+        else:
             self.publish_zero_force()
             if self.controller:
                 self.controller.destroy()

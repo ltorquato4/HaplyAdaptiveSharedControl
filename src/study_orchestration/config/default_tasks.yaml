@@ -1,4 +1,7 @@
 paths:
+  - start_point: [-0.08, -0.08, 0.0]
+    end_point: [0.08, -0.08, 0.0]
+
   - start_point: [0.08, -0.08, 0.0]
     end_point: [0.08, 0.08, 0.0]
 
@@ -6,7 +9,7 @@ paths:
     end_point: [-0.08, 0.08, 0.0]
 
   - start_point: [-0.08, 0.08, 0.0]
-    end_point: [-0.08, -0.08, 0.0]
+    end_point: [0.0, -0.15, 0.0]
 
-  - start_point: [-0.08, -0.08, 0.0]
-    end_point: [0.08, -0.08, 0.0]
+  - start_point: [0.0, -0.15, 0.0]
+    end_point: [-0.08, -0.08, 0.0]

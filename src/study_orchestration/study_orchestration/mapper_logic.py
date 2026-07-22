@@ -1,6 +1,7 @@
 """Pure mapping helpers used by the Experiment Mapper node."""
 
-from dataclasses import dataclass, field
+from dataclasses import dataclass
+import math
 
 
 @dataclass(frozen=True)
@@ -42,6 +43,56 @@ class MappingConfig:
     raw_second_max: float = 0.15  # z (or y) delta upper bound
 
 
+def validate_mapping_config(
+    config: MappingConfig,
+    task_anchor: TaskPoint,
+    workspace_bounds: tuple[float, float, float, float] | None = None,
+) -> None:
+    """Reject invalid mapping parameters before hardware input is accepted."""
+    values = (
+        config.scale_x,
+        config.scale_y,
+        config.raw_x_min,
+        config.raw_x_max,
+        config.raw_second_min,
+        config.raw_second_max,
+        task_anchor.x,
+        task_anchor.y,
+        task_anchor.z,
+    )
+    if not all(math.isfinite(value) for value in values):
+        raise ValueError("mapping parameters and task anchor must be finite")
+    if config.scale_x <= 0.0 or config.scale_y <= 0.0:
+        raise ValueError("mapping scales must be positive; use invert_* for direction")
+    if config.raw_x_min > config.raw_x_max:
+        raise ValueError("raw_x_min must not exceed raw_x_max")
+    if config.raw_second_min > config.raw_second_max:
+        raise ValueError("raw_second_min must not exceed raw_second_max")
+    if workspace_bounds is not None and config.clamp_raw:
+        x_min, x_max, y_min, y_max = workspace_bounds
+        if not all(math.isfinite(value) for value in workspace_bounds):
+            raise ValueError("workspace bounds must be finite")
+        if x_min >= x_max or y_min >= y_max:
+            raise ValueError("workspace minimums must be below maximums")
+        sign_x = -1.0 if config.invert_x else 1.0
+        sign_y = -1.0 if config.invert_y else 1.0
+        mapped_x = sorted(
+            (config.raw_x_min * config.scale_x * sign_x,
+             config.raw_x_max * config.scale_x * sign_x)
+        )
+        mapped_y = sorted(
+            (config.raw_second_min * config.scale_y * sign_y,
+             config.raw_second_max * config.scale_y * sign_y)
+        )
+        if (
+            task_anchor.x + mapped_x[0] > x_min
+            or task_anchor.x + mapped_x[1] < x_max
+            or task_anchor.y + mapped_y[0] > y_min
+            or task_anchor.y + mapped_y[1] < y_max
+        ):
+            raise ValueError("clamped mapper range cannot reach the task workspace")
+
+
 def map_identity(raw_position: TaskPoint) -> TaskPoint:
     """Map raw coordinates directly into task coordinates."""
     return TaskPoint(raw_position.x, raw_position.y, raw_position.z)
@@ -54,6 +105,8 @@ class AnchoredDeltaMapper:
         self.config = config
         self.raw_anchor: TaskPoint | None = None
         self.task_anchor: TaskPoint | None = None
+        self.last_clamped_x = False
+        self.last_clamped_second = False
 
     @property
     def is_ready(self) -> bool:
@@ -86,10 +139,16 @@ class AnchoredDeltaMapper:
 
         # --- Optional clamping to physical workspace bounds ---
         if self.config.clamp_raw:
+            unclamped_x, unclamped_second = delta_x, delta_second
             delta_x = max(self.config.raw_x_min, min(self.config.raw_x_max, delta_x))
             delta_second = max(
                 self.config.raw_second_min, min(self.config.raw_second_max, delta_second)
             )
+            self.last_clamped_x = delta_x != unclamped_x
+            self.last_clamped_second = delta_second != unclamped_second
+        else:
+            self.last_clamped_x = False
+            self.last_clamped_second = False
 
         # --- Apply scale and inversion ---
         sign_x = -1.0 if self.config.invert_x else 1.0
