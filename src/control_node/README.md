@@ -135,11 +135,19 @@ and trial stop all result in a zero-force command from the state-feedback node.
 
 ## Validation
 
-Run the focused state-feedback tests:
+Run the focused state-feedback tests and deterministic benchmark:
 
 ```bash
 pytest -q src/control_node/test/test_virtual_fixture_state_feedback.py
+
+ros2 run study_analysis run_benchmark \
+  --output analysis_results/state_feedback_benchmark \
+  --seed 20260721
 ```
+
+The benchmark uses a deterministic mass-damped planar simulation and verifies
+fixed/adaptive convergence, finite output, and force bounds. It does not replace
+low-force validation on the physical device.
 
 For live visualization, the debug entry points now include the production stack
 and add only `test_control_node_output` plus debug logging:

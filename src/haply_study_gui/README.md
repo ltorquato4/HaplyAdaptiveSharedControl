@@ -87,8 +87,9 @@ hardware GUI waits until Controller has applied its task and Estimator and
 Logger have applied matching session/task metadata. Logger must also have its
 session manifest ready before the GUI opens. The mouse launch does not wait for
 that production gate. When its `controller` is `mpc` or `state_feedback`, it
-nevertheless starts Data Logger automatically. With `controller:=none`, it
-keeps the lightweight GUI-only behavior and does not start Logger.
+nevertheless starts Data Logger automatically so the run can be consumed by
+`study_analysis`. With `controller:=none`, it keeps the lightweight GUI-only
+behavior and does not start Logger.
 
 State feedback uses a dedicated executable and docking is disabled by default.
 Enable it with one argument:
