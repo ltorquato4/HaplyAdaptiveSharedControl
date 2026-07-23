@@ -1,0 +1,68 @@
+scenario_generator:
+  ros__parameters:
+    point_0_x: -0.08
+    point_0_y: -0.08
+    point_0_z: 0.0
+    point_1_x: 0.08
+    point_1_y: -0.08
+    point_1_z: 0.0
+    point_2_x: 0.08
+    point_2_y: 0.08
+    point_2_z: 0.0
+    point_3_x: -0.08
+    point_3_y: 0.08
+    point_3_z: 0.0
+    point_4_x: 0.0
+    point_4_y: -0.15
+    point_4_z: 0.0
+    workspace_x_min: -0.12
+    workspace_x_max: 0.12
+    workspace_y_min: -0.18
+    workspace_y_max: 0.15
+    min_segment_length: 0.10
+    start_reached_radius: 0.01
+    endpoint_reached_radius: 0.01
+    min_phase_duration_s: 0.8
+    endpoint_dwell_s: 1.0
+    inter_trial_delay_s: 0.0
+    max_trial_duration_s: 0.0
+    # retry keeps the current task ready for another deliberate start press.
+    # Other supported values are advance and end_session.
+    timeout_policy: retry
+    publish_hz: 10.0
+    controller_modes: adaptive,fixed
+    repetitions: 1
+    loop_tasks: false
+    order_strategy: seeded_random
+    # A negative value generates and logs a new seed at session startup.
+    order_seed: -1
+
+experiment_mapper:
+  ros__parameters:
+    workspace_x_min: -0.12
+    workspace_x_max: 0.12
+    workspace_y_min: -0.18
+    workspace_y_max: 0.15
+    task_anchor_x: 0.0
+    task_anchor_y: 0.0
+    button_debounce_s: 0.05
+    input_timeout_s: 0.2
+    publish_hz: 100.0
+
+study_gui:
+  ros__parameters:
+    width: 1280
+    height: 720
+    side_panel_width: 300
+    workspace_padding: 0
+    state_publish_hz: 100.0
+    auto_start: false
+    debug_controls_enabled: false
+    max_callbacks_per_frame: 16
+    max_drawn_points: 2000
+    workspace_x_min: -0.12
+    workspace_x_max: 0.12
+    workspace_y_min: -0.18
+    workspace_y_max: 0.15
+    start_reached_radius: 0.01
+    endpoint_reached_radius: 0.01

@@ -1,20 +1,33 @@
 from collections.abc import Sequence
+
 import numpy as np
 
 from control_node.controller_interface import AdaptiveController
-from control_node.state_feedback_controller.state_feedback_controller import StateFeedbackController
+from control_node.state_feedback_controller.state_feedback_controller import (
+    StateFeedbackController,
+)
+
 
 class AdaptiveStateFeedbackController(AdaptiveController, StateFeedbackController):
-    def __init__(self, start_point, end_point, dt, node=None, 
-                 max_control: tuple[float, float] = (1.0, 1.0),
-                 max_velocity: tuple[float, float] = (1.0, 1.0)):
+    def __init__(
+        self,
+        start_point,
+        end_point,
+        dt,
+        node=None,
+        max_control: tuple[float, float] = (1.0, 1.0),
+        max_velocity: tuple[float, float] = (1.0, 1.0),
+    ):
         super().__init__(start_point, end_point, dt, node, max_control, max_velocity)
-         
+
         self.in_docking_zone_already_once = False
 
     def adapt(self, K_h: Sequence[Sequence[float]] | Sequence[float]) -> None:
         """
-        Adapt proportional and derivative gain matrices along the trajectory based on:
+        Adapt proportional and derivative gains along the trajectory.
+
+        The adaptation considers:
+
         1. Progress along the path (with an explicit Terminal Docking Zone).
         2. Balance of human gain K_h (Cooperative intent vs. stabilization model).
         """
@@ -46,7 +59,7 @@ class AdaptiveStateFeedbackController(AdaptiveController, StateFeedbackControlle
         K_2 = K_h_flat[2] if K_h_flat.size > 2 else 0.0
         K_3 = K_h_flat[3] if K_h_flat.size > 3 else 0.0
 
-        # Map stiffness roles: comfort/translation driver vs. trajectory tracking/stabilization
+        # Map comfort/translation against trajectory tracking/stabilization.
         comfort_factor = (abs(K_0) + abs(K_2)) / 2.0
         trajectory_factor = (abs(K_1) + abs(K_3)) / 2.0
 
@@ -61,8 +74,8 @@ class AdaptiveStateFeedbackController(AdaptiveController, StateFeedbackControlle
             self.derivative_gain_base = self.K_d.copy()
 
         # --- 5. Calculate Adaptive Scaling Factor ---
-        # If comfort > trajectory (user actively driving): stiffness_diff > 0 -> gain_scale drops (compliance)
-        # If trajectory > comfort (user hesitating/stabilizing): stiffness_diff < 0 -> gain_scale rises (assistance)
+        # A positive difference reduces assistance; a negative difference
+        # increases assistance.
         gain_scale = 1.0 - 0.7 * stiffness_diff
 
         # Multiply gain scales directly across the matrices
@@ -74,15 +87,19 @@ class AdaptiveStateFeedbackController(AdaptiveController, StateFeedbackControlle
         adapted_Kd = np.maximum(adapted_Kd, self.derivative_gain_base * 0.1)
 
         # --- 7. Terminal Docking Zone Override ---
-        TERMINAL_THRESHOLD = 0.85
-        if progress_along_path > TERMINAL_THRESHOLD or self.in_docking_zone_already_once:
+        terminal_threshold = 0.85
+        if (
+            progress_along_path > terminal_threshold
+            or self.in_docking_zone_already_once
+        ):
             self.in_docking_zone_already_once = True
-            
-            terminal_fraction = (progress_along_path - TERMINAL_THRESHOLD) / (1.0 - TERMINAL_THRESHOLD)
+
+            terminal_fraction = (
+                progress_along_path - terminal_threshold
+            ) / (1.0 - terminal_threshold)
             t_scale = terminal_fraction ** 2
 
-            # Drastically scale up positioning authority (P gain) to drive tracking error to zero
-            # Scale up derivative damping (D gain) concurrently to guarantee loop stability near docking
+            # Increase positioning authority and derivative damping together.
             adapted_Kp *= (1.0 + 10.0 * t_scale)
             adapted_Kd *= (1.0 + 3.0 * t_scale)
 

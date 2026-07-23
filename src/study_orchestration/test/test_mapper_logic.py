@@ -6,7 +6,29 @@ from study_orchestration.mapper_logic import (
     MappingConfig,
     TaskPoint,
     map_identity,
+    validate_mapping_config,
 )
+
+
+def test_rejects_invalid_mapping_configuration():
+    with pytest.raises(ValueError, match="positive"):
+        validate_mapping_config(MappingConfig(scale_x=0.0), TaskPoint(0.0, 0.0))
+    with pytest.raises(ValueError, match="raw_x_min"):
+        validate_mapping_config(
+            MappingConfig(raw_x_min=1.0, raw_x_max=0.0), TaskPoint(0.0, 0.0)
+        )
+    with pytest.raises(ValueError, match="cannot reach"):
+        validate_mapping_config(
+            MappingConfig(
+                clamp_raw=True,
+                raw_x_min=-0.01,
+                raw_x_max=0.01,
+                raw_second_min=-0.01,
+                raw_second_max=0.01,
+            ),
+            TaskPoint(0.0, 0.0),
+            (-0.12, 0.12, -0.15, 0.15),
+        )
 
 
 def test_identity_mapping_preserves_raw_position():

@@ -1,10 +1,4 @@
 import logging
-import os
-import sys
-from pathlib import Path
-
-# Add the parent directory to the path so the package can be imported
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
 
 from estimator_node.estimator.rls_estimator import RLSEstimator
 
@@ -18,14 +12,12 @@ class MockPoint:
         self.z = z
 
 
-def create_logger(log_filename):
-    logger = logging.getLogger(log_filename)
+def create_logger(logger_name):
+    """Create a quiet in-memory test logger without writing into the source tree."""
+    logger = logging.getLogger(logger_name)
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
-    log_file = Path(__file__).resolve().parent / log_filename
-    handler = logging.FileHandler(log_file, mode="w")
-    handler.setFormatter(logging.Formatter("%(message)s"))
-    logger.addHandler(handler)
+    logger.addHandler(logging.NullHandler())
     logger.propagate = False
     return logger
 
@@ -33,7 +25,8 @@ def create_logger(log_filename):
 estimator_logger = create_logger("test_rls_estimator_compute.log")
 
 
-def test_initialization(logger):
+def test_initialization():
+    logger = estimator_logger
     logger.info("Starting Initialization Test")
     estimator = RLSEstimator()
 
@@ -51,11 +44,9 @@ def test_initialization(logger):
     assert matrix[1, 3] == 6.0
 
 
-def test_behavioral_state_careful(logger):
-    """
-    Simulates a 'careful' behavioral state.
-    Defined by: Low velocities, very low accelerations, tight tracking errors
-    """
+def test_behavioral_state_careful():
+    """Simulate the existing low-motion careful input profile."""
+    logger = estimator_logger
     logger.info("--- Starting Careful Behavioral State Test ---")
     estimator = RLSEstimator()
     estimator.initialize_from_start_point(MockPoint(1.0, 1.0))
@@ -83,11 +74,9 @@ def test_behavioral_state_careful(logger):
     assert matrix.shape == (2, 4)
 
 
-def test_behavioral_state_normal(logger):
-    """
-    Simulates a 'normal' behavioral state
-    Defined by: Moderate velocities, standard accelerations, average tracking errors
-    """
+def test_behavioral_state_normal():
+    """Simulate the existing moderate-motion normal input profile."""
+    logger = estimator_logger
     logger.info("--- Starting Normal Behavioral State Test ---")
     estimator = RLSEstimator()
     estimator.initialize_from_start_point(MockPoint(1.0, 1.0))
@@ -117,11 +106,9 @@ def test_behavioral_state_normal(logger):
     assert matrix.shape == (2, 4)
 
 
-def test_behavioral_state_aggressive(logger):
-    """
-    Simulates an 'aggressive' behavioral state
-    Defined by: High tracking errors, fast velocities, sharp, erratic accelerations
-    """
+def test_behavioral_state_aggressive():
+    """Simulate the existing high-motion aggressive input profile."""
+    logger = estimator_logger
     logger.info("--- Starting Aggressive Behavioral State Test ---")
     estimator = RLSEstimator()
     estimator.initialize_from_start_point(MockPoint(1.0, 1.0))
@@ -152,7 +139,7 @@ def test_behavioral_state_aggressive(logger):
 
 
 if __name__ == "__main__":
-    test_initialization(estimator_logger)
-    test_behavioral_state_careful(estimator_logger)
-    test_behavioral_state_normal(estimator_logger)
-    test_behavioral_state_aggressive(estimator_logger)
+    test_initialization()
+    test_behavioral_state_careful()
+    test_behavioral_state_normal()
+    test_behavioral_state_aggressive()

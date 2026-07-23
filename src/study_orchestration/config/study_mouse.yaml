@@ -1,0 +1,13 @@
+experiment_mapper:
+  ros__parameters:
+    mapping_mode: identity
+    use_z_as_y: false
+    scale_x: 1.0
+    scale_y: 1.0
+    clamp_raw: false
+
+study_gui:
+  ros__parameters:
+    source: mouse
+    render_fps: 30.0
+    mouse_simulation_hz: 100.0

@@ -23,9 +23,12 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-ament-flake8 \
     python3-ament-pep257 \
     python3-colcon-common-extensions \
+    python3-matplotlib \
+    python3-pandas \
     python3-pip \
     python3-pygame \
     python3-rosdep \
+    python3-scipy \
     python3-yaml \
     software-properties-common \
     ros-${ROS_DISTRO}-builtin-interfaces \
@@ -33,6 +36,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     ros-${ROS_DISTRO}-rclpy \
     ros-${ROS_DISTRO}-rosidl-default-generators \
     ros-${ROS_DISTRO}-rosidl-default-runtime \
+    ros-${ROS_DISTRO}-rqt-plot \
     ros-${ROS_DISTRO}-rviz2 \
     ros-${ROS_DISTRO}-std-msgs \
     && rm -rf /var/lib/apt/lists/*

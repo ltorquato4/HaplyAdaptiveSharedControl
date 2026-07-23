@@ -11,6 +11,7 @@ find_package(ament_cmake REQUIRED)
 find_package(rclcpp REQUIRED)
 find_package(std_msgs REQUIRED)
 find_package(geometry_msgs REQUIRED)
+find_package(builtin_interfaces REQUIRED)
 
 rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/HandleButtons.msg"
@@ -18,7 +19,15 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/HandleState.msg"
   "msg/HaplyState.msg"
   "msg/HaplyControl.msg"
-  DEPENDENCIES geometry_msgs std_msgs
+  "msg/StudyTask.msg"
+  "msg/StudySession.msg"
+  "msg/StudyTrialState.msg"
+  "msg/StudyDwellProgress.msg"
+  "msg/StudyStartRequest.msg"
+  "msg/StudyAbortRequest.msg"
+  "msg/StudyCursor.msg"
+  "msg/StudyButtonPress.msg"
+  DEPENDENCIES builtin_interfaces geometry_msgs std_msgs
 )
 
 if(BUILD_TESTING)

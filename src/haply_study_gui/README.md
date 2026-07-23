@@ -1,113 +1,146 @@
 # Haply Study GUI
 
-This package contains project-owned GUI code for the Haply shared-control user
-study. The copied `haply_ros2_interface` packages remain responsible for the
-hardware interface and Haply messages.
+This package provides the participant-facing Pygame GUI for the Haply
+shared-control study. It renders task targets and the mapped experiment cursor;
+it does not communicate with the Haply hardware directly or publish forces.
 
-## Architecture
+## Participant flow
 
-The GUI is a visual instruction and experiment feedback publisher:
+Both `source=mouse` and `source=haply` follow the same press interaction:
 
-- subscribes to `experiment_cursor_position` for live experiment cursor
-  feedback
-- receives mapped cursor feedback from `experiment_cursor_position`
-- subscribes to `study_start_point`, `study_end_point`, `study_phase`, and
-  `study_controller_mode` from the Scenario Generator
-- publishes `study_is_running`
-- renders the participant-facing Pygame window at 100 Hz by default
-- supports `source=mouse` for testing and `source=haply` for hardware input
-- publishes fake `haply_state` in mouse mode so the Experiment Mapper and
-  Scenario Generator can be tested without hardware
-- starts each trial only when VerseGrip Button A, or the left mouse button in
-  mouse mode, is pressed while the mapped cursor is at the current start point
-- does not publish `haply_target`
-- does not own phase rollout, controller mode, or start/end point generation
-- does not own endpoint detection or trial rollout
-- does not implement fixed/adaptive controller logic
-- does not estimate human parameters or log experiment data
+1. Place the device at its neutral position and press A (left mouse button in
+   mouse mode). This calibrates the mapper; no trial starts.
+2. Move the mapped cursor to the current start marker and release then press A
+   again. A trial starts only on this discrete second press.
+3. Trace to the endpoint and remain there continuously for the configured
+   dwell duration. The GUI indicates when endpoint dwell has begun.
+4. After successful dwell, the next scenario is shown. A held button is never
+   reused as a press for the next scenario.
 
-This keeps the study GUI separate from the copied Haply driver code and leaves
-force commands to the controller node.
+On the first task and each behavioral-mode change, the workspace shows a
+two-second fading instruction overlay. It does not require a click; trial start
+is enabled automatically when the overlay has faded.
 
-## Haply Connection
+Before calibration the cursor is hidden. The GUI also hides it and prevents
+trial start when device input is stale, unavailable, or outside the configured
+task workspace. Start and endpoint markers use their configured task-space
+radii; acceptance remains in task coordinates. Mouse mode
+deliberately uses identity mapping after calibration, so its blue cursor remains
+exactly under the operating-system mouse pointer; hardware mode uses
+anchored-delta mapping from its neutral calibration pose.
 
-The hardware launch starts `haply_interface/haply_driver_node`. That driver
-connects to the Haply Inverse SDK Service at `ws://localhost:10001` and
-publishes:
+## ROS interfaces
 
-- `haply_state` (`haply_msgs/HaplyState`) for raw Haply/VerseGrip state
-- `inverse3_state` (`haply_msgs/Inverse3State`) for Inverse3 position and
-  velocity
+Subscribes to:
 
-The GUI receives the experiment cursor from `experiment_cursor_position`.
-VerseGrip Button A (`haply_state.buttons.a`) is used only as the hardware
-drawing/start input; the left mouse button is the mouse-mode equivalent.
+- `/experiment_cursor_position` (`geometry_msgs/Point`): legacy mapped cursor
+  retained for Controller/Logger compatibility and Estimator debug fallback.
+- `/study_cursor` (`haply_msgs/StudyCursor`): timestamped, ID-bearing mapped
+  cursor sample. The GUI rejects stale-session/trial samples and invalid input.
+- `/study_mapping_ready` (`std_msgs/Bool`): latched calibration state.
+- `/experiment_input_valid` (`std_msgs/Bool`): raw device/mouse health, kept
+  separate from task-specific cursor validity.
+- `/study_button_pressed` (`haply_msgs/StudyButtonPress`): task-identified
+  post-calibration press events.
+- `/study_task` (`haply_msgs/StudyTask`): atomic task definition, including
+  session/trial IDs, start/end points, phase, and controller mode.
+- `/study_trial_state` (`haply_msgs/StudyTrialState`): authoritative lifecycle.
+- `/study_endpoint_dwell_progress` (`haply_msgs/StudyDwellProgress`):
+  ID-bearing endpoint-hold progress.
+- `/study_system_ready` (`std_msgs/Bool`): required production components have
+  applied the active task and are reporting heartbeats.
+
+Publishes:
+
+- `/study_start_requested` (`haply_msgs/StudyStartRequest`): ID-bearing request
+  to start a validated trial.
+- `/study_abort_requested` (`haply_msgs/StudyAbortRequest`): ID-bearing request
+  to abort the active trial when the GUI closes.
+- `/haply_state` (`haply_msgs/HaplyState`) only in mouse mode, to simulate raw
+  device position and buttons for the Mapper.
+
+Live state topics use depth-one QoS so consumers receive the current sample
+rather than a queue of old cursor positions. Task and calibration state use
+reliable transient-local QoS.
 
 ## Run
 
-Use `ros2 launch` for normal testing because the GUI needs other ROS nodes to
-publish scenario or hardware data. Use `ros2 run` only when you intentionally
-want to start one executable by itself.
-
-### Testing
-
-| Purpose | Command |
-| --- | --- |
-| Mouse GUI with Mapper and Scenario Generator | `ros2 launch haply_study_gui study_gui_mouse.launch.py` |
-| GUI only with mouse source | `ros2 run haply_study_gui study_gui --ros-args -p source:=mouse` |
-| Self-contained `/haply_state` smoke test | `ros2 run haply_study_gui test_haply_state_topic --fake` |
-
-### Hardware
-
-Use the hardware launch only after the Haply Inverse SDK Service is running
-and reachable on port `10001`. The ROS driver connects to it as a WebSocket
-server at `ws://localhost:10001`; this is not a normal web page, so opening
-`http://localhost:10001` in a browser may not show anything useful.
-
-The supported hardware path is WSL-owned USB plus the Linux standalone Haply
-Inverse Service. After `usbipd attach --wsl`, Windows no longer owns the device,
-so Windows Haply Hub or Windows Inverse Service cannot see it. Start the Linux
-service in WSL before launching ROS:
+Source ROS and the workspace before launching:
 
 ```bash
-sudo systemctl start haply-inverse-service.service
+source /opt/ros/humble/setup.bash
+source install/setup.bash
 ```
 
 | Purpose | Command |
 | --- | --- |
-| Haply GUI with Mapper and Scenario Generator | `ros2 launch haply_study_gui study_gui.launch.py` |
-| Haply GUI with Controller | `ros2 launch haply_study_gui study_gui.launch.py use_controller:=true` |
-| Haply GUI with Estimator | `ros2 launch haply_study_gui study_gui.launch.py use_estimator:=true` |
-| Mouse GUI with Controller and Estimator | `ros2 launch haply_study_gui study_gui_mouse.launch.py use_controller:=true use_estimator:=true` |
-| Mouse GUI with custom path YAML | `ros2 launch haply_study_gui study_gui_mouse.launch.py task_file:=/path/to/paths.yaml` |
-| Mouse GUI with adaptive and fixed blocks | `ros2 launch haply_study_gui study_gui_mouse.launch.py controller_modes:=adaptive,fixed` |
-| Haply GUI test launch | `ros2 launch haply_study_gui study_gui_haply_test.launch.py` |
-| GUI only, expecting an existing `/haply_state` publisher | `ros2 run haply_study_gui study_gui --ros-args -p source:=haply` |
-| Check live `/haply_state` messages | `ros2 run haply_study_gui test_haply_state_topic` |
+| Mouse simulation | `ros2 launch haply_study_gui study_gui_mouse.launch.py` |
+| Full state-feedback hardware stack (default) | `ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03` |
+| Full MPC hardware stack (includes Estimator, Data Logger, and readiness gate) | `ros2 launch haply_study_gui study_gui.launch.py controller:=mpc participant_id:=P03` |
+| Start state-feedback controller with hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03` |
 
-The mouse launch starts `study_gui`, `experiment_mapper`, and
-`scenario_generator`. It can also start `control_node` and `estimator_node` with
-`use_controller:=true` and `use_estimator:=true`. The GUI publishes fake
-`/haply_state`, the mapper publishes `/experiment_cursor_position`, and the
-Scenario Generator detects endpoint completion from the mapped cursor.
+The hardware launch defaults to state feedback and requires the Haply Inverse SDK Service to be running at
+`ws://localhost:10001` before ROS starts.
 
-The hardware launch starts `study_gui`, `haply_driver_node`,
-`experiment_mapper`, and `scenario_generator`. The default path geometry is
-loaded from the `study_orchestration` YAML config, but it still needs to be
-verified on the physical Haply workspace before subject testing.
+When launched with `controller:=mpc` or `controller:=state_feedback`, the
+hardware GUI waits until Controller has applied its task and Estimator and
+Logger have applied matching session/task metadata. Logger must also have its
+session manifest ready before the GUI opens. The mouse launch does not wait for
+that production gate. When its `controller` is `mpc` or `state_feedback`, it
+nevertheless starts Data Logger automatically so the run can be consumed by
+`study_analysis`. With `controller:=none`, it keeps the lightweight GUI-only
+behavior and does not start Logger.
 
-## Interface
+Participant codes must be assigned centrally because experiments may run on
+different computers. The hardware production launch therefore requires an
+explicit value such as `participant_id:=P03`. The ordinary mouse launch uses
+`P00` for tests. The controller debug wrappers instead use `DEBUG_MOUSE` and
+`DEBUG_HAPLY`, producing recognizable folders without requiring identification.
+Logger uses the label in names such as `P03_2026-07-23_16-42-08Z`, while the
+retained session UUID remains automatic and is stored in the manifest and CSV
+metadata.
 
-![Haply Study GUI](study_GUI.png)
+State feedback uses a dedicated executable and docking is disabled by default.
+Enable it with one argument:
 
-The left box is the drawing workspace. The right panel shows the Behavioral
-State legend and run status. In mouse mode, move the mouse inside the workspace
-to move the blue cursor through the mapper. Press and hold the left mouse
-button, or VerseGrip Button A in hardware mode, at the start point to begin a
-trial. Releasing and pressing again during the same trial continues the existing
-drawn path. The Scenario Generator rolls out the next phase one second after
-the mapped cursor reaches the current endpoint.
+```bash
+ros2 launch haply_study_gui study_gui.launch.py \
+  participant_id:=P03 docking_enabled:=true
+```
 
-The participant-facing GUI does not show start/pause/reset buttons or
-coordinate text. Keyboard shortcuts remain available for test runs: `S` sets
-`study_is_running=True`, `Space` toggles it, and `Esc`/`Q` closes the window.
+This activates `docking_start_percent=85`, `docking_stiffness_scale=2.0`, and
+`docking_max_cross_track_m=0.02`. These modifiers remain inert when docking is
+disabled. The independent global force limit is `max_force_n=2.0` for both
+modes. Numeric State Feedback defaults are centralized in
+`control_node/config/state_feedback.yaml`; they are not duplicated as launch
+arguments. Docking uses directed path projection and is suppressed while the
+cursor is outside the configured lateral corridor. The force-norm limit is
+stored in session metadata for saturation analysis.
+
+The launch applies configuration in three layers: shared study settings from
+`study_base.yaml`, a `study_mouse.yaml` or `study_haply.yaml` source overlay,
+and only the selected `state_feedback.yaml` or `mpc.yaml` controller profile.
+The only State Feedback numeric override intended for a normal run is therefore
+a deliberate edit to its profile; `docking_enabled` remains a run-time switch.
+
+## GUI behavior and parameters
+
+- `debug_controls_enabled` defaults to `false`. Only when enabled do `S` and
+  `Space` bypass normal trial controls.
+- `auto_start` is ignored unless debug controls are enabled.
+- `max_callbacks_per_frame` defaults to `16`, preventing ROS callback backlog
+  without unbounded work in one render frame.
+- `mode_overlay_duration_s` defaults to `2.0`. It controls the automatic
+  behavioral-mode instruction overlay shown on the initial task and mode changes.
+- Mouse simulation stops publishing raw state outside the drawing area. A
+  mapped hardware cursor outside the task workspace is hidden and reported as
+  `cursor outside workspace` until it returns.
+- The drawing transform fills the visible workspace in both axes.
+- The sidebar distinguishes controller family (`MPC`, `State Feedback`, or
+  `None`) from the task mode (`adaptive` or `fixed`).
+
+Run package tests with:
+
+```bash
+pytest -q src/haply_study_gui/test
+```

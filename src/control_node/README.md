@@ -1,145 +1,190 @@
-# control_node
+# Control nodes
 
-An Adaptive Shared Control & Haptic Assistance ROS 2 package featuring dynamic rolling-horizon Model Predictive Control (MPC) and state-feedback (PD) control capabilities for cooperative human-robot manipulation.
+This package now exposes two runtime paths with separate executables:
 
----
+- `state_feedback_control_node` is the production state-feedback implementation.
+  It does not import or instantiate MPC classes.
+- `mpc_control_node` is the production MPC runtime. The `control_node` command
+  remains as a compatibility alias to the same node.
 
-## 1. Building & Running
-
-### Dependencies
-
-Ensure your workspace includes `haply_msgs`. Install Python packages:
+The shared GUI launch selects the correct executable from `controller`:
 
 ```bash
-pip install casadi pygame
+# Default production controller
+ros2 launch haply_study_gui study_gui.launch.py \
+  controller:=state_feedback participant_id:=P03
+
+# MPC
+ros2 launch haply_study_gui study_gui.launch.py \
+  controller:=mpc participant_id:=P03
 ```
 
-### Build the Package
+## Configuration profiles
 
-```bash
-cd ~/ros2_ws
-colcon build --packages-select control_node
-source install/setup.bash
+Controller parameters are owned by this package:
+
+- `config/state_feedback.yaml` contains virtual-fixture, timing, adaptation,
+  force-limit, and optional docking defaults.
+- `config/mpc.yaml` contains the MPC runtime defaults and workspace
+  constraints. It also exposes the adaptive-MPC docking
+  constants that were previously hard-coded, without changing their values.
+
+The shared GUI factory loads only the profile matching `controller`. General
+Scenario/Mapper/GUI settings remain in `study_orchestration/config`; launch
+arguments select the family and log level rather than repeating numerical
+controller constants. `docking_enabled` is the one intentional State Feedback
+run-time switch, while all docking numbers remain inert in the YAML unless that
+switch is true.
+
+Adaptive MPC retains its existing latched terminal zone at 85% progress. Its
+profile names the actual MPC weight changes—comfort reduction, trajectory
+weight scaling, and goal-weight scaling—rather than calling them State Feedback
+stiffness. MPC also retains its component-wise physical limit:
+`max_control_amplitude=10` multiplied by
+`acceleration_to_force_factor=0.2` gives 2 N per device force axis. This is not
+the State Feedback controller's independent 2 N vector-norm limit.
+
+## MPC runtime lifecycle
+
+MPC consumes retained `/study_task`, authoritative `/study_trial_state`, and
+each matching timestamped `/study_cursor`. Cursor timestamps determine observed
+velocity; `delta_time=0.1` remains the unchanged optimizer prediction timestep.
+Task changes and retries reset velocity and warm-start history.
+
+Invalid, non-finite, duplicate, decreasing, or stale cursor samples publish zero
+on `/control/U_a` and `/haply_target`. A failed, infeasible, or non-finite solve
+also publishes zero and withdraws the readiness heartbeat so Scenario aborts the
+trial safely. These runtime protections do not change the MPC objective,
+constraints, adaptation law, docking defaults, or force conversion.
+
+## State-feedback force law
+
+State feedback consumes the retained atomic `/study_task`, authoritative
+`/study_trial_state`, and each valid timestamped `/study_cursor` sample exactly
+once. Velocity is calculated from consecutive cursor timestamps rather than a
+fixed assumed period. Derivative history resets at every trial or retry.
+
+The straight path is represented by a unit direction vector. Cursor displacement
+and velocity are decomposed into:
+
+- an along-path component, which provides goal-directed assistance; and
+- a perpendicular component, which generates the virtual-fixture restoring
+  force that keeps the participant near the start-to-end line.
+
+The output is a Cartesian force in newtons:
+
+```text
+F = K_goal * remaining_along - D_goal * velocity_along
+    - K_fixture * cross_track - D_fixture * velocity_cross
 ```
 
-### Launch Debug Visulizer
+The force norm is bounded by `max_force_n` before it is mapped from task X/Y to
+Inverse3 X/Z. This follows Haply's documented force-feedback model: applications
+calculate spring/damping forces from cursor position and velocity and send
+Cartesian force commands in newtons. No participant-applied force measurement
+is required for this controller.
 
-If you wish to only launch the interactive Pygame-based debug visualizer:
+References:
+
+- [Haply control commands](https://docs.haply.co/inverseSDK/service/realtime/control-commands/)
+- [Haply basic force-feedback tutorial](https://docs.haply.co/inverseSDK/2.1.1/unity/tutorials/basic-force-feedback)
+
+Default state-feedback parameters are intentionally conservative and require
+hardware validation before study use:
+
+| Parameter | Default | Meaning |
+| --- | ---: | --- |
+| `along_stiffness_n_per_m` | 10.0 | Goal stiffness along the path. |
+| `along_damping_ns_per_m` | 2.0 | Along-path damping. |
+| `fixture_stiffness_n_per_m` | 20.0 | Lateral virtual-fixture stiffness. |
+| `fixture_damping_ns_per_m` | 2.0 | Lateral virtual-fixture damping. |
+| `max_force_n` | 2.0 | Maximum task-plane force magnitude. Independent of docking. |
+| `velocity_filter_alpha` | 0.25 | Timestamped velocity low-pass coefficient. |
+| `cursor_timeout_s` | 0.2 | Input age that triggers zero force. |
+
+## Adaptive interpretation
+
+The adaptive state-feedback condition consumes four active coefficients from
+`/estimation/K_h`. These coefficients describe an effective closed-loop
+interaction model. They include participant action, robot assistance, device
+dynamics, and noise; they are not measured human force or isolated human
+stiffness.
+
+Adaptation changes the along-path assistance gains. Virtual-fixture gains remain
+the same in fixed and adaptive conditions so lateral guidance is not an
+additional experimental difference.
+
+## Optional docking
+
+Docking is not required by state feedback and is disabled by default. When
+enabled, it smoothly increases along-path stiffness near the endpoint. It does
+not alter the lateral virtual fixture and is applied identically to fixed and
+adaptive conditions.
 
 ```bash
-ros2 run control_node test_control_node_output
+ros2 launch haply_study_gui study_gui.launch.py \
+  participant_id:=P03 docking_enabled:=true
 ```
 
-The `control_node` itself is already included in the launch files. So for debugging purposes, launching this launch file only is enough.
+This activates the defaults `docking_start_percent=85`,
+`docking_stiffness_scale=2.0`, and `docking_max_cross_track_m=0.02`.
+The independent global force limit remains `max_force_n=2.0` whether docking
+is enabled or disabled.
 
-### Launch Control Node & Debug Visualizer
+Docking progress is the directed projection onto the start-to-end path, not
+Euclidean distance from the start. It activates only when cross-track error is
+within `docking_max_cross_track_m`. There is no latch: retreating below the
+threshold reduces the docking scale normally.
 
-To launch the headless control node in `DEBUG` alongside the interactive Pygame-based debug visualizer:
+## Published interfaces
+
+- `/control/U_a` (`geometry_msgs/Vector3`): task-frame assistant force in N for
+  state feedback. MPC retains its established command semantics.
+- `/control/K_a` (`std_msgs/String`): retained JSON containing physical gains,
+  adaptation scale, docking configuration, and estimator interpretation.
+- `/haply_target` (`haply_msgs/HaplyControl`): force command mapped to device X/Z.
+- `/study_controller_ready` (`std_msgs/Bool`): retained task-readiness heartbeat.
+
+Invalid task geometry, invalid timestamps, non-finite inputs, stale cursor data,
+and trial stop all result in a zero-force command from the state-feedback node.
+
+## Validation
+
+Run the focused controller tests and deterministic benchmark:
 
 ```bash
-ros2 launch control_node control_debug_launch.py
+pytest -q src/control_node/test/test_virtual_fixture_state_feedback.py
+pytest -q src/control_node/test/test_mpc_runtime.py
+
+ros2 run study_analysis run_benchmark \
+  --output analysis_results/state_feedback_benchmark \
+  --seed 20260721
 ```
 
-When doing so, make sure the `control_node` is not running anywhere else.
+The benchmark uses a deterministic mass-damped planar simulation and verifies
+fixed/adaptive convergence, finite output, and family-specific bounds for State
+Feedback and MPC. It does not rank the controllers or replace low-force
+validation on the physical device.
 
-### Launch Control Node in Debug & Debug Visualizer and all other nodes
-
-With Haply:
+For live visualization, the debug entry points now include the production stack
+and add only `test_control_node_output` plus debug logging:
 
 ```bash
+# Production mouse stack + controller-output visualizer
+ros2 launch control_node mouse_control_debug_launch.py
+
+# Production hardware stack/readiness gate + controller-output visualizer
 ros2 launch control_node haply_control_debug_launch.py
 ```
 
-With Mouse:
+Both wrappers include Data Logger. Their default output folders are
+`logs/DEBUG_MOUSE_<timestamp>/` and
+`logs/DEBUG_HAPLY_<timestamp>/`, respectively. Pass
+`participant_id:=<label>` only when an explicit override is useful.
 
-```bash
-ros2 launch control_node mouse_control_debug_launch.py
-```
-
----
-
-## 2. Core Controller Schemes
-
-### A. Model Predictive Control (MPC)
-
-* **Optimization Engine:** Formulated using **CasADi** and resolved using the **IPOPT** interior-point solver.
-
-
-* **Predictive Pipeline:** Uses a discrete state-space double integrator model ($x_{k+1} = A x_k + B u_k $) mapped over a configurable prediction horizon.
-
-
-* **Cost Function Formulation:** Automatically balances human *Comfort* (minimizing control input authority), *Trajectory tracking* (closeness to path boundaries), and *Goal seeking* (terminal state convergence).
-
-
-
-### B. State Feedback Controller
-
-* **Implementation:** Standard closed-loop proportional-derivative (PD) controller mapping immediate positioning error ($e$) and estimated velocities ($\dot{e}$).
-
-
-* **Active Boundary Protection:** Intercepts out-of-bound target velocities and clips matching assistance force projections to avoid destabilizing overshoot.
-
-
-
-### C. Adaptive Shared Control Laws
-
-In `adaptive` mode, controllers adapt in real-time to human haptic inputs:
-
-1. **Progress-Based Interpolation:** Support efforts are heavily deployed at the start/end points of the point-to-point journey, giving the operator full free-play control in the middle region.
-
-
-2. **Operator Impedance Tracking ($K_h$):** High human hand stiffness (increased rigor detected via `/estimation/K_h`) scale down assistant intervention factors ($\approx \tanh(\Vert{}K_h\Vert{})$), resolving control authority conflicts.
-
-
-
----
-
-## 3. ROS 2 API Reference
-
-### Subscribed Topics
-
-* **`/study_controller_mode`** (`std_msgs/String`) — Dynamically switches operational modes between `adaptive` and `fixed`.
-
-
-* **`/study_start_point`** & **`/study_end_point`** (`geometry_msgs/Point`) — Sets start/end point targets, triggering initialization loops.
-
-
-* **`/experiment_cursor_position`** (`geometry_msgs/Point`) — High-frequency feed of haptic hand coordinates.
-
-
-* **`/estimation/K_h`** (`std_msgs/Float64MultiArray`) — Estimated stiffness matrix of the human operator.
-
-
-* **`/haply_state`** (`haply_msgs/HaplyState`) — Listens to physical button presses (holding Button A activates assistive control).
-
-
-
-### Published Topics
-
-* **`/control/U_a`** (`geometry_msgs/Vector3`) — Computed assistant control acceleration vectors.
-
-
-* **`/control/K_a`** (`std_msgs/String`) — Runtime JSON serialization of active controller parameters and diagnostic weights.
-
-
-* **`/haply_target`** (`haply_msgs/HaplyControl`) — Directly maps force vectors back to the physical actuator.
-
-
-
-### Essential Launch Parameters
-
-* **`use_mpc_controller`** (Boolean, default: `true`): Switches between MPC optimization and State Feedback (PD).
-
-
-* **`adaptive_control_enabled`** (Boolean, default: `false`): Enables active $K_h$-dependent parameter adaptation.
-
-
-* **`prediction_horizon`** (Integer, default: `5`): Set predictive lookahead steps.
-
-
-* **`acceleration_to_force_factor`** (Double, default: `0.2`): Scales software-calculated control action into physical torque forces.
-
-
-
----
-
+These wrappers were originally introduced in commit `fc6ba27` (2026-07-19).
+They remain useful for the extra visualization window, but no longer duplicate
+production Scenario, Mapper, GUI, Estimator, Logger, or controller parameters.
+Both default to State Feedback; pass `controller:=mpc` only when explicitly
+testing MPC. The hardware wrapper requires the Haply Inverse
+Service and device, while the mouse wrapper does not.
