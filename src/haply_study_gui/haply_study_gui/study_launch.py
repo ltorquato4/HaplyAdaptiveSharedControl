@@ -89,7 +89,7 @@ def create_study_stack(
         nodes.append(
             Node(
                 package="control_node",
-                executable="control_node",
+                executable="mpc_control_node",
                 name="control_node",
                 output="screen",
                 condition=IfCondition(mpc_enabled),

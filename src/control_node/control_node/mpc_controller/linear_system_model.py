@@ -50,7 +50,7 @@ class LinearSystemModel:
         }
 
     def initialize_x(self, start_point: list[float]):
-        """Initializes state vector x(t)"""
+        """Initialize the state vector x(t)."""
         x = np.array([start_point[0], 0, start_point[1], 0])
         return x
 

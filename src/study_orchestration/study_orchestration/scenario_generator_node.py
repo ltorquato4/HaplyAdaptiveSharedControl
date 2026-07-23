@@ -230,9 +230,8 @@ class ScenarioGenerator(Node):
         self.rollout_due_time: float | None = None
 
         retained_state_qos = self._retained_state_qos()
-        # LEGACY: split task fields remain as compatibility/debug inputs. The
-        # running Bool remains only for the legacy MPC executable; production
-        # lifecycle consumers use the typed, ID-bearing messages below.
+        # LEGACY: split task fields remain as compatibility/debug inputs.
+        # Production lifecycle consumers use the typed, ID-bearing messages.
         self.start_pub = self.create_publisher(
             Point, "study_start_point", retained_state_qos
         )
@@ -245,7 +244,6 @@ class ScenarioGenerator(Node):
         self.mode_pub = self.create_publisher(
             String, "study_controller_mode", retained_state_qos
         )
-        self.running_pub = self.create_publisher(Bool, "study_is_running", 10)
         self.endpoint_pub = self.create_publisher(Bool, "study_endpoint_reached", 10)
         self.task_pub = self.create_publisher(
             StudyTask, "study_task", retained_state_qos
@@ -403,7 +401,6 @@ class ScenarioGenerator(Node):
         self.is_running = True
         self.start_gate_reached = True
         self.last_rollout_time = time.monotonic()
-        self._publish_running(True)
         self._publish_trial_state("RUNNING")
 
     def _cursor_position(self, msg: StudyCursor) -> None:
@@ -540,7 +537,6 @@ class ScenarioGenerator(Node):
         self.abort_requested_for_current_trial = False
         self._publish_task_definition()
         self._publish_endpoint_state(False)
-        self._publish_running(False)
         self._publish_trial_state("READY")
 
     def _finish_session(self) -> None:
@@ -551,7 +547,6 @@ class ScenarioGenerator(Node):
         self.start_gate_reached = False
         self.abort_requested_for_current_trial = False
         self.is_running = False
-        self._publish_running(False)
         self._publish_endpoint_state(False)
         self._publish_dwell_progress(0.0)
         self._publish_trial_state("SESSION_FINISHED")
@@ -566,7 +561,6 @@ class ScenarioGenerator(Node):
         self.start_gate_reached = False
         self.abort_requested_for_current_trial = False
         self.is_running = False
-        self._publish_running(False)
         self._publish_trial_state("COMPLETED")
         self.get_logger().info(
             "Endpoint reached; waiting "
@@ -579,7 +573,6 @@ class ScenarioGenerator(Node):
         self.endpoint_latched = False
         self.start_gate_reached = False
         self.is_running = False
-        self._publish_running(False)
         self._publish_endpoint_state(False)
         self._publish_dwell_progress(0.0)
         self._publish_trial_state("ABORTED", reason)
@@ -631,15 +624,14 @@ class ScenarioGenerator(Node):
     def _publish_endpoint_state(self, reached: bool) -> None:
         self.endpoint_pub.publish(Bool(data=bool(reached)))
 
-    def _publish_running(self, running: bool) -> None:
-        self.running_pub.publish(Bool(data=bool(running)))
-
     def _component_ready(self, component: str, msg: Bool) -> None:
         if not self.component_required[component]:
             return
         self.component_ready[component] = bool(msg.data)
         if msg.data:
             self.component_last_seen[component] = time.monotonic()
+        elif self.is_running:
+            self._abort_trial("system_not_ready")
         self._publish_system_ready()
 
     def _publish_system_ready(self) -> None:

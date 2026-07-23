@@ -7,7 +7,7 @@ from geometry_msgs.msg import Point, Vector3
 from haply_msgs.msg import HaplyControl
 from rclpy.logging import LoggingSeverity
 from rclpy.node import Node
-from std_msgs.msg import Bool, Float64MultiArray, String
+from std_msgs.msg import Float64MultiArray, String
 
 
 class ControlSystemTest(Node):
@@ -20,7 +20,6 @@ class ControlSystemTest(Node):
         # Publishers
         #
 
-        self.study_running_pub = self.create_publisher(Bool, "/study_is_running", 10)
         self.mode_pub = self.create_publisher(String, "/study_controller_mode", 10)
         self.start_pub = self.create_publisher(Point, "/study_start_point", 10)
         self.goal_pub = self.create_publisher(Point, "/study_end_point", 10)
@@ -57,10 +56,6 @@ class ControlSystemTest(Node):
     #########################################################
 
     def publish_initial_messages(self):
-        running = Bool(data=True)
-        self.study_running_pub.publish(running)
-        self.get_logger().info(f"Published study running state: {running.data}")
-
         mode = String(data="adaptive")
         self.mode_pub.publish(mode)
         self.get_logger().info(f"Published controller mode: {mode.data}")
@@ -92,16 +87,33 @@ class ControlSystemTest(Node):
 
             self.t += 0.01
 
-
     #########################################################
     # Subscribers
     #########################################################
 
-    def control_callback(self, msg): self.get_logger().debug(f"Control U_a: ({msg.x:.3f}, {msg.y:.3f}, {msg.z:.3f})")
-    def parameter_callback(self, msg): self.get_logger().debug(f"Controller parameters K_a: {msg.data}")
-    def force_callback(self, msg): self.get_logger().debug(f"Haply force: ({msg.force.x:.3f}, {msg.force.y:.3f}, {msg.force.z:.3f})")
-    def kh_callback(self, msg): self.get_logger().debug(f"Estimated K_h: {[round(v, 5) for v in msg.data]}")
-    def uh_callback(self, msg): self.get_logger().debug(f"Estimated human control U_h: ({msg.x:.3f}, {msg.y:.3f}, {msg.z:.3f})")
+    def control_callback(self, msg):
+        self.get_logger().debug(
+            f"Control U_a: ({msg.x:.3f}, {msg.y:.3f}, {msg.z:.3f})"
+        )
+
+    def parameter_callback(self, msg):
+        self.get_logger().debug(f"Controller parameters K_a: {msg.data}")
+
+    def force_callback(self, msg):
+        self.get_logger().debug(
+            "Haply force: "
+            f"({msg.force.x:.3f}, {msg.force.y:.3f}, {msg.force.z:.3f})"
+        )
+
+    def kh_callback(self, msg):
+        values = [round(value, 5) for value in msg.data]
+        self.get_logger().debug(f"Estimated K_h: {values}")
+
+    def uh_callback(self, msg):
+        self.get_logger().debug(
+            "Estimated human control U_h: "
+            f"({msg.x:.3f}, {msg.y:.3f}, {msg.z:.3f})"
+        )
 
 
 ############################################################

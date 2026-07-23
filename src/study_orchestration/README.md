@@ -67,15 +67,9 @@ Published task and trial topics:
   `session_id`, `trial_id`, and continuous hold progress in `0.0–1.0`.
 
 Scenario also publishes `/study_start_point`, `/study_end_point`,
-`/study_phase`, `/study_controller_mode`, `/study_is_running`, and
-`/study_endpoint_reached` as a temporary compatibility layer. The dedicated
-State Feedback controller, Estimator, and Logger use `StudyTask` and
-`StudyTrialState` and do not consume `/study_is_running`; only legacy MPC still
-uses it as a run gate.
-
-Once the team approves migrating legacy MPC to `StudyTrialState`, remove the
-remaining Boolean publisher and its legacy test publishers. It is not part of
-the State Feedback, Estimator, Logger, GUI, or Mapper contract anymore.
+`/study_phase`, `/study_controller_mode`, and `/study_endpoint_reached` as a
+temporary metadata compatibility layer. `StudyTrialState` is the sole lifecycle
+authority for MPC, State Feedback, Estimator, Logger, and GUI.
 
 It subscribes to `/study_start_requested`, `/study_abort_requested`, and the
 typed `/study_cursor` topic.

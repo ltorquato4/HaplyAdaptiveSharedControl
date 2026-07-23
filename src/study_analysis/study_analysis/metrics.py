@@ -131,7 +131,7 @@ def calculate_trial_metrics(attempt: Attempt):
             force_norm = np.linalg.norm(ua[finite_ua], axis=1)
             saturated = force_norm >= 0.99 * max_control
         else:
-            # The legacy MPC path retains per-component control constraints.
+            # MPC uses per-component control constraints.
             saturated = np.any(
                 np.abs(ua[finite_ua]) >= 0.99 * max_control,
                 axis=1,

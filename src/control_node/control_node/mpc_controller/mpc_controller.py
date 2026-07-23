@@ -51,6 +51,7 @@ class MpcController(Controller):
             ),
         )
         self.u_init = np.zeros(self.prediction_horizon * 2, dtype=float)
+        self.prev_cursor_timestamp_s: float | None = None
 
         self.linear_system_model = LinearSystemModel(dt)
 
@@ -80,13 +81,34 @@ class MpcController(Controller):
             ),
             state_dimension=4,
             input_dimension=2,
-            start_point=self.experiment_start_point, 
-            end_point=self.experiment_end_point,  
+            start_point=self.experiment_start_point,
+            end_point=self.experiment_end_point,
         )
 
-    def _build_initial_state(self, current_point: Sequence[float]) -> np.ndarray:
+    def _build_initial_state(
+        self,
+        current_point: Sequence[float],
+        timestamp_s: float | None = None,
+    ) -> np.ndarray:
         current_position = self._build_position(current_point)
-        velocity = self._estimate_velocity(current_position)
+        if timestamp_s is None:
+            velocity = self._estimate_velocity(current_position)
+        else:
+            timestamp_s = float(timestamp_s)
+            if not np.isfinite(timestamp_s):
+                raise ValueError("cursor timestamp must be finite")
+            if (
+                self.prev_cursor_timestamp_s is not None
+                and timestamp_s <= self.prev_cursor_timestamp_s
+            ):
+                raise ValueError("cursor timestamp must increase")
+            if self.prev_position is None:
+                velocity = np.zeros(2, dtype=float)
+            else:
+                sample_dt = timestamp_s - self.prev_cursor_timestamp_s
+                velocity = (current_position - self.prev_position) / sample_dt
+            self.prev_position = current_position.copy()
+            self.prev_cursor_timestamp_s = timestamp_s
 
         return np.array(
             [current_position[0], velocity[0], current_position[1], velocity[1]],
@@ -108,8 +130,12 @@ class MpcController(Controller):
         shifted_sequence = np.vstack([control_sequence[1:], control_sequence[-1]])
         return shifted_sequence.reshape(-1)
 
-    def compute_control(self, current_point: Sequence[float]) -> list[float]:
-        x0 = self._build_initial_state(current_point)
+    def compute_control(
+        self,
+        current_point: Sequence[float],
+        timestamp_s: float | None = None,
+    ) -> list[float]:
+        x0 = self._build_initial_state(current_point, timestamp_s)
         goal_state = self._build_goal_state()
 
         self.optimizer.set_state_dependencies(
@@ -132,12 +158,21 @@ class MpcController(Controller):
 
     def publish_control_parameter(self):
         return json.dumps(self.cost_function.get_parameters())
-    
+
+    def reset_runtime_state(self) -> None:
+        """Reset sample history and the optimizer warm start for a retry."""
+        self.current_point = None
+        self.prev_position = None
+        self.prev_cursor_timestamp_s = None
+        self.u_a = np.zeros(2, dtype=float)
+        self.u_init = np.zeros(self.prediction_horizon * 2, dtype=float)
+
     def destroy(self) -> None:
-        """Explicitly tear down the MPC controller structure and free memory.
-        
-        This cleans up internal NumPy state buffers, cascades down to the CasADi 
-        Optimization orchestrator, and strips sub-component references to force 
+        """
+        Explicitly tear down the MPC controller and free its memory.
+
+        This cleans up internal NumPy state buffers, cascades down to the CasADi
+        Optimization orchestrator, and strips sub-component references to force
         immediate garbage collection.
         """
         # 1. Force cleanup of the symbolic optimizer structures
@@ -151,10 +186,10 @@ class MpcController(Controller):
 
         # 2. Iteratively clear child components to isolate memory footprints
         child_components = [
-            "linear_system_model", 
-            "constraints", 
-            "cost_function", 
-            "batch_predictor"
+            "linear_system_model",
+            "constraints",
+            "cost_function",
+            "batch_predictor",
         ]
         for component_attr in child_components:
             component = getattr(self, component_attr, None)

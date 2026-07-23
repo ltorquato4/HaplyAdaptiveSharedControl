@@ -37,6 +37,7 @@ setup(
     entry_points={
         "console_scripts": [
             "control_node = control_node.control_node:main",
+            "mpc_control_node = control_node.mpc_control_node:main",
             "state_feedback_control_node = "
             "control_node.state_feedback_control_node:main",
             "test_control_node_output = control_node.test_control_node_output:main",

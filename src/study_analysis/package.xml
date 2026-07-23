@@ -7,6 +7,7 @@
   <maintainer email="ltorquato@users.noreply.github.com">Luisa Torquato Niño</maintainer>
   <license>UNLICENSED</license>
 
+  <exec_depend>ament_index_python</exec_depend>
   <exec_depend>control_node</exec_depend>
   <exec_depend>estimator_node</exec_depend>
   <exec_depend>python3-matplotlib</exec_depend>

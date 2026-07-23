@@ -71,7 +71,7 @@ class Optimization:
         self.prediction_horizon = self.batch_predictor.N
 
         self.symbolic_problem = self._setup_nlp_problem()
-        
+
         solver_name = f"mpc_solver_{id(self)}"
         self.solver = self._create_solver(self.symbolic_problem, solver_name)
 
@@ -141,7 +141,7 @@ class Optimization:
             rows.append(ca.horzcat(x_ref, 0, y_ref, 0))
 
         return ca.vertcat(*rows)
-    
+
     def _create_solver(self, symbolic_problem: SymbolicProblem, solver_name: str) -> ca.Function:
         g_concat = ca.vertcat(*symbolic_problem.g)
 
@@ -225,7 +225,7 @@ class Optimization:
         x0 = ca.MX.sym("x0", state_dimension)
         z_sequence = ca.MX.sym("z_seq", prediction_horizon * state_dimension)
         goal_state = ca.MX.sym("goal_state", state_dimension)
-        
+
         # Define weights as symbolic parameters so they can change without recompiling
         w_comfort = ca.MX.sym("w_comfort", 1)
         w_trajectory = ca.MX.sym("w_trajectory", 1)
@@ -247,7 +247,7 @@ class Optimization:
             sym_weights=(w_comfort, w_trajectory, w_goal)
         )
         g = self.constraints.get_symbolic_constraints(x_pred, u)
-        
+
         # Include weights in parameter vector p
         p = ca.vertcat(x0, z_sequence, goal_state, w_comfort, w_trajectory, w_goal)
 
@@ -262,14 +262,43 @@ class Optimization:
     ) -> np.ndarray:
         n_constraints = int(ca.vertcat(*g).shape[0])
 
-        sol = solver(
+        solution = solver(
             x0=u_init,
             p=p_val,
             lbg=-np.inf * np.ones(n_constraints),
             ubg=np.zeros(n_constraints),
         )
 
-        return np.array(sol["x"]).flatten()
+        stats = solver.stats()
+        status = str(stats.get("return_status", "unknown"))
+        acceptable_terminal_statuses = {
+            "Solve_Succeeded",
+            "Solved_To_Acceptable_Level",
+            # IPOPT reports this for the configured large weights even when the
+            # returned command is finite and constraint-feasible.
+            "Search_Direction_Becomes_Too_Small",
+        }
+        solver_succeeded = bool(stats.get("success", False))
+        if not solver_succeeded and status not in acceptable_terminal_statuses:
+            raise RuntimeError(f"MPC solver failed: {status}")
+        if not solver_succeeded and "g" not in solution:
+            raise RuntimeError(
+                f"MPC solver did not provide feasibility data: {status}"
+            )
+
+        optimum = np.asarray(solution["x"], dtype=float).reshape(-1)
+        if not np.isfinite(optimum).all():
+            raise RuntimeError("MPC solver returned a non-finite command")
+        if "g" in solution:
+            constraint_values = np.asarray(solution["g"], dtype=float).reshape(-1)
+            if (
+                not np.isfinite(constraint_values).all()
+                or np.max(constraint_values, initial=-np.inf) > 1e-6
+            ):
+                raise RuntimeError(
+                    f"MPC solver returned an infeasible command: {status}"
+                )
+        return optimum
 
     def set_state_dependencies(self, state_dependencies: StateDependencies) -> None:
         """Replace runtime state dependencies used by the optimization."""
