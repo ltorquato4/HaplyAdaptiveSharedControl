@@ -21,10 +21,10 @@ control_node:
     # Existing adaptive-MPC terminal docking behavior, formerly hard-coded in
     # AdaptiveMpcController. These defaults preserve the previous behavior.
     docking_enabled: true
-    docking_start_percent: 85.0
+    docking_start_percent: 90.0
     docking_comfort_reduction: 0.9
-    docking_trajectory_weight_scale: 2.0
-    docking_goal_weight_scale: 1000000.0
+    docking_trajectory_weight_scale: 10e2
+    docking_goal_weight_scale: 10e4
 
 scenario_generator:
   ros__parameters:

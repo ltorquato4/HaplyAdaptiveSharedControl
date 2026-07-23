@@ -18,9 +18,9 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         max_velocity=(1.0, 1.0),
         x_bounds=None,
         y_bounds=None,
-        weight_comfort=1.0,
-        weight_trajectory=1.0,
-        weight_goal=1.0,
+        weight_comfort=50e1,
+        weight_trajectory=10e2,
+        weight_goal=30e2,
         docking_enabled=True,
         docking_start_percent=85.0,
         docking_comfort_reduction=0.9,
@@ -134,9 +134,9 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
             t_scale = terminal_fraction ** 2
 
             # Smoothly shift authority to the computer to lock onto the target
-            comfort_weight *= (
+            comfort_weight *= max(0, (
                 1.0 - self.docking_comfort_reduction * t_scale
-            )
+            ))
             trajectory_weight *= (
                 1.0 + self.docking_trajectory_weight_scale * t_scale
             )

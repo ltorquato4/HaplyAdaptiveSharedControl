@@ -26,9 +26,9 @@ class MpcController(Controller):
         max_velocity: tuple[float, float] = (1.0, 1.0),
         x_bounds: tuple[float, float] | None = None,
         y_bounds: tuple[float, float] | None = None,
-        weight_comfort: float = 10e17,
-        weight_trajectory: float = 10e17,
-        weight_goal: float = 10e15,
+        weight_comfort: float = 50e1,
+        weight_trajectory: float = 10e2,
+        weight_goal: float = 30e2,
     ) -> None:
         super().__init__(start_point, end_point, dt)
         self.prediction_horizon = prediction_horizon
@@ -53,6 +53,10 @@ class MpcController(Controller):
         self.u_init = np.zeros(self.prediction_horizon * 2, dtype=float)
         self.prev_cursor_timestamp_s: float | None = None
 
+        self.weight_comfort = weight_comfort
+        self.weight_trajectory = weight_trajectory
+        self.weight_goal = weight_goal
+
         self.linear_system_model = LinearSystemModel(dt)
 
         self.constraints = Constraints(
@@ -63,9 +67,9 @@ class MpcController(Controller):
         )
 
         self.cost_function = CostFunction(
-            weight_comfort=weight_comfort,
-            weight_trajectory=weight_trajectory,
-            weight_goal=weight_goal,
+            weight_comfort=self.weight_comfort,
+            weight_trajectory=self.weight_trajectory,
+            weight_goal=self.weight_goal,
         )
 
         self.batch_predictor = BatchPredictor(
