@@ -110,6 +110,10 @@ ros2 launch haply_study_gui study_gui.launch.py \
 # Select the optional MPC family explicitly.
 ros2 launch haply_study_gui study_gui.launch.py \
   participant_id:=P03 controller:=mpc
+
+# mpc controller with docking
+ros2 launch haply_study_gui study_gui.launch.py \
+  participant_id:=P03 controller:=mpc docking_enabled:=true
 ```
 
 ### Controller visualization launches
