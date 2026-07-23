@@ -19,6 +19,8 @@ def generate_launch_description():
     controller = LaunchConfiguration("controller")
     controller_log_level = LaunchConfiguration("controller_log_level")
     docking_enabled = LaunchConfiguration("docking_enabled")
+    participant_id = LaunchConfiguration("participant_id")
+    log_directory = LaunchConfiguration("log_directory")
     controller_enabled = ParameterValue(
         PythonExpression(["'", controller, "' in ['mpc', 'state_feedback']"]),
         value_type=bool,
@@ -26,6 +28,8 @@ def generate_launch_description():
     nodes, study_gui = create_study_stack(
         "haply",
         controller,
+        participant_id=participant_id,
+        log_directory=log_directory,
         include_driver=True,
         controller_log_level=controller_log_level,
         require_system_ready=controller_enabled,
@@ -38,6 +42,15 @@ def generate_launch_description():
                 "controller",
                 default_value="state_feedback",
                 description="Controller family: none, mpc, or state_feedback.",
+            ),
+            DeclareLaunchArgument(
+                "participant_id",
+                description="Required pseudonymous participant code, for example P03.",
+            ),
+            DeclareLaunchArgument(
+                "log_directory",
+                default_value="./logs",
+                description="Session log output directory.",
             ),
             DeclareLaunchArgument(
                 "controller_log_level",

@@ -3,6 +3,7 @@
 """Scenario Generator for the Haply shared-control study."""
 
 import random
+import re
 import secrets
 import time
 import uuid
@@ -48,7 +49,7 @@ class ScenarioGenerator(Node):
 
     PHASES = ("aggressive", "normal", "careful")
     POINT_COUNT = 5
-    SCHEMA_VERSION = 2
+    SCHEMA_VERSION = 3
 
     def __init__(self):
         """Create publishers, subscriptions, and validate the configured task."""
@@ -89,6 +90,7 @@ class ScenarioGenerator(Node):
         self.declare_parameter("order_strategy", "seeded_random")
         self.declare_parameter("order_seed", -1)
         self.declare_parameter("session_id", "")
+        self.declare_parameter("participant_id", "P00")
         self.declare_parameter("input_source", "unknown")
         self.declare_parameter("controller_family", "none")
         self.declare_parameter("estimator_state_policy", "persist_session")
@@ -177,12 +179,21 @@ class ScenarioGenerator(Node):
             raise ValueError("input_source must be mouse, haply, or unknown")
         if self.controller_family not in {"mpc", "state_feedback", "none"}:
             raise ValueError("controller_family must be mpc, state_feedback, or none")
+        self.participant_id = str(
+            self.get_parameter("participant_id").value
+        ).strip()
+        if not re.fullmatch(r"[A-Za-z0-9][A-Za-z0-9_.-]{0,63}", self.participant_id):
+            raise ValueError(
+                "participant_id must contain 1-64 letters, numbers, dots, "
+                "underscores, or hyphens"
+            )
         if self.estimator_state_policy != "persist_session":
             raise ValueError("estimator_state_policy must be persist_session")
         self.tasks = self._expand_session_tasks()
         self.get_logger().info(
             "Resolved study schedule: "
-            f"session={self.session_id}, strategy={self.order_strategy}, "
+            f"participant={self.participant_id}, session={self.session_id}, "
+            f"strategy={self.order_strategy}, "
             f"seed={self.order_seed}, order={self._format_schedule()}"
         )
         self.task_index = 0
@@ -601,6 +612,7 @@ class ScenarioGenerator(Node):
         msg = StudySession()
         msg.schema_version = self.SCHEMA_VERSION
         msg.session_id = self.session_id
+        msg.participant_id = self.participant_id
         msg.input_source = self.input_source
         msg.controller_family = self.controller_family
         msg.order_strategy = self.order_strategy

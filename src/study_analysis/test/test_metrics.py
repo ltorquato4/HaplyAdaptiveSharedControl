@@ -16,6 +16,7 @@ def _frame():
         {
             "timestamp": [10.0, 11.0, 12.0],
             "elapsed_s": [0.0, 1.0, 2.0],
+            "participant_id": ["P03"] * 3,
             "session_id": ["session"] * 3,
             "trial_id": [1] * 3,
             "attempt_id": [1] * 3,
@@ -51,6 +52,7 @@ def test_straight_trajectory_metrics_have_known_values():
         _frame(),
         {
             "session_id": "session",
+            "participant_id": "P03",
             "trial_id": 1,
             "attempt_id": 1,
             "controller_family": "mpc",
@@ -63,6 +65,7 @@ def test_straight_trajectory_metrics_have_known_values():
 
     metrics, enriched = calculate_trial_metrics(attempt)
 
+    assert metrics["participant_id"] == "P03"
     assert metrics["endpoint_error"] == 0.0
     assert metrics["cross_track_rmse"] == 0.0
     assert metrics["path_length_ratio"] == 1.0

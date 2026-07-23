@@ -11,10 +11,12 @@ The shared GUI launch selects the correct executable from `controller`:
 
 ```bash
 # Default production controller
-ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback
+ros2 launch haply_study_gui study_gui.launch.py \
+  controller:=state_feedback participant_id:=P03
 
 # MPC
-ros2 launch haply_study_gui study_gui.launch.py controller:=mpc
+ros2 launch haply_study_gui study_gui.launch.py \
+  controller:=mpc participant_id:=P03
 ```
 
 ## Configuration profiles
@@ -121,7 +123,7 @@ adaptive conditions.
 
 ```bash
 ros2 launch haply_study_gui study_gui.launch.py \
-  docking_enabled:=true
+  participant_id:=P03 docking_enabled:=true
 ```
 
 This activates the defaults `docking_start_percent=85`,
@@ -174,6 +176,11 @@ ros2 launch control_node mouse_control_debug_launch.py
 # Production hardware stack/readiness gate + controller-output visualizer
 ros2 launch control_node haply_control_debug_launch.py
 ```
+
+Both wrappers include Data Logger. Their default output folders are
+`logs/DEBUG_MOUSE_<timestamp>/` and
+`logs/DEBUG_HAPLY_<timestamp>/`, respectively. Pass
+`participant_id:=<label>` only when an explicit override is useful.
 
 These wrappers were originally introduced in commit `fc6ba27` (2026-07-19).
 They remain useful for the extra visualization window, but no longer duplicate

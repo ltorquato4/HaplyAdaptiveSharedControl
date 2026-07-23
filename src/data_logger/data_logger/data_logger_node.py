@@ -6,6 +6,7 @@ import os
 import re
 import time
 from dataclasses import dataclass
+from datetime import datetime, timezone
 
 import rclpy
 from geometry_msgs.msg import Point, Vector3
@@ -35,6 +36,7 @@ class DataLoggerNode(Node):
     """Record task samples and session/attempt metadata."""
 
     ATTEMPT_FIELDS = [
+        "participant_id",
         "session_id",
         "trial_id",
         "attempt_id",
@@ -126,9 +128,30 @@ class DataLoggerNode(Node):
         return time.monotonic()
 
     @staticmethod
-    def _safe_session_directory(session_id):
-        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(session_id))
-        return safe or "unknown-session"
+    def _safe_directory_component(value):
+        safe = re.sub(r"[^A-Za-z0-9_.-]", "_", str(value))
+        return safe or "unknown"
+
+    @staticmethod
+    def _directory_timestamp():
+        return datetime.now(timezone.utc).strftime("%Y-%m-%d_%H-%M-%SZ")
+
+    def _create_session_directory(self, participant_id):
+        safe_participant_id = self._safe_directory_component(participant_id)
+        timestamp = self._directory_timestamp()
+        directory_stem = f"{safe_participant_id}_{timestamp}"
+        candidate = os.path.join(self.base_directory, directory_stem)
+        collision_index = 1
+        while True:
+            try:
+                os.makedirs(candidate)
+                return candidate
+            except FileExistsError:
+                collision_index += 1
+                candidate = os.path.join(
+                    self.base_directory,
+                    f"{directory_stem}_{collision_index:02d}",
+                )
 
     @staticmethod
     def _point_dict(point):
@@ -155,6 +178,7 @@ class DataLoggerNode(Node):
         self.session_metadata = {
             "schema_version": int(msg.schema_version),
             "session_id": session_id,
+            "participant_id": str(msg.participant_id),
             "input_source": str(msg.input_source),
             "controller_family": str(msg.controller_family),
             "order_strategy": str(msg.order_strategy),
@@ -164,9 +188,9 @@ class DataLoggerNode(Node):
             "loop_tasks": bool(msg.loop_tasks),
             "schedule": [self._task_dict(task) for task in msg.schedule],
         }
-        session_directory = self._safe_session_directory(session_id)
-        self.save_directory = os.path.join(self.base_directory, session_directory)
-        os.makedirs(self.save_directory, exist_ok=True)
+        self.save_directory = self._create_session_directory(
+            self.session_metadata["participant_id"]
+        )
         self.csv_logger = CSVLogger(
             self.save_directory, self.config.file_prefix, self.fieldnames()
         )
@@ -264,6 +288,7 @@ class DataLoggerNode(Node):
     def fieldnames(self):
         return [
             "schema_version",
+            "participant_id",
             "session_id",
             "trial_id",
             "attempt_id",
@@ -322,6 +347,7 @@ class DataLoggerNode(Node):
         )
         self.missed_cycle_count = 0
         self.active_attempt = {
+            "participant_id": self.session_metadata["participant_id"],
             "session_id": self.trial_metadata["session_id"],
             "trial_id": trial_id,
             "attempt_id": attempt_id,
@@ -469,6 +495,7 @@ class DataLoggerNode(Node):
         metadata = self.session_metadata
         row = {
             "schema_version": metadata["schema_version"],
+            "participant_id": metadata["participant_id"],
             "session_id": self.trial_metadata["session_id"],
             "trial_id": self.trial_metadata["trial_id"],
             "attempt_id": self.active_attempt["attempt_id"],

@@ -188,6 +188,11 @@ def load_session(input_directory, controller_family=None, input_source=None):
             or _optional_constant(frame, "input_source")
             or manifest.get("input_source")
         )
+        metadata["participant_id"] = (
+            _optional_constant(frame, "participant_id")
+            or manifest.get("participant_id")
+            or "unknown"
+        )
         if metadata["controller_family"] not in {"mpc", "state_feedback"}:
             raise SchemaError(
                 f"{path.name} needs --controller-family mpc|state_feedback"
@@ -310,7 +315,7 @@ def _validate_manifest_attempt(path, metadata, manifest):
     manifest_session = str(manifest.get("session_id", ""))
     if manifest_session and manifest_session != str(metadata["session_id"]):
         raise SchemaError(f"{path.name} session_id disagrees with the manifest")
-    for key in ("controller_family", "input_source"):
+    for key in ("participant_id", "controller_family", "input_source"):
         value = manifest.get(key)
         if value is not None and str(value) != str(metadata[key]):
             raise SchemaError(f"{path.name} {key} disagrees with the manifest")

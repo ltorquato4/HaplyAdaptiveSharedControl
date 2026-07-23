@@ -10,6 +10,8 @@ from launch_ros.parameter_descriptions import ParameterValue
 def create_study_stack(
     source,
     controller=None,
+    participant_id="P00",
+    log_directory="./logs",
     include_driver=False,
     controller_log_level="INFO",
     require_system_ready=False,
@@ -36,6 +38,7 @@ def create_study_stack(
     ]
     scenario_overrides = {
         "task_file": config_dir + "/default_tasks.yaml",
+        "participant_id": participant_id,
         "input_source": source,
         "controller_family": controller_family,
         "estimator_state_policy": "persist_session",
@@ -144,7 +147,7 @@ def create_study_stack(
                 condition=IfCondition(controller_enabled),
                 parameters=[
                     {
-                        "save_directory": "./logs",
+                        "save_directory": log_directory,
                         "log_level": controller_log_level,
                     }
                 ],

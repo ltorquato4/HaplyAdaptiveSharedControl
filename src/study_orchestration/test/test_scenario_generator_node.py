@@ -52,6 +52,7 @@ def _generator():
     node.task_index = 0
     node.trial_id = 0
     node.session_id = "test-session"
+    node.participant_id = "P03"
     node.input_source = "haply"
     node.controller_family = "mpc"
     node.estimator_state_policy = "persist_session"
@@ -99,8 +100,9 @@ def test_session_definition_contains_reproducible_schedule():
     node._publish_session_definition()
 
     message = node.session_pub.messages[-1]
-    assert message.schema_version == 2
+    assert message.schema_version == 3
     assert message.session_id == "test-session"
+    assert message.participant_id == "P03"
     assert message.input_source == "haply"
     assert message.controller_family == "mpc"
     assert message.order_seed == 1

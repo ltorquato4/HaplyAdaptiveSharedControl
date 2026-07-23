@@ -54,11 +54,18 @@ The Scenario Generator is the authoritative trial-state owner. The GUI publishes
 an ID-bearing `/study_start_requested`; orchestration validates the current
 cursor/input and publishes the typed lifecycle state.
 
+Participant codes are assigned centrally and passed explicitly to hardware
+production launches so they remain unique across study computers. The ordinary
+mouse launch uses `P00`; controller debug wrappers use `DEBUG_MOUSE` or
+`DEBUG_HAPLY`. Scenario includes the resolved label in `/study_session`; the
+UUID session identity remains automatic.
+
 Published task and trial topics:
 
-- `/study_session` (`haply_msgs/StudySession`): schema version, input source,
-  controller family, ordering strategy and resolved seed, estimator lifecycle,
-  loop policy, and the complete ordered task schedule.
+- `/study_session` (`haply_msgs/StudySession`): schema version, UUID session
+  identity, pseudonymous participant ID, input/controller family, ordering
+  strategy and resolved seed, estimator lifecycle, loop policy, and the
+  complete ordered task schedule.
 - `/study_task` (`haply_msgs/StudyTask`): atomic task definition, including
   `session_id`, `trial_id`, start/end points, phase, and controller mode.
 - `/study_trial_state` (`haply_msgs/StudyTrialState`): `READY`, `RUNNING`,
