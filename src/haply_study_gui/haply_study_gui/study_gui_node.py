@@ -4,6 +4,7 @@
 
 import os
 import time
+from math import isfinite
 
 os.environ["PYGAME_HIDE_SUPPORT_PROMPT"] = "1"
 os.environ["SDL_AUDIODRIVER"] = "dummy"
@@ -12,10 +13,19 @@ os.environ["AUDIODEV"] = "null"
 import pygame  # noqa: E402
 import rclpy  # noqa: E402
 from geometry_msgs.msg import Point  # noqa: E402
-from haply_msgs.msg import HandleButtons, HaplyState  # noqa: E402
+from haply_msgs.msg import (  # noqa: E402
+    HaplyState,
+    StudyAbortRequest,
+    StudyButtonPress,
+    StudyDwellProgress,
+    StudyCursor,
+    StudyStartRequest,
+    StudyTask,
+    StudyTrialState,
+)
 from rclpy.node import Node  # noqa: E402
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy  # noqa: E402
-from std_msgs.msg import Bool, String  # noqa: E402
+from std_msgs.msg import Bool  # noqa: E402
 
 
 class StudyGui(Node):
@@ -55,6 +65,11 @@ class StudyGui(Node):
     BLUE = (49, 130, 206)
     DARK_BLUE = (44, 82, 130)
     PATH = (52, 58, 64)
+    MODE_INSTRUCTIONS = {
+        "aggressive": "Move quickly and decisively.",
+        "normal": "Use your natural, comfortable pace.",
+        "careful": "Move slowly and precisely.",
+    }
 
     def __init__(self):
         """Create ROS interfaces and initialize the Pygame window."""
@@ -63,13 +78,17 @@ class StudyGui(Node):
         self.declare_parameter("width", 1280)
         self.declare_parameter("height", 720)
         self.declare_parameter("side_panel_width", 300)
-        self.declare_parameter("workspace_padding", 52)
+        self.declare_parameter("workspace_padding", 0)
         self.declare_parameter("render_fps", 100.0)
         self.declare_parameter("state_publish_hz", 100.0)
         self.declare_parameter("source", "haply")
         self.declare_parameter("mouse_simulation", False)
         self.declare_parameter("mouse_simulation_hz", 100.0)
         self.declare_parameter("auto_start", False)
+        self.declare_parameter("debug_controls_enabled", False)
+        self.declare_parameter("max_callbacks_per_frame", 16)
+        self.declare_parameter("max_drawn_points", 2000)
+        self.declare_parameter("mode_overlay_duration_s", 2.0)
         self.declare_parameter("start_x", -0.08)
         self.declare_parameter("start_y", -0.08)
         self.declare_parameter("start_z", 0.0)
@@ -78,9 +97,13 @@ class StudyGui(Node):
         self.declare_parameter("end_z", 0.0)
         self.declare_parameter("workspace_x_min", -0.12)
         self.declare_parameter("workspace_x_max", 0.12)
-        self.declare_parameter("workspace_y_min", -0.15)
+        self.declare_parameter("workspace_y_min", -0.18)
         self.declare_parameter("workspace_y_max", 0.15)
+        self.declare_parameter("start_reached_radius", 0.01)
         self.declare_parameter("endpoint_reached_radius", 0.01)
+        self.declare_parameter("require_system_ready", False)
+        self.declare_parameter("controller_family", "none")
+        self.declare_parameter("cursor_max_age_s", 0.5)
 
         self.width = int(self.get_parameter("width").value)
         self.height = int(self.get_parameter("height").value)
@@ -96,9 +119,29 @@ class StudyGui(Node):
         self.mouse_simulation_hz = float(
             self.get_parameter("mouse_simulation_hz").value
         )
+        self.debug_controls_enabled = bool(
+            self.get_parameter("debug_controls_enabled").value
+        )
         self.auto_start = bool(self.get_parameter("auto_start").value)
+        if self.auto_start and not self.debug_controls_enabled:
+            self.get_logger().warning(
+                "Ignoring auto_start because debug_controls_enabled is false"
+            )
+            self.auto_start = False
+        self.max_callbacks_per_frame = max(
+            1, int(self.get_parameter("max_callbacks_per_frame").value)
+        )
+        self.max_drawn_points = max(
+            2, int(self.get_parameter("max_drawn_points").value)
+        )
+        self.mode_overlay_duration_s = max(
+            0.0, float(self.get_parameter("mode_overlay_duration_s").value)
+        )
         self.endpoint_reached_radius = float(
             self.get_parameter("endpoint_reached_radius").value
+        )
+        self.start_reached_radius = float(
+            self.get_parameter("start_reached_radius").value
         )
 
         self.start_point = Point(
@@ -119,55 +162,86 @@ class StudyGui(Node):
         }
 
         self.current_position = Point()
+        self.cursor_received = False
+        self.cursor_in_bounds = False
+        self.mouse_in_workspace = True
+        self.input_valid = False
+        self.raw_input_valid = False
+        self.require_system_ready = bool(self.get_parameter("require_system_ready").value)
+        self.controller_family = str(self.get_parameter("controller_family").value)
+        self.cursor_max_age_s = max(0.0, float(self.get_parameter("cursor_max_age_s").value))
+        self.system_ready = not self.require_system_ready
+        self.start_point_received = False
+        self.end_point_received = False
+        self.endpoint_dwell_progress = 0.0
+        self.last_abort_reason = ""
+        self.current_session_id = None
+        self.current_trial_id = None
+        self.session_finished = False
         self.previous_mouse_position = Point()
         self.previous_mouse_time = time.monotonic()
-        self.current_buttons = HandleButtons()
         self.study_phase = "normal"
+        self.mode_overlay_until = None
         self.controller_mode = "adaptive"
-        self.draw_button_pressed = False
-        self.is_drawing_line = False
-        self.finished_line_this_frame = False
         self.drawn_line = []
         self.trial_started = self.auto_start
         self.is_running = self.auto_start
         self.endpoint_reached = False
         self.trial_completion_latched = False
+        self.mapping_ready = False
         self.running = True
 
-        self.study_is_running_pub = self.create_publisher(Bool, "study_is_running", 10)
+        self.start_requested_pub = self.create_publisher(
+            StudyStartRequest, "study_start_requested", 10
+        )
+        self.abort_requested_pub = self.create_publisher(
+            StudyAbortRequest, "study_abort_requested", 10
+        )
         task_qos = self._task_qos()
 
-        self.create_subscription(HaplyState, "haply_state", self._haply_state, 10)
+        state_qos = self._state_qos()
         self.create_subscription(
-            Point, "experiment_cursor_position", self._experiment_cursor_position, 10
+            StudyCursor, "study_cursor", self._experiment_cursor_position, state_qos
         )
         self.create_subscription(
-            Point, "study_start_point", self._start_point, task_qos
-        )
-        self.create_subscription(Point, "study_end_point", self._end_point, task_qos)
-        self.create_subscription(String, "study_phase", self._study_phase, task_qos)
-        self.create_subscription(
-            String, "study_controller_mode", self._controller_mode, task_qos
+            Bool, "study_mapping_ready", self._mapping_ready, task_qos
         )
         self.create_subscription(
-            Bool, "study_endpoint_reached", self._study_endpoint_reached, 10
+            Bool, "experiment_input_valid", self._raw_input_valid, task_qos
+        )
+        self.create_subscription(Bool, "study_system_ready", self._system_ready, task_qos)
+        self.create_subscription(StudyButtonPress, "study_button_pressed", self._button_pressed, 10)
+        self.create_subscription(
+            StudyDwellProgress,
+            "study_endpoint_dwell_progress",
+            self._dwell_progress,
+            task_qos,
+        )
+        self.create_subscription(StudyTask, "study_task", self._study_task, task_qos)
+        self.create_subscription(
+            StudyTrialState, "study_trial_state", self._trial_state, task_qos
         )
         if self.source == "mouse":
-            self.mouse_state_pub = self.create_publisher(HaplyState, "haply_state", 10)
+            self.mouse_state_pub = self.create_publisher(
+                HaplyState, "haply_state", state_qos
+            )
             mouse_period_s = 1.0 / max(self.mouse_simulation_hz, 1.0)
             self.mouse_timer = self.create_timer(
                 mouse_period_s, self._publish_mouse_haply_state
             )
-        publish_period_s = 1.0 / max(self.state_publish_hz, 0.1)
-        self.publish_timer = self.create_timer(
-            publish_period_s, self._publish_study_state
-        )
 
         pygame.display.init()
         pygame.font.init()
         pygame.display.set_caption("Haply Study GUI")
-        self.screen = self._create_display()
-        self.frame = pygame.Surface((self.width, self.height)).convert()
+        # Production runs deliberately keep the participant window closed
+        # until Scenario confirms every required node is alive.
+        self.screen = None if self.require_system_ready else self._create_display()
+        # No display surface exists while a production readiness gate is
+        # pending. Converting in that state raises "No video mode has been
+        # set", so defer conversion until the display is created.
+        self.frame = pygame.Surface((self.width, self.height))
+        if self.screen is not None:
+            self.frame = self.frame.convert()
         self.draw_target = self.frame
         self.clock = pygame.time.Clock()
         self.title_font = self._load_font(22, bold=True)
@@ -176,8 +250,7 @@ class StudyGui(Node):
         self.pill_font = self._load_font(20, bold=True)
         self.icon_font = self._load_font(17, bold=True)
         if self.source == "mouse":
-            self.current_position = self._screen_to_world(pygame.mouse.get_pos())
-            self.previous_mouse_position = self.current_position
+            self.previous_mouse_position = self._screen_to_world(pygame.mouse.get_pos())
 
     def _task_qos(self) -> QoSProfile:
         return QoSProfile(
@@ -185,6 +258,9 @@ class StudyGui(Node):
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             reliability=ReliabilityPolicy.RELIABLE,
         )
+
+    def _state_qos(self) -> QoSProfile:
+        return QoSProfile(depth=1, reliability=ReliabilityPolicy.RELIABLE)
 
     def _load_font(self, size, bold=False):
         preferred = ["Inter", "Roboto", "Open Sans", "DejaVu Sans", "Arial"]
@@ -230,61 +306,111 @@ class StudyGui(Node):
         """Return the human-readable behavioral state."""
         return self.COLORS[self.current_condition]["behavior"]
 
-    def _haply_state(self, msg):
-        if self.source != "haply":
-            return
-        self.current_buttons = msg.buttons
-
     def _experiment_cursor_position(self, msg):
-        if self.source == "mouse":
+        if (
+            self.current_session_id is None
+            or self.current_trial_id is None
+            or str(msg.session_id) != self.current_session_id
+            or int(msg.trial_id) != self.current_trial_id
+        ):
             return
-        self.current_position = self._copy_point_2d(msg)
+        if not self._cursor_is_fresh(msg):
+            return
+        self.input_valid = bool(msg.input_valid)
+        if not self.input_valid:
+            self.cursor_in_bounds = False
+            if self.is_running:
+                self.is_running = False
+            return
+        self.current_position = self._copy_point_2d(msg.position)
+        self.cursor_received = True
+        self.cursor_in_bounds = self._point_in_workspace(self.current_position)
 
-    def _start_point(self, msg):
-        point = self._copy_point_2d(msg)
-        if self._point_changed(self.start_point, point):
-            self.start_point = point
-            self._reset_drawn_path()
+    def _mapping_ready(self, msg):
+        self.mapping_ready = bool(msg.data)
 
-    def _end_point(self, msg):
-        point = self._copy_point_2d(msg)
-        if self._point_changed(self.end_point, point):
-            self.end_point = point
-            self._reset_drawn_path()
+    def _raw_input_valid(self, msg):
+        """Track device/mouse health independently of mapped task samples."""
+        self.raw_input_valid = bool(msg.data)
 
-    def _study_phase(self, msg):
-        phase = msg.data.strip().lower()
-        valid_phases = {"aggressive", "normal", "careful", "red", "yellow", "green"}
-        if phase in valid_phases:
-            self.study_phase = phase
-        else:
-            self.get_logger().warning(f"Ignoring unknown study_phase '{msg.data}'")
+    def _system_ready(self, msg):
+        self.system_ready = bool(msg.data)
 
-    def _controller_mode(self, msg):
-        mode = msg.data.strip().lower()
-        if mode in ("adaptive", "fixed"):
-            self.controller_mode = mode
-        else:
-            self.get_logger().warning(
-                f"Ignoring unknown study_controller_mode '{msg.data}'"
+    def _button_pressed(self, msg):
+        if (
+            self.mapping_ready
+            and str(msg.session_id) == self.current_session_id
+            and int(msg.trial_id) == self.current_trial_id
+        ):
+            self._start_trial_if_ready()
+
+    def _cursor_is_fresh(self, msg):
+        stamp_s = float(msg.stamp.sec) + (float(msg.stamp.nanosec) * 1e-9)
+        if stamp_s <= 0.0 or self.cursor_max_age_s <= 0.0:
+            return True
+        return (self.get_clock().now().nanoseconds * 1e-9) - stamp_s <= self.cursor_max_age_s
+
+    def _study_task(self, msg):
+        previous_phase = self.study_phase.strip().lower()
+        received_previous_task = self.start_point_received and self.end_point_received
+        next_phase = str(msg.phase).strip().lower()
+        self.start_point = self._copy_point_2d(msg.start_point)
+        self.end_point = self._copy_point_2d(msg.end_point)
+        self.study_phase = next_phase
+        self.controller_mode = str(msg.controller_mode)
+        self.current_session_id = str(msg.session_id)
+        self.current_trial_id = int(msg.trial_id)
+        self.cursor_received = False
+        self.cursor_in_bounds = False
+        self.input_valid = False
+        self.endpoint_dwell_progress = 0.0
+        self.session_finished = False
+        self.last_abort_reason = ""
+        self.start_point_received = True
+        self.end_point_received = True
+        if not received_previous_task or next_phase != previous_phase:
+            self.mode_overlay_until = (
+                time.monotonic() + self.mode_overlay_duration_s
             )
+        self._reset_drawn_path()
+        self.get_logger().info(
+            "Applied study task "
+            f"{msg.trial_id}: start=({msg.start_point.x:.3f}, {msg.start_point.y:.3f}), "
+            f"end=({msg.end_point.x:.3f}, {msg.end_point.y:.3f})"
+        )
 
-    def _study_endpoint_reached(self, msg):
-        if not msg.data:
-            if self.trial_completion_latched or self.endpoint_reached:
-                self._reset_drawn_path()
+    def _trial_state(self, msg):
+        if (
+            self.current_session_id is None
+            or str(msg.session_id) != self.current_session_id
+            or self.current_trial_id is None
+            or int(msg.trial_id) != self.current_trial_id
+        ):
             return
+        if msg.state == "RUNNING":
+            self.is_running = True
+        elif msg.state == "ABORTED":
+            self._reset_drawn_path()
+            self.last_abort_reason = str(msg.reason).strip() or "trial aborted"
+        elif msg.state == "COMPLETED":
+            self.endpoint_reached = True
+            self.trial_completion_latched = True
+            self.is_running = False
+        elif msg.state == "SESSION_FINISHED":
+            self.session_finished = True
+            self.is_running = False
+        elif msg.state == "READY" and self.trial_started and not self.is_running:
+            self._reset_drawn_path()
 
-        self.endpoint_reached = True
-        self.trial_completion_latched = True
-        self.is_running = False
-        self.is_drawing_line = False
-        self.finished_line_this_frame = False
-
-    def _publish_study_state(self):
-        running_msg = Bool()
-        running_msg.data = bool(self.is_running)
-        self.study_is_running_pub.publish(running_msg)
+    def _dwell_progress(self, msg):
+        if (
+            self.current_session_id is None
+            or str(msg.session_id) != self.current_session_id
+            or self.current_trial_id is None
+            or int(msg.trial_id) != self.current_trial_id
+        ):
+            return
+        self.endpoint_dwell_progress = max(0.0, min(1.0, float(msg.progress)))
 
     def _handle_events(self):
         for event in pygame.event.get():
@@ -293,18 +419,21 @@ class StudyGui(Node):
             elif event.type == pygame.KEYDOWN:
                 if event.key in (pygame.K_ESCAPE, pygame.K_q):
                     self.running = False
-                elif event.key == pygame.K_SPACE:
-                    self.is_running = not self.is_running
-                elif event.key == pygame.K_s:
-                    self.is_running = True
+                elif self.debug_controls_enabled and event.key == pygame.K_SPACE:
+                    self._start_trial_if_ready()
+                elif self.debug_controls_enabled and event.key == pygame.K_s:
+                    self._start_trial_if_ready()
 
     def _publish_mouse_haply_state(self):
         mouse_pos = pygame.mouse.get_pos()
+        self.mouse_in_workspace = self._screen_pos_in_workspace(mouse_pos)
+        if not self.mouse_in_workspace:
+            # Do not turn side-panel/outside movement into a clamped experiment
+            # cursor. Mapper freshness will mark the input invalid shortly.
+            return
         now = time.monotonic()
         dt = max(now - self.previous_mouse_time, 1e-6)
         position = self._screen_to_world(mouse_pos)
-        self.current_position = position
-
         msg = HaplyState()
         msg.position = position
         msg.velocity.x = (position.x - self.previous_mouse_position.x) / dt
@@ -321,70 +450,45 @@ class StudyGui(Node):
         self.previous_mouse_time = now
         self.mouse_state_pub.publish(msg)
 
-    def _draw_input_pressed(self):
-        if self.source == "mouse":
-            mouse_pos = pygame.mouse.get_pos()
-            self.current_position = self._screen_to_world(mouse_pos)
-            return pygame.mouse.get_pressed(3)[0] and self._screen_pos_in_workspace(
-                mouse_pos
-            )
-
-        return bool(self.current_buttons.a)
-
     def _at_start_position(self):
-        return self._is_near(
+        return self.cursor_in_bounds and self._is_near(
             self.current_position,
             self.start_point,
-            self.endpoint_reached_radius,
+            self.start_reached_radius,
         )
 
-    def _start_trial_if_ready(self, pressed):
-        if self.trial_started or self.trial_completion_latched:
+    def _start_trial_if_ready(self):
+        if self.session_finished or self.trial_started or self.trial_completion_latched:
+            return
+        if not self.system_ready:
+            return
+        if self._mode_overlay_visible():
             return
 
-        if pressed and self._at_start_position():
+        if (
+            self.mapping_ready
+            and self.input_valid
+            and self.cursor_received
+            and self._task_received()
+            and self._at_start_position()
+        ):
             self.trial_started = True
-            self.is_running = True
+            self.last_abort_reason = ""
             self._append_drawn_point(self.current_position, force=True)
-            self.is_drawing_line = True
+            request = StudyStartRequest()
+            request.session_id = getattr(self, "current_session_id", "") or ""
+            request.trial_id = getattr(self, "current_trial_id", 0) or 0
+            self.start_requested_pub.publish(request)
 
     def _update_line_drawing(self):
-        self.finished_line_this_frame = False
-        pressed = self._draw_input_pressed()
-        self._start_trial_if_ready(pressed)
-
         if self.trial_completion_latched:
-            self.draw_button_pressed = pressed
             return
 
         if not self.trial_started:
-            self.draw_button_pressed = pressed
             return
 
-        self.is_drawing_line = True
         self._append_drawn_point(self.current_position)
 
-        self.draw_button_pressed = pressed
-
-    def _update_endpoint_feedback(self):
-        if self.trial_completion_latched:
-            self.endpoint_reached = True
-            return
-
-        cursor_reached_endpoint = self._is_near(
-            self.current_position, self.end_point, self.endpoint_reached_radius
-        )
-        if cursor_reached_endpoint and self.trial_started:
-            self._append_drawn_point(self.current_position, force=True)
-        completed = (
-            cursor_reached_endpoint
-            and self.trial_started
-            and self._drawn_line_connects_start_to_end()
-        )
-        self.endpoint_reached = completed
-        if completed:
-            self.trial_completion_latched = True
-            self.get_logger().info("Endpoint reached; waiting for next phase")
 
     def _draw_scene(self):
         self.draw_target = self.frame
@@ -393,16 +497,24 @@ class StudyGui(Node):
         self._draw_side_panel()
         self._draw_behavioral_state_legend()
         self._draw_status_text()
+        self._draw_mode_overlay()
         self.screen.blit(self.frame, (0, 0))
         pygame.display.update()
 
     def _draw_workspace(self):
-        workspace = self._workspace_rect()
+        workspace = self._drawing_rect()
         pygame.draw.rect(self.draw_target, self.WORKSPACE_BACKGROUND, workspace)
+        pygame.draw.rect(self.draw_target, self.SURFACE, workspace)
         pygame.draw.rect(self.draw_target, self.BORDER, workspace, width=2)
 
-        sx, sy = self._world_to_canvas(self.start_point)
-        ex, ey = self._world_to_canvas(self.end_point)
+        sx, sy = self._marker_canvas_position(
+            self.start_point,
+            self._task_radius_to_pixels(self.start_reached_radius),
+        )
+        ex, ey = self._marker_canvas_position(
+            self.end_point,
+            self._task_radius_to_pixels(self.endpoint_reached_radius),
+        )
         cx, cy = self._world_to_canvas(self.current_position)
 
         if len(self.drawn_line) >= 2:
@@ -411,8 +523,16 @@ class StudyGui(Node):
 
         self._draw_target_marker(sx, sy)
         self._draw_endpoint_marker(ex, ey)
-        pygame.draw.circle(self.draw_target, self.BLUE, (cx, cy), 10)
-        pygame.draw.circle(self.draw_target, self.DARK_BLUE, (cx, cy), 10, 2)
+        self._draw_marker_label("Start", sx, sy - 30)
+        self._draw_marker_label("End", ex, ey - 34)
+        if (
+            self.mapping_ready
+            and self.input_valid
+            and self.cursor_received
+            and self.cursor_in_bounds
+        ):
+            pygame.draw.circle(self.draw_target, self.BLUE, (cx, cy), 10)
+            pygame.draw.circle(self.draw_target, self.DARK_BLUE, (cx, cy), 10, 2)
 
     def _draw_side_panel(self):
         panel = self._side_panel_rect()
@@ -448,20 +568,22 @@ class StudyGui(Node):
         background = (
             config["muted"]
             if active
-            else self._blend_color(config["muted"], self.SURFACE, 0.72)
+            else self._blend_color(config["muted"], self.SURFACE, 0.86)
         )
         fill = (
             config["fill"]
             if active
-            else self._blend_color(config["fill"], self.SURFACE, 0.68)
+            else self._blend_color(config["fill"], self.SURFACE, 0.82)
         )
-        text_color = config["text"] if active else self.MUTED_TEXT
+        text_color = config["text"] if active else self._blend_color(
+            self.MUTED_TEXT, self.SURFACE, 0.55
+        )
         border = (
             config["fill"]
             if active
-            else self._blend_color(self.BORDER, self.SURFACE, 0.45)
+            else self._blend_color(self.BORDER, self.SURFACE, 0.72)
         )
-        border_width = 2 if active else 1
+        border_width = 3 if active else 1
 
         pygame.draw.rect(self.draw_target, background, rect, border_radius=16)
         pygame.draw.rect(
@@ -483,6 +605,41 @@ class StudyGui(Node):
         label_rect = label.get_rect(midleft=(rect.x + 46, rect.centery))
         self.draw_target.blit(label, label_rect)
 
+    def _mode_overlay_visible(self):
+        return (
+            self.mode_overlay_until is not None
+            and time.monotonic() < self.mode_overlay_until
+        )
+
+    def _draw_mode_overlay(self):
+        if not self._mode_overlay_visible():
+            return
+
+        remaining = self.mode_overlay_until - time.monotonic()
+        fade_window_s = min(0.4, self.mode_overlay_duration_s)
+        opacity = 235
+        if fade_window_s > 0.0 and remaining < fade_window_s:
+            opacity = round(235 * max(0.0, remaining) / fade_window_s)
+
+        workspace = self._workspace_rect()
+        overlay = pygame.Surface(workspace.size, pygame.SRCALPHA)
+        overlay.fill((255, 255, 255, opacity))
+        self.draw_target.blit(overlay, workspace.topleft)
+
+        config = self.COLORS[self.current_condition]
+        title = self.title_font.render(
+            f"{self.current_behavior.capitalize()} mode", True, config["text"]
+        )
+        instruction = self.body_font.render(
+            self.MODE_INSTRUCTIONS[self.current_behavior], True, self.TEXT
+        )
+        title_rect = title.get_rect(center=(workspace.centerx, workspace.centery - 20))
+        instruction_rect = instruction.get_rect(
+            center=(workspace.centerx, workspace.centery + 20)
+        )
+        self.draw_target.blit(title, title_rect)
+        self.draw_target.blit(instruction, instruction_rect)
+
     def _blend_color(self, color, target, amount):
         return tuple(
             int(channel + ((target_channel - channel) * amount))
@@ -494,15 +651,20 @@ class StudyGui(Node):
         return pygame.Rect(card.x, card.y, card.width, 230)
 
     def _draw_target_marker(self, x, y):
-        pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), 13)
-        pygame.draw.circle(self.draw_target, self.TEXT, (x, y), 13, 3)
+        radius = self._task_radius_to_pixels(self.start_reached_radius)
+        pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), radius)
+        pygame.draw.circle(self.draw_target, self.TEXT, (x, y), radius, 3)
 
     def _draw_endpoint_marker(self, x, y):
-        radius = 16
+        radius = self._task_radius_to_pixels(self.endpoint_reached_radius)
         pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), radius)
         pygame.draw.circle(self.draw_target, self.TEXT, (x, y), radius, 3)
         pygame.draw.line(self.draw_target, self.TEXT, (x - 7, y - 7), (x + 7, y + 7), 3)
         pygame.draw.line(self.draw_target, self.TEXT, (x - 7, y + 7), (x + 7, y - 7), 3)
+
+    def _draw_marker_label(self, label, x, y):
+        text = self.label_font.render(label, True, self.MUTED_TEXT)
+        self.draw_target.blit(text, text.get_rect(center=(x, y)))
 
     def _draw_status_text(self):
         card = self._side_card_rect()
@@ -512,63 +674,142 @@ class StudyGui(Node):
         title = self.title_font.render("Run Status", True, self.TEXT)
         self.draw_target.blit(title, (x, y))
 
-        for index, (label, value) in enumerate(self._status_rows()):
-            row_y = y + 44 + (index * 46)
+        row_y = y + 44
+        value_x = x + 98
+        value_width = max(card.right - value_x - 18, 1)
+        for label, value in self._status_rows():
             label_text = self.label_font.render(label, True, self.MUTED_TEXT)
-            value_text = self.body_font.render(value, True, self.TEXT)
             self.draw_target.blit(label_text, (x, row_y))
-            self.draw_target.blit(value_text, (x + 98, row_y - 4))
+            lines = self._wrap_sidebar_text(value, value_width)
+            for line_index, line in enumerate(lines):
+                value_text = self.label_font.render(line, True, self.TEXT)
+                self.draw_target.blit(
+                    value_text,
+                    (value_x, row_y + (line_index * self.label_font.get_linesize())),
+                )
+            row_y += max(40, (len(lines) * self.label_font.get_linesize()) + 8)
+
+    def _wrap_sidebar_text(self, value, max_width, max_lines=3):
+        """Wrap a status value to the available sidebar width (up to three lines)."""
+        words = str(value).split()
+        if not words:
+            return [""]
+
+        lines = []
+        current = ""
+        for word in words:
+            candidate = f"{current} {word}".strip()
+            if self.label_font.size(candidate)[0] <= max_width:
+                current = candidate
+                continue
+            if current:
+                lines.append(current)
+                current = word
+            else:
+                current = word
+            if len(lines) == max_lines:
+                return lines
+
+        if current:
+            lines.append(current)
+        return lines[:max_lines]
 
     def _status_rows(self):
-        state = "running" if self.is_running else "ready"
+        if not self._task_received():
+            state = "waiting for scenario"
+        elif self.session_finished:
+            state = "session complete"
+        elif not self.system_ready:
+            state = "waiting for study system"
+        elif self.source == "mouse" and not self.mouse_in_workspace:
+            state = "pointer outside workspace"
+        elif not self.raw_input_valid:
+            state = "device disconnected"
+        elif not self.mapping_ready:
+            state = "press A at neutral"
+        elif not self.input_valid or not self.cursor_received:
+            state = "waiting for cursor"
+        elif self.cursor_received and not self.cursor_in_bounds:
+            state = "cursor outside workspace"
+        elif self._mode_overlay_visible():
+            state = "read mode instruction"
+        elif self.last_abort_reason:
+            state = f"trial aborted: {self.last_abort_reason.replace('_', ' ')}"
+        elif self.is_running:
+            state = (
+                "hold at endpoint"
+                if self.endpoint_dwell_progress > 0.0
+                else "running"
+            )
+        else:
+            state = "move to start then press A"
         return [
             ("State", state),
-            ("Control", self.controller_mode),
+            ("Trial", str(self.current_trial_id) if self.current_trial_id is not None else "-"),
+            ("Controller", self._controller_family_label()),
+            ("Mode", self.controller_mode),
         ]
 
+    def _controller_family_label(self):
+        labels = {
+            "state_feedback": "State Feedback",
+            "mpc": "MPC",
+            "none": "None",
+        }
+        return labels.get(self.controller_family.strip().lower(), self.controller_family)
+
     def _world_to_canvas(self, point):
-        draw_rect = self._drawing_rect()
-        usable_width = max(draw_rect.width, 1)
-        usable_height = max(draw_rect.height, 1)
-
-        x_span = self.workspace["x_max"] - self.workspace["x_min"]
-        y_span = self.workspace["y_max"] - self.workspace["y_min"]
-        x_span = x_span if x_span != 0.0 else 1.0
-        y_span = y_span if y_span != 0.0 else 1.0
-
-        x_norm = (float(point.x) - self.workspace["x_min"]) / x_span
-        y_norm = (float(point.y) - self.workspace["y_min"]) / y_span
-
-        x_norm = max(0.0, min(1.0, x_norm))
-        y_norm = max(0.0, min(1.0, y_norm))
-
-        x = int(draw_rect.x + (x_norm * usable_width))
-        y = int(draw_rect.bottom - (y_norm * usable_height))
-        return x, y
+        scale_x, scale_y, left, bottom = self._canvas_transform()
+        return (
+            int(left + ((float(point.x) - self.workspace["x_min"]) * scale_x)),
+            int(bottom - ((float(point.y) - self.workspace["y_min"]) * scale_y)),
+        )
 
     def _screen_to_world(self, pos):
-        draw_rect = self._drawing_rect()
-        usable_width = max(draw_rect.width, 1)
-        usable_height = max(draw_rect.height, 1)
+        scale_x, scale_y, left, bottom = self._canvas_transform()
         x_screen, y_screen = pos
 
-        x_norm = (x_screen - draw_rect.x) / usable_width
-        y_norm = (draw_rect.bottom - y_screen) / usable_height
-        x_norm = max(0.0, min(1.0, x_norm))
-        y_norm = max(0.0, min(1.0, y_norm))
-
         point = Point()
-        point.x = self.workspace["x_min"] + (
-            x_norm * (self.workspace["x_max"] - self.workspace["x_min"])
-        )
-        point.y = self.workspace["y_min"] + (
-            y_norm * (self.workspace["y_max"] - self.workspace["y_min"])
-        )
+        point.x = self.workspace["x_min"] + ((x_screen - left) / scale_x)
+        point.y = self.workspace["y_min"] + ((bottom - y_screen) / scale_y)
         point.z = 0.0
         return point
 
+    def _canvas_transform(self):
+        draw_rect = self._drawing_rect()
+        x_span = max(self.workspace["x_max"] - self.workspace["x_min"], 1e-9)
+        y_span = max(self.workspace["y_max"] - self.workspace["y_min"], 1e-9)
+        return (
+            draw_rect.width / x_span,
+            draw_rect.height / y_span,
+            draw_rect.x,
+            draw_rect.bottom,
+        )
+
     def _screen_pos_in_workspace(self, pos):
         return self._drawing_rect().collidepoint(pos)
+
+    def _point_in_workspace(self, point):
+        x, y = float(point.x), float(point.y)
+        return (
+            isfinite(x)
+            and isfinite(y)
+            and self.workspace["x_min"] <= x <= self.workspace["x_max"]
+            and self.workspace["y_min"] <= y <= self.workspace["y_max"]
+        )
+
+    def _task_radius_to_pixels(self, radius):
+        scale_x, scale_y, _left, _bottom = self._canvas_transform()
+        return max(1, round(float(radius) * min(scale_x, scale_y)))
+
+    def _marker_canvas_position(self, point, radius):
+        """Keep a visual marker fully visible without changing task geometry."""
+        x, y = self._world_to_canvas(point)
+        workspace = self._workspace_rect()
+        return (
+            min(max(x, workspace.left + radius), workspace.right - radius),
+            min(max(y, workspace.top + radius), workspace.bottom - radius),
+        )
 
     def _workspace_rect(self):
         return pygame.Rect(
@@ -597,16 +838,9 @@ class StudyGui(Node):
         )
 
     def _drawing_rect(self):
-        workspace = self._workspace_rect()
-        padding = max(
-            0,
-            min(
-                self.workspace_padding,
-                workspace.width // 3,
-                workspace.height // 3,
-            ),
-        )
-        return workspace.inflate(-2 * padding, -2 * padding)
+        # There is one participant-visible task frame: the full white left
+        # workspace. Do not create a letterboxed or padded inner boundary.
+        return self._workspace_rect()
 
     def _copy_point_2d(self, point):
         copy = Point()
@@ -626,15 +860,11 @@ class StudyGui(Node):
         dy = new_point.y - last_point.y
         min_step = 0.001
         if force or ((dx * dx + dy * dy) ** 0.5) >= min_step:
+            if len(self.drawn_line) >= self.max_drawn_points:
+                # Keep the visual trajectory bounded while preserving its
+                # overall shape. Full-rate samples belong in the logger.
+                self.drawn_line = self.drawn_line[::2]
             self.drawn_line.append(new_point)
-
-    def _drawn_line_connects_start_to_end(self):
-        if len(self.drawn_line) < 2:
-            return False
-        radius = self.endpoint_reached_radius
-        return self._is_near(
-            self.drawn_line[0], self.start_point, radius
-        ) and self._is_near(self.drawn_line[-1], self.end_point, radius)
 
     def _is_near(self, first, second, radius):
         dx = float(first.x) - float(second.x)
@@ -643,28 +873,51 @@ class StudyGui(Node):
 
     def _reset_drawn_path(self):
         self.drawn_line = []
-        self.draw_button_pressed = False
-        self.is_drawing_line = False
-        self.finished_line_this_frame = False
         self.trial_started = False
         self.is_running = False
         self.endpoint_reached = False
         self.trial_completion_latched = False
+        self.endpoint_dwell_progress = 0.0
 
-    def _point_changed(self, first, second):
-        return (
-            abs(float(first.x) - float(second.x)) > 1e-6
-            or abs(float(first.y) - float(second.y)) > 1e-6
-        )
+    def _task_received(self):
+        return self.start_point_received and self.end_point_received
 
     def run(self):
         """Run the GUI event loop until ROS or the window closes."""
         while rclpy.ok() and self.running:
-            rclpy.spin_once(self, timeout_sec=0.0)
+            for _ in range(self.max_callbacks_per_frame):
+                rclpy.spin_once(self, timeout_sec=0.0)
+            if self.screen is None:
+                if self.system_ready:
+                    self.screen = self._create_display()
+                    self.frame = self.frame.convert()
+                else:
+                    self.clock.tick(max(self.render_fps, 1.0))
+                    continue
             self._handle_events()
             self._update_line_drawing()
             self._draw_scene()
             self.clock.tick(max(self.render_fps, 1.0))
+
+    def request_abort_on_exit(self) -> None:
+        """Tell orchestration to stop the active trial before GUI teardown."""
+        if (
+            not (self.trial_started or self.is_running)
+            or self.current_session_id is None
+            or self.current_trial_id is None
+        ):
+            return
+        request = StudyAbortRequest()
+        request.session_id = self.current_session_id
+        request.trial_id = self.current_trial_id
+        request.reason = "gui_closed"
+        self.abort_requested_pub.publish(request)
+        # Give the ROS client a short opportunity to flush the request before
+        # the launch exit handler tears down the rest of the study stack.
+        for _ in range(3):
+            if not rclpy.ok():
+                break
+            rclpy.spin_once(self, timeout_sec=0.02)
 
 
 def main(args=None):
@@ -676,6 +929,7 @@ def main(args=None):
     except KeyboardInterrupt:
         node.get_logger().info("Shutting down...")
     finally:
+        node.request_abort_on_exit()
         node.destroy_node()
         pygame.font.quit()
         pygame.display.quit()
