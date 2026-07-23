@@ -75,9 +75,9 @@ source install/setup.bash
 | Purpose | Command |
 | --- | --- |
 | Mouse simulation | `ros2 launch haply_study_gui study_gui_mouse.launch.py` |
-| Full state-feedback hardware stack (default) | `ros2 launch haply_study_gui study_gui.launch.py` |
-| Full MPC hardware stack (includes Estimator, Data Logger, and readiness gate) | `ros2 launch haply_study_gui study_gui.launch.py controller:=mpc` |
-| Start state-feedback controller with hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback` |
+| Full state-feedback hardware stack (default) | `ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03` |
+| Full MPC hardware stack (includes Estimator, Data Logger, and readiness gate) | `ros2 launch haply_study_gui study_gui.launch.py controller:=mpc participant_id:=P03` |
+| Start state-feedback controller with hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03` |
 
 The hardware launch defaults to state feedback and requires the Haply Inverse SDK Service to be running at
 `ws://localhost:10001` before ROS starts.
@@ -91,12 +91,21 @@ nevertheless starts Data Logger automatically so the run can be consumed by
 `study_analysis`. With `controller:=none`, it keeps the lightweight GUI-only
 behavior and does not start Logger.
 
+Participant codes must be assigned centrally because experiments may run on
+different computers. The hardware production launch therefore requires an
+explicit value such as `participant_id:=P03`. The ordinary mouse launch uses
+`P00` for tests. The controller debug wrappers instead use `DEBUG_MOUSE` and
+`DEBUG_HAPLY`, producing recognizable folders without requiring identification.
+Logger uses the label in names such as `P03_2026-07-23_16-42-08Z`, while the
+retained session UUID remains automatic and is stored in the manifest and CSV
+metadata.
+
 State feedback uses a dedicated executable and docking is disabled by default.
 Enable it with one argument:
 
 ```bash
 ros2 launch haply_study_gui study_gui.launch.py \
-  docking_enabled:=true
+  participant_id:=P03 docking_enabled:=true
 ```
 
 This activates `docking_start_percent=85`, `docking_stiffness_scale=2.0`, and

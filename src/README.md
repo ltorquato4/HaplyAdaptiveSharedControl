@@ -97,16 +97,19 @@ default.
 ros2 launch haply_study_gui study_gui_mouse.launch.py
 
 # Mouse input with Controller, Estimator, and automatic Data Logger
-ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback
+ros2 launch haply_study_gui study_gui_mouse.launch.py \
+  controller:=state_feedback
 
 # Full state-feedback hardware stack (the default production controller)
-ros2 launch haply_study_gui study_gui.launch.py
+ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03
 
 # Optional state-feedback docking (uses the documented safe defaults)
-ros2 launch haply_study_gui study_gui.launch.py docking_enabled:=true
+ros2 launch haply_study_gui study_gui.launch.py \
+  participant_id:=P03 docking_enabled:=true
 
 # Select the optional MPC family explicitly.
-ros2 launch haply_study_gui study_gui.launch.py controller:=mpc
+ros2 launch haply_study_gui study_gui.launch.py \
+  participant_id:=P03 controller:=mpc
 ```
 
 ### Controller visualization launches
@@ -163,13 +166,19 @@ study/controller defaults.
 
 ## Evaluation
 
-Production logs are written under `logs/<session-id>/`. Each run contains a
-reproducible session manifest, retry-aware trial CSVs, and `trial_attempts.csv`.
+Production logs are written under
+`logs/<participant-id>_<YYYY-MM-DD_HH-MM-SSZ>/`. Assign pseudonymous
+participant codes centrally so they remain unique when experiments run on
+different computers. The production hardware launch therefore requires an
+explicit code such as `participant_id:=P03`. The ordinary mouse launch defaults
+to `P00`; the debug wrappers default to `DEBUG_MOUSE` and `DEBUG_HAPLY`, making
+their output folders immediately recognizable without another argument. Each
+run also contains the automatic UUID session ID in its reproducible manifest,
+retry-aware trial CSVs, and `trial_attempts.csv`.
 
 ```bash
 ros2 run study_analysis analyze_session \
-  --input logs/<session-id> \
-  --output analysis_results/<session-id>
+  --input logs/<session-folder>
 
 ros2 run study_analysis run_benchmark \
   --output analysis_results/benchmark \

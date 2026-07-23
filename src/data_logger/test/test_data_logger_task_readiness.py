@@ -55,6 +55,7 @@ def _node(tmp_path):
     node.get_logger = lambda: FakeLogger()
     node._now = lambda: 123.0
     node._monotonic_now = lambda: 10.0
+    node._directory_timestamp = lambda: "2026-07-23_16-42-08Z"
     return node
 
 
@@ -69,8 +70,9 @@ def _task():
 
 def _session(task):
     message = StudySession(
-        schema_version=2,
+        schema_version=3,
         session_id="session",
+        participant_id="P03",
         input_source="haply",
         controller_family="mpc",
         order_strategy="seeded_random",
@@ -106,9 +108,22 @@ def test_session_and_task_populate_complete_metadata(tmp_path):
     assert node.trial_metadata["study_phase"] == "careful"
     assert node.trial_metadata["study_controller_mode"] == "fixed"
     assert node.session_metadata["order_seed"] == 7
-    assert (tmp_path / "session" / "session_manifest.json").exists()
+    assert node.session_metadata["participant_id"] == "P03"
+    session_directory = tmp_path / "P03_2026-07-23_16-42-08Z"
+    assert node.save_directory == str(session_directory)
+    assert (session_directory / "session_manifest.json").exists()
     node._publish_ready()
     assert node.ready_pub.messages[-1].data is True
+
+
+def test_session_directory_collision_gets_numeric_suffix(tmp_path):
+    node = _node(tmp_path)
+
+    first = node._create_session_directory("P03")
+    second = node._create_session_directory("P03")
+
+    assert first.endswith("P03_2026-07-23_16-42-08Z")
+    assert second.endswith("P03_2026-07-23_16-42-08Z_02")
 
 
 def test_retry_attempts_get_distinct_files_and_outcomes(tmp_path):
@@ -125,8 +140,11 @@ def test_retry_attempts_get_distinct_files_and_outcomes(tmp_path):
 
     assert first_filename == "trial_000003_attempt_001.csv"
     assert second_filename == "trial_000003_attempt_002.csv"
-    with (tmp_path / "session" / "trial_attempts.csv").open() as stream:
+    with (
+        tmp_path / "P03_2026-07-23_16-42-08Z" / "trial_attempts.csv"
+    ).open() as stream:
         rows = list(csv.DictReader(stream))
+    assert rows[0]["participant_id"] == "P03"
     assert rows[0]["outcome"] == "ABORTED"
     assert rows[0]["reason"] == "timeout"
 
@@ -150,9 +168,14 @@ def test_rows_include_source_and_monotonic_timing_with_missed_cycles(tmp_path):
     node.write_row()
     node.stop_recording()
 
-    path = tmp_path / "session" / "trial_000003_attempt_001.csv"
+    path = (
+        tmp_path
+        / "P03_2026-07-23_16-42-08Z"
+        / "trial_000003_attempt_001.csv"
+    )
     with path.open() as stream:
         row = next(csv.DictReader(stream))
+    assert row["participant_id"] == "P03"
     assert float(row["monotonic_timestamp"]) == 10.031
     assert float(row["cursor_timestamp"]) == 21.25
     assert int(row["cursor_sample_sequence"]) == 1

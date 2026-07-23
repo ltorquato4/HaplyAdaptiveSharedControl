@@ -8,6 +8,7 @@ from study_analysis.loader import SchemaError, load_session
 def _write_attempt(directory, **overrides):
     row = {
         "timestamp": 1.0,
+        "participant_id": "P03",
         "session_id": "session",
         "trial_id": 0,
         "attempt_id": 1,
@@ -36,6 +37,7 @@ def test_loader_accepts_metadata_overrides_for_pre_session_current_logs(tmp_path
         tmp_path, controller_family="mpc", input_source="mouse"
     )
     assert attempts[0].key == ("session", 0, 1)
+    assert attempts[0].metadata["participant_id"] == "P03"
     assert attempts[0].data.elapsed_s.iloc[0] == 0.0
     assert quality == []
     assert manifest == {}
@@ -74,6 +76,7 @@ def test_loader_rejects_task_that_disagrees_with_manifest(tmp_path):
     )
     manifest = {
         "session_id": "session",
+        "participant_id": "P03",
         "controller_family": "state_feedback",
         "input_source": "mouse",
         "loop_tasks": False,

@@ -10,13 +10,17 @@ This package provides two complementary forms of evaluation:
 
 ```bash
 ros2 run study_analysis analyze_session \
-  --input logs/<session-id> \
-  --output analysis_results/<session-id>
+  --input logs/<session-folder>
 
 ros2 run study_analysis run_benchmark \
   --output analysis_results/benchmark \
   --seed 20260721
 ```
+
+`analyze_session` automatically writes to
+`analysis_results/<session-folder>/`. Pass `--output` only when a different
+destination is needed. The generated directory contains `trial_metrics.csv`,
+`condition_summary.csv`, `data_quality.csv`, and `analysis_report.pdf`.
 
 `config/benchmark.yaml` is the single source of truth for simulation and
 acceptance settings and is loaded automatically. `--config` selects an
@@ -24,6 +28,10 @@ alternative benchmark file, while `--seed` overrides only its seed. Controller
 parameters are loaded directly from `control_node/config/state_feedback.yaml`
 and `control_node/config/mpc.yaml`; they are not duplicated in analysis code or
 benchmark configuration.
+
+Schema-3 logs carry `participant_id` into `trial_metrics.csv`. The UUID
+`session_id` remains the machine identity, while participant codes such as
+`P03` support human-readable folders and future multi-participant aggregation.
 
 For current-format logs recorded before session metadata was added, pass both
 `--controller-family` and `--input-source`. CSVs with legacy component columns
@@ -35,8 +43,9 @@ point-to-line distance in the task frame. Along-path progress is the scalar
 projection onto the start-to-end segment; temporal ordering is retained, so
 backtracking and overshoot remain visible.
 
-For schema-2 logs, attempt duration and Logger-gap diagnostics use the
-monotonic clock. Cursor velocity uses unique `StudyCursor` source timestamps;
+For schema-2 logs, `participant_id` is reported as `unknown`. Attempt duration
+and Logger-gap diagnostics use the monotonic clock. Cursor velocity uses unique
+`StudyCursor` source timestamps;
 repeated Logger rows therefore cannot create artificial zero-time derivatives.
 Data quality reports distinguish missed Logger cycles, monotonic scheduling
 gaps, wall-clock steps, and Mapper/source-sample gaps. Schema-1 logs continue

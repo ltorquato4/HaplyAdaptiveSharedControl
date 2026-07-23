@@ -16,14 +16,25 @@ from .report import generate_report
 def build_parser():
     parser = argparse.ArgumentParser(description="Analyze one Haply study session")
     parser.add_argument("--input", required=True, help="Session log directory")
-    parser.add_argument("--output", required=True, help="New analysis result directory")
+    parser.add_argument(
+        "--output",
+        help=(
+            "Analysis result directory; defaults to "
+            "analysis_results/<session-folder>"
+        ),
+    )
     parser.add_argument("--controller-family", choices=("mpc", "state_feedback"))
     parser.add_argument("--input-source", choices=("mouse", "haply"))
     return parser
 
 
 def run(input_dir, output_dir, controller_family=None, input_source=None):
-    output = Path(output_dir)
+    input_path = Path(input_dir)
+    output = (
+        Path(output_dir)
+        if output_dir is not None
+        else Path("analysis_results") / input_path.resolve().name
+    )
     output.mkdir(parents=True, exist_ok=True)
     attempts, quality, _manifest = load_session(
         input_dir, controller_family=controller_family, input_source=input_source

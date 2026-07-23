@@ -1,5 +1,6 @@
 uint32 schema_version
 string session_id
+string participant_id
 string input_source
 string controller_family
 string order_strategy

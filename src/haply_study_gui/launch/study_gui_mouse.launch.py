@@ -18,9 +18,13 @@ def generate_launch_description():
     controller = LaunchConfiguration("controller")
     controller_log_level = LaunchConfiguration("controller_log_level")
     docking_enabled = LaunchConfiguration("docking_enabled")
+    participant_id = LaunchConfiguration("participant_id")
+    log_directory = LaunchConfiguration("log_directory")
     nodes, study_gui = create_study_stack(
         "mouse",
         controller,
+        participant_id=participant_id,
+        log_directory=log_directory,
         controller_log_level=controller_log_level,
         docking_enabled=docking_enabled,
     )
@@ -31,6 +35,16 @@ def generate_launch_description():
                 "controller",
                 default_value="none",
                 description="Controller family: none, mpc, or state_feedback.",
+            ),
+            DeclareLaunchArgument(
+                "participant_id",
+                default_value="P00",
+                description="Pseudonymous participant code; P00 is for tests.",
+            ),
+            DeclareLaunchArgument(
+                "log_directory",
+                default_value="./logs",
+                description="Session log output directory.",
             ),
             DeclareLaunchArgument(
                 "controller_log_level",

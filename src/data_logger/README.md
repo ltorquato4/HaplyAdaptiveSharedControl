@@ -1,12 +1,22 @@
 # Data logger
 
 The logger waits for matching retained `StudySession` and `StudyTask` messages
-before reporting ready. It creates `logs/<session-id>/` with:
+before reporting ready. It creates
+`logs/<participant-id>_<YYYY-MM-DD_HH-MM-SSZ>/` with:
 
 - `session_manifest.json`: schema, resolved seed, controller/input metadata,
-  estimator lifecycle policy, and complete task schedule;
+  pseudonymous participant ID, UUID session ID, estimator lifecycle policy,
+  and complete task schedule;
 - `trial_<trial-id>_attempt_<attempt-id>.csv`: 100 Hz sample data;
 - `trial_attempts.csv`: retry-aware timing, final outcome, and reason.
+
+The directory timestamp is UTC (`Z`). If the same participant code is opened
+twice within one second, Logger adds a numeric suffix instead of reusing a
+directory. Participant ID is also written into every trial row and attempt
+summary so combined analyses do not depend on parsing directory names.
+Participant codes are assigned centrally and passed to production launches so
+they remain unique across study computers. The ordinary mouse launch uses
+`P00`, while controller debug wrappers use `DEBUG_MOUSE` or `DEBUG_HAPLY`.
 
 Controller parameters are retained across the sample reset at the start of an
 attempt, ensuring the first row can contain the task's initial `K_a`. Retries of
@@ -31,6 +41,8 @@ Analyze a completed directory with:
 
 ```bash
 ros2 run study_analysis analyze_session \
-  --input logs/<session-id> \
-  --output analysis_results/<session-id>
+  --input logs/<session-folder>
 ```
+
+Without `--output`, results are written to
+`analysis_results/<session-folder>/`.

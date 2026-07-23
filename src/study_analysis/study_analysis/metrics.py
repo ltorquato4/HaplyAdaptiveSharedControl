@@ -140,6 +140,9 @@ def calculate_trial_metrics(attempt: Attempt):
 
     kh = _arrays(frame["K_h"], 8)
     result = {
+        "participant_id": str(
+            attempt.metadata.get("participant_id", "unknown")
+        ),
         "session_id": str(attempt.metadata["session_id"]),
         "trial_id": int(attempt.metadata["trial_id"]),
         "attempt_id": int(attempt.metadata["attempt_id"]),

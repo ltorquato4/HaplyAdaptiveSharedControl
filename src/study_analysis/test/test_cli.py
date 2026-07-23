@@ -4,7 +4,7 @@ import pandas as pd
 from study_analysis.cli import run
 
 
-def test_analysis_cli_writes_tables_and_pdf(tmp_path):
+def test_analysis_cli_writes_tables_and_pdf(tmp_path, monkeypatch):
     input_dir = tmp_path / "input"
     output_dir = tmp_path / "output"
     input_dir.mkdir()
@@ -13,6 +13,7 @@ def test_analysis_cli_writes_tables_and_pdf(tmp_path):
         rows.append(
             {
                 "timestamp": 10.0 + index * 0.01,
+                "participant_id": "P03",
                 "session_id": "session",
                 "trial_id": 0,
                 "attempt_id": 1,
@@ -49,6 +50,7 @@ def test_analysis_cli_writes_tables_and_pdf(tmp_path):
     )
 
     assert len(metrics) == 1
+    assert metrics.loc[0, "participant_id"] == "P03"
     for filename in (
         "trial_metrics.csv",
         "condition_summary.csv",
@@ -58,3 +60,13 @@ def test_analysis_cli_writes_tables_and_pdf(tmp_path):
         path = output_dir / filename
         assert path.exists()
         assert path.stat().st_size > 0
+
+    monkeypatch.chdir(tmp_path)
+    run(
+        input_dir,
+        None,
+        controller_family="mpc",
+        input_source="mouse",
+    )
+    automatic_output = tmp_path / "analysis_results" / input_dir.name
+    assert (automatic_output / "analysis_report.pdf").exists()
