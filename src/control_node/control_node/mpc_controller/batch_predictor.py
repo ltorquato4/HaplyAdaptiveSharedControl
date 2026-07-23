@@ -28,7 +28,8 @@ class BatchPredictor:
         return A_bar
 
     def build_B_bar(self):
-        """Build lower-triangular input influence matrix for the horizon.
+        """
+        Build the lower-triangular input influence matrix for the horizon.
 
         B_bar has the block structure:
             [B      0      0    ...  0]
@@ -89,7 +90,7 @@ class BatchPredictor:
 
         # Reshape x_s into list of state vectors
         predicted_states = [
-            np.array(x_s[i * state_dimension : (i + 1) * state_dimension])
+            np.array(x_s[i * state_dimension: (i + 1) * state_dimension])
             for i in range(self.N)
         ]
 

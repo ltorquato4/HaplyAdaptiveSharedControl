@@ -26,11 +26,18 @@ from rclpy.node import Node
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 
 
+TEST_DOMAIN_ID = 75
+
+
 @pytest.mark.launch_test
 def generate_test_description():
     return (
         launch.LaunchDescription(
             [
+                launch.actions.SetEnvironmentVariable(
+                    name="ROS_DOMAIN_ID",
+                    value=str(TEST_DOMAIN_ID),
+                ),
                 launch_ros.actions.Node(
                     package="study_orchestration",
                     executable="experiment_mapper",
@@ -81,7 +88,7 @@ class TestStateFeedbackSafetyLaunch(unittest.TestCase):
     """Verify stale input always stops state feedback safely."""
 
     def setUp(self):
-        rclpy.init()
+        rclpy.init(domain_id=TEST_DOMAIN_ID)
         self.node = Node("state_feedback_safety_launch_test")
         self.haply_pub = self.node.create_publisher(HaplyState, "haply_state", 10)
         self.start_request_pub = self.node.create_publisher(
@@ -179,6 +186,11 @@ class TestStateFeedbackSafetyLaunch(unittest.TestCase):
             lambda: self.force_commands and self._is_zero_force(self.force_commands[-1])
         )
 
+        # Drain estimates that were already in the DDS receive queue when the
+        # abort arrived before asserting that no new estimates are produced.
+        settle_deadline = time.monotonic() + 0.10
+        while time.monotonic() < settle_deadline:
+            rclpy.spin_once(self.node, timeout_sec=0.02)
         estimate_count = len(self.estimates)
         deadline = time.monotonic() + 0.25
         while time.monotonic() < deadline:

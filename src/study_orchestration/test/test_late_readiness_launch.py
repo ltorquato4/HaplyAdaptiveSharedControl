@@ -15,6 +15,9 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool
 
 
+TEST_DOMAIN_ID = 72
+
+
 @pytest.mark.launch_test
 def generate_test_description():
     retained_state_qos = QoSProfile(
@@ -51,13 +54,21 @@ def generate_test_description():
         ],
     )
     return launch.LaunchDescription(
-        [scenario, late_consumers, launch_testing.actions.ReadyToTest()]
+        [
+            launch.actions.SetEnvironmentVariable(
+                name="ROS_DOMAIN_ID",
+                value=str(TEST_DOMAIN_ID),
+            ),
+            scenario,
+            late_consumers,
+            launch_testing.actions.ReadyToTest(),
+        ]
     ), {"retained_state_qos": retained_state_qos}
 
 
 class TestLateReadinessLaunch(unittest.TestCase):
     def setUp(self):
-        rclpy.init()
+        rclpy.init(domain_id=TEST_DOMAIN_ID)
         self.node = Node("late_readiness_launch_test")
         self.tasks = []
         self.system_ready = []

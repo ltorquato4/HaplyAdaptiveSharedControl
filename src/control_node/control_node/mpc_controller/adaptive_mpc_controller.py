@@ -6,6 +6,7 @@ import numpy as np
 from control_node.controller_interface import AdaptiveController
 from .mpc_controller import MpcController
 
+
 class AdaptiveMpcController(AdaptiveController, MpcController):
     def __init__(
         self,
@@ -56,9 +57,12 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
 
     def adapt(self, K_h: Sequence[Sequence[float]] | Sequence[float]) -> None:
         """
-        Adapt MPC objective weights based on:
+        Adapt MPC objective weights from path progress and human gain.
+
+        The adaptation considers:
+
         1. Progress along the path (with a Terminal Docking Zone).
-        2. Balance of human gain K_h (Cooperative authority model using 
+        2. Balance of human gain K_h (Cooperative authority model using
            aggressive vs. careful stiffness components).
         """
         # 1. Calculate path progress metrics
@@ -95,11 +99,11 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         trajectory_factor = (abs(K_1) + abs(K_3)) / 2.0
 
         # 3. Compute Normalized Dominance Difference to keep things bounded
-        # We divide by a soft-normalization factor (e.g., 50.0 N/m) to scale the influence,
-        # then clip it to prevent extreme weights.
+        # Divide by a soft-normalization factor to scale the influence, then
+        # clip it to prevent extreme weights.
         normalization_scale = 50.0
         stiffness_diff = (comfort_factor - trajectory_factor) / normalization_scale
-        stiffness_diff = np.clip(stiffness_diff, -1.0, 1.0) # Keeps delta factors between [-1, 1]
+        stiffness_diff = np.clip(stiffness_diff, -1.0, 1.0)
 
         # 4. Calculate adaptive weights
         # When comfort_factor > trajectory_factor:
@@ -107,9 +111,9 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         #   - Trajectory weight decreases (robot loosens its track-keeping)
         comfort_weight = self.weight_comfort_base * (1.0 + 1.5 * stiffness_diff)
         trajectory_weight = self.weight_trajectory_base * (1.0 - 1.5 * stiffness_diff)
-        
-        # Goal weight remains constant and is only adapted in close proximity to the docking zone 
-        goal_weight = self.weight_goal_base 
+
+        # Goal weight changes only in the docking zone.
+        goal_weight = self.weight_goal_base
 
         # 5. Ensure All Weights Stay Strictly Positive (Safety Guard)
         comfort_weight = max(comfort_weight, self.weight_comfort_base * 0.1)

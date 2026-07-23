@@ -4,8 +4,8 @@ This package now exposes two runtime paths with separate executables:
 
 - `state_feedback_control_node` is the production state-feedback implementation.
   It does not import or instantiate MPC classes.
-- `control_node` retains the legacy MPC-capable implementation. Selecting MPC
-  from the study launch uses this executable with its original MPC behavior.
+- `mpc_control_node` is the production MPC runtime. The `control_node` command
+  remains as a compatibility alias to the same node.
 
 The shared GUI launch selects the correct executable from `controller`:
 
@@ -13,7 +13,7 @@ The shared GUI launch selects the correct executable from `controller`:
 # Default production controller
 ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback
 
-# Legacy MPC path
+# MPC
 ros2 launch haply_study_gui study_gui.launch.py controller:=mpc
 ```
 
@@ -23,8 +23,8 @@ Controller parameters are owned by this package:
 
 - `config/state_feedback.yaml` contains virtual-fixture, timing, adaptation,
   force-limit, and optional docking defaults.
-- `config/mpc.yaml` contains the untouched legacy MPC runtime defaults and its
-  workspace constraints. It also exposes the legacy adaptive-MPC docking
+- `config/mpc.yaml` contains the MPC runtime defaults and workspace
+  constraints. It also exposes the adaptive-MPC docking
   constants that were previously hard-coded, without changing their values.
 
 The shared GUI factory loads only the profile matching `controller`. General
@@ -34,13 +34,26 @@ controller constants. `docking_enabled` is the one intentional State Feedback
 run-time switch, while all docking numbers remain inert in the YAML unless that
 switch is true.
 
-Adaptive MPC retains its historical latched terminal zone at 85% progress. Its
+Adaptive MPC retains its existing latched terminal zone at 85% progress. Its
 profile names the actual MPC weight changes—comfort reduction, trajectory
 weight scaling, and goal-weight scaling—rather than calling them State Feedback
-stiffness. MPC also retains its historical component-wise physical limit:
+stiffness. MPC also retains its component-wise physical limit:
 `max_control_amplitude=10` multiplied by
 `acceleration_to_force_factor=0.2` gives 2 N per device force axis. This is not
 the State Feedback controller's independent 2 N vector-norm limit.
+
+## MPC runtime lifecycle
+
+MPC consumes retained `/study_task`, authoritative `/study_trial_state`, and
+each matching timestamped `/study_cursor`. Cursor timestamps determine observed
+velocity; `delta_time=0.1` remains the unchanged optimizer prediction timestep.
+Task changes and retries reset velocity and warm-start history.
+
+Invalid, non-finite, duplicate, decreasing, or stale cursor samples publish zero
+on `/control/U_a` and `/haply_target`. A failed, infeasible, or non-finite solve
+also publishes zero and withdraws the readiness heartbeat so Scenario aborts the
+trial safely. These runtime protections do not change the MPC objective,
+constraints, adaptation law, docking defaults, or force conversion.
 
 ## State-feedback force law
 
@@ -124,7 +137,7 @@ threshold reduces the docking scale normally.
 ## Published interfaces
 
 - `/control/U_a` (`geometry_msgs/Vector3`): task-frame assistant force in N for
-  state feedback. The legacy MPC executable retains its historical semantics.
+  state feedback. MPC retains its established command semantics.
 - `/control/K_a` (`std_msgs/String`): retained JSON containing physical gains,
   adaptation scale, docking configuration, and estimator interpretation.
 - `/haply_target` (`haply_msgs/HaplyControl`): force command mapped to device X/Z.
@@ -135,10 +148,11 @@ and trial stop all result in a zero-force command from the state-feedback node.
 
 ## Validation
 
-Run the focused state-feedback tests and deterministic benchmark:
+Run the focused controller tests and deterministic benchmark:
 
 ```bash
 pytest -q src/control_node/test/test_virtual_fixture_state_feedback.py
+pytest -q src/control_node/test/test_mpc_runtime.py
 
 ros2 run study_analysis run_benchmark \
   --output analysis_results/state_feedback_benchmark \
@@ -146,8 +160,9 @@ ros2 run study_analysis run_benchmark \
 ```
 
 The benchmark uses a deterministic mass-damped planar simulation and verifies
-fixed/adaptive convergence, finite output, and force bounds. It does not replace
-low-force validation on the physical device.
+fixed/adaptive convergence, finite output, and family-specific bounds for State
+Feedback and MPC. It does not rank the controllers or replace low-force
+validation on the physical device.
 
 For live visualization, the debug entry points now include the production stack
 and add only `test_control_node_output` plus debug logging:
@@ -164,5 +179,5 @@ These wrappers were originally introduced in commit `fc6ba27` (2026-07-19).
 They remain useful for the extra visualization window, but no longer duplicate
 production Scenario, Mapper, GUI, Estimator, Logger, or controller parameters.
 Both default to State Feedback; pass `controller:=mpc` only when explicitly
-testing the legacy MPC path. The hardware wrapper requires the Haply Inverse
+testing MPC. The hardware wrapper requires the Haply Inverse
 Service and device, while the mouse wrapper does not.

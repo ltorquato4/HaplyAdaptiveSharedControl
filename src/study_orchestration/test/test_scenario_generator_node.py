@@ -3,6 +3,7 @@ from pathlib import Path
 
 import yaml
 from haply_msgs.msg import StudyAbortRequest, StudyCursor, StudyStartRequest
+from std_msgs.msg import Bool
 from study_orchestration.scenario_generator_node import ScenarioGenerator
 from study_orchestration.scenario_logic import StudyPoint
 
@@ -80,7 +81,6 @@ def _generator():
     node.phase_pub = FakePublisher()
     node.mode_pub = FakePublisher()
     node.dwell_progress_pub = FakePublisher()
-    node.running_pub = FakePublisher()
     node.endpoint_pub = FakePublisher()
     node.task_pub = FakePublisher()
     node.session_pub = FakePublisher()
@@ -106,6 +106,19 @@ def test_session_definition_contains_reproducible_schedule():
     assert message.order_seed == 1
     assert len(message.schedule) == len(node.tasks)
     assert [task.trial_id for task in message.schedule] == list(range(len(node.tasks)))
+
+
+def test_explicit_required_component_failure_aborts_running_trial():
+    node = _generator()
+    node.component_required["controller"] = True
+
+    node._component_ready("controller", Bool(data=False))
+
+    state = node.trial_state_pub.messages[-1]
+    assert state.state == "ABORTED"
+    assert state.reason == "system_not_ready"
+    assert node.is_running is False
+    assert node.system_ready_pub.messages[-1].data is False
 
 
 def test_endpoint_dwell_requires_continuous_second(monkeypatch):

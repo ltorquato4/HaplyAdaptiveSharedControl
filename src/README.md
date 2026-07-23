@@ -13,7 +13,7 @@ cursor, button press, start request, dwell update, and trial-state message.
 | `scenario_generator` | Owns YAML task scheduling, trial IDs, start acceptance, dwell, completion, abort, timeout policy, and readiness gating. |
 | `study_gui` | Shows the task and mapped cursor, sends validated start/abort requests, and never decides whether a trial is running. |
 | `state_feedback_control_node` | Applies timestamped, bounded Cartesian force with independent goal and straight-line virtual-fixture components. |
-| `control_node` | Retains the separately selected legacy MPC implementation. |
+| `mpc_control_node` | Runs the separately selected MPC implementation through the typed study lifecycle. |
 | `estimator_node` | Estimates effective closed-loop interaction dynamics, retaining RLS learning within one identified session. |
 | `data_logger_node` | Records session manifests, retry-aware attempt outcomes, task metadata, and sampled signals. |
 | `study_analysis` | Validates deterministic Controller/Estimator behavior and produces descriptive CSV/PDF study reports. |
@@ -61,20 +61,9 @@ the request. Input loss aborts the trial and Controller publishes zero force.
 | `/study_system_ready` | `std_msgs/Bool` | Scenario | Whether required production components are healthy. |
 
 `/experiment_cursor_position`, `/study_start_point`, `/study_end_point`,
-`/study_controller_mode`, `/study_is_running`, and related topics remain as a
-temporary legacy-MPC compatibility layer. Production State Feedback, Estimator,
-Logger, task, and cursor behavior uses the typed interfaces above.
-
-> **Legacy MPC note:** State Feedback, Estimator, and Logger consume identified
-> `StudyTrialState` messages directly and do not subscribe to
-> `/study_is_running`. Scenario retains that Boolean solely because the legacy
-> MPC executable still uses it as its run gate.
->
-> **Removal note:** After the team approves migrating legacy MPC to
-> `StudyTrialState`, remove its `/study_is_running` subscription, Scenario's
-> compatibility publisher, and the corresponding legacy test publishers. No
-> State Feedback, Estimator, Logger, GUI, Mapper, or analysis code should need
-> changes at that point.
+`/study_controller_mode`, and related topics remain as a temporary metadata
+compatibility layer. `StudyTrialState` is the sole production lifecycle
+authority for MPC, State Feedback, Estimator, Logger, and GUI.
 
 Retained configuration/state topics (`StudySession`, `StudyTask`, the latest
 `StudyTrialState`, readiness, and `/control/K_a`) use reliable transient-local
@@ -97,8 +86,9 @@ require that gate.
 
 `mpc` and `state_feedback` are controller families. `adaptive` and `fixed` are
 task conditions selected by Scenario; the GUI displays both separately.
-State feedback uses its own ROS executable and does not import MPC. Its output
-is a Cartesian force in newtons; optional docking is disabled by default.
+MPC and State Feedback use separate ROS executables. State Feedback output is a
+Cartesian force in newtons; optional State Feedback docking is disabled by
+default.
 
 ## Launches
 

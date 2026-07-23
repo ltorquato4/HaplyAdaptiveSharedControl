@@ -43,7 +43,7 @@ class Controller(ABC):
     @abstractmethod
     def publish_control_parameter(self) -> str:
         raise NotImplementedError
-    
+
     @abstractmethod
     def destroy(self):
         return NotImplementedError

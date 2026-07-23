@@ -17,7 +17,7 @@ Recording is driven exclusively by the matching retained `StudyTrialState`:
 `ABORTED` finalizes its outcome. This prevents an unscoped Boolean from opening
 or closing the wrong trial. The `study_running` CSV column remains as a schema
 field and is true for rows written during either active state; it is no longer a
-subscription to `/study_is_running`.
+lifecycle input.
 
 Every sample row contains three timing views: ROS wall time (`timestamp`),
 process steady-clock time (`monotonic_timestamp`), and the timestamp of the

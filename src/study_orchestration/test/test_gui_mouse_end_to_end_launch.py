@@ -17,6 +17,8 @@ from std_msgs.msg import Bool
 
 pytest.importorskip("pygame", reason="GUI end-to-end test requires pygame")
 
+TEST_DOMAIN_ID = 71
+
 
 @pytest.mark.launch_test
 def generate_test_description():
@@ -24,6 +26,10 @@ def generate_test_description():
     return (
         launch.LaunchDescription(
             [
+                launch.actions.SetEnvironmentVariable(
+                    name="ROS_DOMAIN_ID",
+                    value=str(TEST_DOMAIN_ID),
+                ),
                 launch_ros.actions.Node(
                     package="study_orchestration",
                     executable="experiment_mapper",
@@ -81,7 +87,7 @@ class TestGuiMouseEndToEnd(unittest.TestCase):
     """Verify that real GUI callbacks make the second press start a trial."""
 
     def setUp(self):
-        rclpy.init()
+        rclpy.init(domain_id=TEST_DOMAIN_ID)
         self.node = Node("gui_mouse_end_to_end_test")
         self.haply_pub = self.node.create_publisher(HaplyState, "haply_state", 10)
         self.ready_values = []

@@ -27,11 +27,18 @@ from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy
 from std_msgs.msg import Bool
 
 
+TEST_DOMAIN_ID = 73
+
+
 @pytest.mark.launch_test
 def generate_test_description():
     return (
         launch.LaunchDescription(
             [
+                launch.actions.SetEnvironmentVariable(
+                    name="ROS_DOMAIN_ID",
+                    value=str(TEST_DOMAIN_ID),
+                ),
                 launch_ros.actions.Node(
                     package="study_orchestration",
                     executable="experiment_mapper",
@@ -74,7 +81,7 @@ class TestMouseInteractionLaunch(unittest.TestCase):
     """Exercise the Mapper/Scenario graph with simulated mouse input."""
 
     def setUp(self):
-        rclpy.init()
+        rclpy.init(domain_id=TEST_DOMAIN_ID)
         self.node = Node("mouse_interaction_launch_test")
         self.haply_pub = self.node.create_publisher(HaplyState, "haply_state", 10)
         self.start_pub = self.node.create_publisher(

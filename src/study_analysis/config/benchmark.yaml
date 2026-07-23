@@ -6,4 +6,13 @@ estimator_noisy_relative_error_max: 0.15
 simulation_dt: 0.01
 simulation_duration_s: 20.0
 target_radius: 0.01
-max_force: 0.5
+start_point: [-0.08, -0.08]
+goal_point: [0.08, 0.08]
+plant_mass: 0.5
+plant_damping: 0.5
+disturbance_amplitude: 0.02
+disturbance_frequency: 0.13
+disturbance_phase: [0.0, 1.0]
+disturbance_noise_std: 0.0005
+adaptation_coefficients: [2.0, 0.2, 2.0, 0.2]
+adaptation_direction_coefficients: [10.0, 0.1, 10.0, 0.1]

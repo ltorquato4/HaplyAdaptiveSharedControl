@@ -59,6 +59,6 @@ class StateFeedbackController(Controller):
                 "K_d": np.diag(self.K_d).tolist(),
             }
         )
-    
+
     def destroy(self):
         return None

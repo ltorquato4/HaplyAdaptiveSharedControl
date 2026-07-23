@@ -1,20 +1,8 @@
 import logging
-import os
-import sys
 from math import sqrt
 from pathlib import Path
 
-# Fix path to resolve parent imports
-sys.path.insert(0, os.path.abspath(os.path.join(os.path.dirname(__file__), "..")))
-
-from control_node.mpc_controller.adaptive_mpc_controller import AdaptiveMpcController
 from control_node.mpc_controller.mpc_controller import MpcController
-from control_node.state_feedback_controller.adaptive_state_feedback_controller import (
-    AdaptiveStateFeedbackController,
-)
-from control_node.state_feedback_controller.state_feedback_controller import (
-    StateFeedbackController,
-)
 
 # --- Configuration Constants ---
 START_POINT = [-6, 0]
@@ -26,12 +14,12 @@ STEP_SIZE = 0.005
 
 
 def get_distance(p1, p2):
-    """Calculates Euclidean distance between two 2D points."""
+    """Calculate Euclidean distance between two 2D points."""
     return sqrt((p1[0] - p2[0]) ** 2 + (p1[1] - p2[1]) ** 2)
 
 
 def create_logger(log_filename):
-    """Creates a localized clean logger that writes directly to a file."""
+    """Create a localized clean logger that writes directly to a file."""
     logger = logging.getLogger(log_filename)
     logger.setLevel(logging.INFO)
     logger.handlers.clear()
@@ -48,10 +36,10 @@ def create_logger(log_filename):
 # --- Core Test Suites ---
 
 def run_compute_control_test(logger, controller, start_point, end_point):
-    """Simulates a path tracking loop and logs output controls."""
+    """Simulate a path tracking loop and log output controls."""
     current_point = start_point.copy()
     logger.info("Starting Compute Control Test")
-    
+
     step = 0
     distance = get_distance(current_point, end_point)
 
@@ -74,7 +62,7 @@ def run_compute_control_test(logger, controller, start_point, end_point):
 
 
 def run_adaptive_gain_test(logger, controller, start_point, end_point):
-    """Simulates adaptive gain shifts using a fake human interaction matrix."""
+    """Simulate adaptive gain shifts using a fake interaction matrix."""
     current_point = start_point.copy()
     logger.info("Starting Adaptivity Test")
 
@@ -123,9 +111,9 @@ def main():
     run_compute_control_test(loggers["mpc_compute_1"], mpc_0, START_POINT_ALT, END_POINT)
     mpc_0.destroy()
 
-    # Note: To run state feedback or adaptive test suites in the future, 
+    # Note: To run state feedback or adaptive test suites in the future,
     # simply initialize them here and pass them into the runners:
-    # 
+    #
     # sf_adaptive = AdaptiveStateFeedbackController(START_POINT, END_POINT, DT)
     # run_adaptive_gain_test(loggers["sf_adapt"], sf_adaptive, START_POINT, END_POINT)
 
