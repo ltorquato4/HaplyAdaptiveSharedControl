@@ -1,5 +1,6 @@
 """Launch the study GUI with mouse input, mapper, and scenario generator."""
 
+from haply_study_gui.study_launch import create_study_stack
 from launch import LaunchDescription
 from launch.actions import (
     DeclareLaunchArgument,
@@ -10,15 +11,22 @@ from launch.actions import (
 from launch.event_handlers import OnProcessExit
 from launch.events import Shutdown
 from launch.substitutions import LaunchConfiguration
-from haply_study_gui.study_launch import create_study_stack
 
 
 def generate_launch_description():
     """Build the launch description for mouse-only GUI testing."""
     controller = LaunchConfiguration("controller")
     controller_log_level = LaunchConfiguration("controller_log_level")
+    docking_enabled = LaunchConfiguration("docking_enabled")
+    participant_id = LaunchConfiguration("participant_id")
+    log_directory = LaunchConfiguration("log_directory")
     nodes, study_gui = create_study_stack(
-        "mouse", controller, controller_log_level=controller_log_level
+        "mouse",
+        controller,
+        participant_id=participant_id,
+        log_directory=log_directory,
+        controller_log_level=controller_log_level,
+        docking_enabled=docking_enabled,
     )
 
     return LaunchDescription(
@@ -29,9 +37,24 @@ def generate_launch_description():
                 description="Controller family: none, mpc, or state_feedback.",
             ),
             DeclareLaunchArgument(
+                "participant_id",
+                default_value="P00",
+                description="Pseudonymous participant code; P00 is for tests.",
+            ),
+            DeclareLaunchArgument(
+                "log_directory",
+                default_value="./logs",
+                description="Session log output directory.",
+            ),
+            DeclareLaunchArgument(
                 "controller_log_level",
                 default_value="INFO",
                 description="Log level for the Controller and Estimator.",
+            ),
+            DeclareLaunchArgument(
+                "docking_enabled",
+                default_value="false",
+                description="Enable optional terminal state-feedback docking.",
             ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),

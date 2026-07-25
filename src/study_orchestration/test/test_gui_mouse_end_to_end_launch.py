@@ -17,6 +17,8 @@ from std_msgs.msg import Bool
 
 pytest.importorskip("pygame", reason="GUI end-to-end test requires pygame")
 
+TEST_DOMAIN_ID = 71
+
 
 @pytest.mark.launch_test
 def generate_test_description():
@@ -24,6 +26,10 @@ def generate_test_description():
     return (
         launch.LaunchDescription(
             [
+                launch.actions.SetEnvironmentVariable(
+                    name="ROS_DOMAIN_ID",
+                    value=str(TEST_DOMAIN_ID),
+                ),
                 launch_ros.actions.Node(
                     package="study_orchestration",
                     executable="experiment_mapper",
@@ -81,23 +87,31 @@ class TestGuiMouseEndToEnd(unittest.TestCase):
     """Verify that real GUI callbacks make the second press start a trial."""
 
     def setUp(self):
-        rclpy.init()
+        rclpy.init(domain_id=TEST_DOMAIN_ID)
         self.node = Node("gui_mouse_end_to_end_test")
         self.haply_pub = self.node.create_publisher(HaplyState, "haply_state", 10)
         self.ready_values = []
         self.tasks = []
         self.states = []
-        task_qos = QoSProfile(
+        retained_state_qos = QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,
             reliability=ReliabilityPolicy.RELIABLE,
         )
         self.node.create_subscription(
-            Bool, "study_mapping_ready", self.ready_values.append, task_qos
+            Bool,
+            "study_mapping_ready",
+            self.ready_values.append,
+            retained_state_qos,
         )
-        self.node.create_subscription(StudyTask, "study_task", self.tasks.append, task_qos)
         self.node.create_subscription(
-            StudyTrialState, "study_trial_state", self.states.append, task_qos
+            StudyTask, "study_task", self.tasks.append, retained_state_qos
+        )
+        self.node.create_subscription(
+            StudyTrialState,
+            "study_trial_state",
+            self.states.append,
+            retained_state_qos,
         )
 
     def tearDown(self):

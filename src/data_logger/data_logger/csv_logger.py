@@ -32,11 +32,12 @@ class CSVLogger:
 
         return max(ids) + 1
 
-    def start(self):
-
-        self.trajectory_id = self.get_next_trajectory_id()
-
-        filename = f"{self.file_prefix}_{self.trajectory_id:06d}.csv"
+    def start(self, filename: str | None = None):
+        if filename is None:
+            self.trajectory_id = self.get_next_trajectory_id()
+            filename = f"{self.file_prefix}_{self.trajectory_id:06d}.csv"
+        else:
+            self.trajectory_id = None
 
         filepath = os.path.join(self.save_directory, filename)
 

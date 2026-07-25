@@ -46,16 +46,26 @@ clamp relative to the first-click anchor. The Haply launch uses `z` as task
 The Scenario Generator expands every phase, configured path segment, and
 controller mode into a finite session schedule. `order_strategy:=seeded_random`
 shuffles the behavioral-state order and the path order within each state. Its
-resolved seed and complete order are emitted once in the startup log; set
-`order_seed` to a non-negative value to reproduce a run exactly. `fixed` is
-available for debugging.
+resolved seed and complete order are emitted once in the startup log and in the
+retained `/study_session` definition; set `order_seed` to a non-negative value
+to reproduce a run exactly. `fixed` is available for debugging.
 
 The Scenario Generator is the authoritative trial-state owner. The GUI publishes
 an ID-bearing `/study_start_requested`; orchestration validates the current
 cursor/input and publishes the typed lifecycle state.
 
+Participant codes are assigned centrally and passed explicitly to hardware
+production launches so they remain unique across study computers. The ordinary
+mouse launch uses `P00`; controller debug wrappers use `DEBUG_MOUSE` or
+`DEBUG_HAPLY`. Scenario includes the resolved label in `/study_session`; the
+UUID session identity remains automatic.
+
 Published task and trial topics:
 
+- `/study_session` (`haply_msgs/StudySession`): schema version, UUID session
+  identity, pseudonymous participant ID, input/controller family, ordering
+  strategy and resolved seed, estimator lifecycle, loop policy, and the
+  complete ordered task schedule.
 - `/study_task` (`haply_msgs/StudyTask`): atomic task definition, including
   `session_id`, `trial_id`, start/end points, phase, and controller mode.
 - `/study_trial_state` (`haply_msgs/StudyTrialState`): `READY`, `RUNNING`,
@@ -64,10 +74,9 @@ Published task and trial topics:
   `session_id`, `trial_id`, and continuous hold progress in `0.0–1.0`.
 
 Scenario also publishes `/study_start_point`, `/study_end_point`,
-`/study_phase`, `/study_controller_mode`, `/study_is_running`, and
-`/study_endpoint_reached` for Estimator and Logger compatibility. Controller
-uses the atomic `StudyTask` protocol and retains the split topics only for
-backward-compatible debug use.
+`/study_phase`, `/study_controller_mode`, and `/study_endpoint_reached` as a
+temporary metadata compatibility layer. `StudyTrialState` is the sole lifecycle
+authority for MPC, State Feedback, Estimator, Logger, and GUI.
 
 It subscribes to `/study_start_requested`, `/study_abort_requested`, and the
 typed `/study_cursor` topic.
@@ -75,9 +84,10 @@ typed `/study_cursor` topic.
 When `require_controller_ready`, `require_estimator_ready`, or
 `require_logger_ready` is enabled, Scenario also requires the corresponding
 heartbeat before accepting a start. Estimator and Logger become ready only
-after applying the retained atomic `StudyTask`; Logger additionally has its
-CSV output prepared. Scenario publishes `/study_system_ready`; a required
-heartbeat timeout prevents starts and aborts an active trial.
+after applying matching retained `StudySession` and `StudyTask` messages;
+Logger additionally has its session manifest and CSV output prepared. Scenario
+publishes `/study_system_ready`; a required heartbeat timeout prevents starts
+and aborts an active trial.
 
 `task_file` may point to a YAML file containing a `paths` list. Each entry has
 an independently defined `start_point` and `end_point`; paths need not form a

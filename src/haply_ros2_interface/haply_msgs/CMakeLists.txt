@@ -20,6 +20,7 @@ rosidl_generate_interfaces(${PROJECT_NAME}
   "msg/HaplyState.msg"
   "msg/HaplyControl.msg"
   "msg/StudyTask.msg"
+  "msg/StudySession.msg"
   "msg/StudyTrialState.msg"
   "msg/StudyDwellProgress.msg"
   "msg/StudyStartRequest.msg"

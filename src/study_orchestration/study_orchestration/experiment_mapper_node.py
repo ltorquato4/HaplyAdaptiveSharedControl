@@ -112,20 +112,22 @@ class ExperimentMapper(Node):
         self.study_cursor_pub = self.create_publisher(
             StudyCursor, "study_cursor", state_qos
         )
-        task_qos = self._task_qos()
+        retained_state_qos = self._retained_state_qos()
         self.mapping_ready_pub = self.create_publisher(
-            Bool, "study_mapping_ready", task_qos
+            Bool, "study_mapping_ready", retained_state_qos
         )
         self.button_pressed_pub = self.create_publisher(
             StudyButtonPress, "study_button_pressed", 10
         )
         self.input_valid_pub = self.create_publisher(
-            Bool, "experiment_input_valid", task_qos
+            Bool, "experiment_input_valid", retained_state_qos
         )
         self.create_subscription(
             HaplyState, "haply_state", self._haply_state, state_qos
         )
-        self.create_subscription(StudyTask, "study_task", self._study_task, task_qos)
+        self.create_subscription(
+            StudyTask, "study_task", self._study_task, retained_state_qos
+        )
         publish_hz = max(float(self.get_parameter("publish_hz").value), 1.0)
         self.publish_timer = self.create_timer(
             1.0 / publish_hz,
@@ -134,7 +136,7 @@ class ExperimentMapper(Node):
         self._publish_mapping_ready(False)
         self._publish_input_valid(False)
 
-    def _task_qos(self) -> QoSProfile:
+    def _retained_state_qos(self) -> QoSProfile:
         return QoSProfile(
             depth=1,
             durability=DurabilityPolicy.TRANSIENT_LOCAL,

@@ -27,8 +27,6 @@ class TestDataLoggerNode(Node):
         # Publishers
         #
 
-        self.pub_running = self.create_publisher(Bool, "/study_is_running", 10)
-
         self.pub_phase = self.create_publisher(String, "/study_phase", 10)
 
         self.pub_mode = self.create_publisher(String, "/study_controller_mode", 10)
@@ -57,17 +55,8 @@ class TestDataLoggerNode(Node):
         # State
         #
 
-        self.study_running = False
-
-        #
-        # Timers
-        #
-
         # Publish data at 100 Hz
         self.create_timer(0.01, self.publish_random_data)
-
-        # Toggle logger state every 10 sec
-        self.create_timer(10.0, self.toggle_running)
 
         self.get_logger().info("Random test publisher started.")
 
@@ -138,22 +127,6 @@ class TestDataLoggerNode(Node):
         msg.z = self.rand(-20, 20)
 
         return msg
-
-    # ---------------------------------------------------------
-    # Toggle recording
-    # ---------------------------------------------------------
-
-    def toggle_running(self):
-
-        self.study_running = not self.study_running
-
-        msg = Bool()
-        msg.data = self.study_running
-
-        self.pub_running.publish(msg)
-        self._log_sent_message("/study_is_running", msg)
-
-        self.get_logger().info(f"study_is_running = {self.study_running}")
 
     # ---------------------------------------------------------
     # Publish random data
