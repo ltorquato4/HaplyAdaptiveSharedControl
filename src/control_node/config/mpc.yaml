@@ -24,7 +24,7 @@ control_node:
     docking_start_percent: 90.0
     docking_comfort_reduction: 0.9
     docking_trajectory_weight_scale: 10e2
-    docking_goal_weight_scale: 10e3
+    docking_goal_weight_scale: 50e2
 
 scenario_generator:
   ros__parameters:
