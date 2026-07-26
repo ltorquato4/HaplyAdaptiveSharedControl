@@ -134,6 +134,42 @@ class MpcController(Controller):
         shifted_sequence = np.vstack([control_sequence[1:], control_sequence[-1]])
         return shifted_sequence.reshape(-1)
 
+    def _calculate_sigmoid_scale(self, current_point: Sequence[float]) -> float:
+        """Calculates a smooth S-curve scaling factor [0, 1] based on progress from start to end.
+        
+        Curve specifications:
+        - S(0.00) ≈ 0.0001 (0.01% control at start)
+        - S(0.05) = 0.10   (10% control at 5% distance)
+        - S(0.10) = 0.25   (25% control at 10% distance)
+        - S(d >= 0.4) = 1.0 (Full 100% control from 40% distance onwards)
+        """
+        start = np.asarray(self.experiment_start_point, dtype=float)
+        end = np.asarray(self.experiment_end_point, dtype=float)
+        curr = np.asarray(current_point[:2], dtype=float)
+
+        path_vec = end - start
+        path_length_sq = np.dot(path_vec, path_vec)
+
+        if path_length_sq < 1e-9:
+            return 0.0
+
+        # Calculate relative progress d_rel along start -> end path
+        progress_vec = curr - start
+        d_rel = np.dot(progress_vec, path_vec) / path_length_sq
+        d_rel = float(np.clip(d_rel, 0.0, 1.0))
+
+        # Reaches 1.0 exactly at d_rel = 0.40
+        if d_rel >= 0.4:
+            return 1.0
+
+        # Smooth-step curve parameters normalized for [0.0, 0.4] domain
+        x_norm = d_rel / 0.4  # Normalize range [0.0, 0.4] -> [0.0, 1.0]
+        p = 1.986
+        q = 3.693
+
+        scale = np.power(1.0 - np.power(1.0 - x_norm, p), q)
+        return float(np.clip(scale, 0.0, 1.0))
+
     def compute_control(
         self,
         current_point: Sequence[float],
@@ -156,6 +192,11 @@ class MpcController(Controller):
         u_command = np.clip(
             u_optimum[:2], -np.asarray(self.max_control), np.asarray(self.max_control)
         )
+
+        # Apply progress-based sigmoid attenuation to control output
+        scale_factor = self._calculate_sigmoid_scale(current_point)
+        u_command = u_command * scale_factor
+
         self.u_a = u_command
 
         return u_command.tolist()
@@ -198,7 +239,6 @@ class MpcController(Controller):
         for component_attr in child_components:
             component = getattr(self, component_attr, None)
             if component is not None:
-                # If these classes get upgraded later to have internal destroy loops
                 if hasattr(component, "destroy"):
                     try:
                         component.destroy()

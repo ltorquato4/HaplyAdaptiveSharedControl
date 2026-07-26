@@ -8,7 +8,7 @@ control_node:
     # State Feedback controller's 2 N Euclidean vector-norm limit.
     max_control_amplitude: 10.0
     max_velocity_amplitude: 10.0
-    acceleration_to_force_factor: 0.2
+    acceleration_to_force_factor: 0.25
     cursor_timeout_s: 0.2
     mpc_control_every_i_th_iteration: 1
     adapt_every_i_th_iterarion: 3
@@ -24,7 +24,7 @@ control_node:
     docking_start_percent: 90.0
     docking_comfort_reduction: 0.9
     docking_trajectory_weight_scale: 10e2
-    docking_goal_weight_scale: 10e4
+    docking_goal_weight_scale: 50e3
 
 scenario_generator:
   ros__parameters:

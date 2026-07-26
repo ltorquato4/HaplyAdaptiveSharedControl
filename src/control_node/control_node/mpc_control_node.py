@@ -93,7 +93,7 @@ class MpcControlNode(Node):
         self.declare_parameter("delta_time", 0.1)
         self.declare_parameter("max_control_amplitude", 10.0)
         self.declare_parameter("max_velocity_amplitude", 10.0)
-        self.declare_parameter("acceleration_to_force_factor", 0.2)
+        self.declare_parameter("acceleration_to_force_factor", 0.25)
         self.declare_parameter("mpc_control_every_i_th_iteration", 1)
         self.declare_parameter("adapt_every_i_th_iterarion", 3)
         self.declare_parameter("prediction_horizon", 5)
@@ -104,7 +104,7 @@ class MpcControlNode(Node):
         self.declare_parameter("docking_start_percent", 85.0)
         self.declare_parameter("docking_comfort_reduction", 0.9)
         self.declare_parameter("docking_trajectory_weight_scale", 2.0)
-        self.declare_parameter("docking_goal_weight_scale", 1000000.0)
+        self.declare_parameter("docking_goal_weight_scale", 50e3)
 
     def _configure_logging(self) -> None:
         levels = {
