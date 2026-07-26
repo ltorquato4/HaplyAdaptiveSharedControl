@@ -104,7 +104,7 @@ class MpcControlNode(Node):
         self.declare_parameter("docking_start_percent", 85.0)
         self.declare_parameter("docking_comfort_reduction", 0.9)
         self.declare_parameter("docking_trajectory_weight_scale", 2.0)
-        self.declare_parameter("docking_goal_weight_scale", 50e3)
+        self.declare_parameter("docking_goal_weight_scale", 10e3)
 
     def _configure_logging(self) -> None:
         levels = {

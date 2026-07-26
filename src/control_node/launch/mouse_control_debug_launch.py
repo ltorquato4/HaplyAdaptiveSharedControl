@@ -41,7 +41,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "controller",
-                default_value="state_feedback",
+                default_value="mpc",
                 description="Controller family: state_feedback or mpc.",
             ),
             DeclareLaunchArgument(
