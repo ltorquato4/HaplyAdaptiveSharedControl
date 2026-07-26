@@ -144,6 +144,39 @@ class VirtualFixtureStateFeedbackController:
             1.0 + (self.config.docking_stiffness_scale - 1.0) * smooth_fraction
         )
 
+    def _calculate_sigmoid_scale(self, position: Sequence[float]) -> float:
+        """Calculates a smooth S-curve scaling factor [0, 1] based on progress from start to end.
+        
+        Curve specifications:
+        - S(0.00) ≈ 0.0001 (0.01% control at start)
+        - S(0.05) = 0.10   (10% control at 5% distance)
+        - S(0.10) = 0.25   (25% control at 10% distance)
+        - S(d >= 0.4) = 1.0 (Full 100% control from 40% distance onwards)
+        """
+        curr = np.asarray(position[:2], dtype=float)
+        path_vec = self.end - self.start
+        path_length_sq = np.dot(path_vec, path_vec)
+
+        if path_length_sq < 1e-9:
+            return 0.0
+
+        # Calculate relative progress d_rel along start -> end path
+        progress_vec = curr - self.start
+        d_rel = np.dot(progress_vec, path_vec) / path_length_sq
+        d_rel = float(np.clip(d_rel, 0.0, 1.0))
+
+        # Full force at 40% distance
+        if d_rel >= 0.4:
+            return 1.0
+
+        # Smooth-step curve parameters normalized for [0.0, 0.4] domain
+        x_norm = d_rel / 0.4
+        p = 1.986
+        q = 3.693
+
+        scale = np.power(1.0 - np.power(1.0 - x_norm, p), q)
+        return float(np.clip(scale, 0.0, 1.0))
+
     def compute_force(
         self, position: Sequence[float], timestamp_s: float
     ) -> np.ndarray:
@@ -171,6 +204,10 @@ class VirtualFixtureStateFeedbackController:
             - self.config.fixture_damping_ns_per_m * velocity_cross
         )
         force = along_force + fixture_force
+
+        scale_factor = self._calculate_sigmoid_scale(point)
+        force = force * scale_factor
+
         magnitude = float(np.linalg.norm(force))
         if magnitude > self.config.max_force_n:
             force *= self.config.max_force_n / magnitude
