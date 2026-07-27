@@ -19,6 +19,7 @@ def generate_launch_description():
     controller = LaunchConfiguration("controller")
     controller_log_level = LaunchConfiguration("controller_log_level")
     docking_enabled = LaunchConfiguration("docking_enabled")
+    mode = LaunchConfiguration("mode")
     participant_id = LaunchConfiguration("participant_id")
     log_directory = LaunchConfiguration("log_directory")
     controller_enabled = ParameterValue(
@@ -34,6 +35,7 @@ def generate_launch_description():
         controller_log_level=controller_log_level,
         require_system_ready=controller_enabled,
         docking_enabled=docking_enabled,
+        gui_mode=mode,
     )
 
     return LaunchDescription(
@@ -61,6 +63,11 @@ def generate_launch_description():
                 "docking_enabled",
                 default_value="false",
                 description="Enable optional terminal state-feedback docking.",
+            ),
+            DeclareLaunchArgument(
+                "mode",
+                default_value="participant",
+                description="GUI display mode: participant hides controller details; debug shows them.",
             ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),

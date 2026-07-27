@@ -332,6 +332,23 @@ def test_seeded_random_schedule_shuffles_phases_and_segments_reproducibly():
         assert any(order != list(range(5)) for order in segment_orders)
 
 
+def test_seeded_random_schedule_counterbalances_controller_mode_order():
+    fixed_first = _generator()
+    fixed_first.order_strategy = "seeded_random"
+    fixed_first._schedule_rng = random.Random(1)
+    fixed_first.tasks = fixed_first._expand_session_tasks()
+
+    adaptive_first = _generator()
+    adaptive_first.order_strategy = "seeded_random"
+    adaptive_first._schedule_rng = random.Random(5)
+    adaptive_first.tasks = adaptive_first._expand_session_tasks()
+
+    assert [task.controller_mode for task in fixed_first.tasks[:15]] == ["fixed"] * 15
+    assert [task.controller_mode for task in adaptive_first.tasks[:15]] == [
+        "adaptive"
+    ] * 15
+
+
 def test_final_task_finishes_session_and_rejects_new_requests():
     node = _generator()
     node.task_index = len(node.tasks) - 1

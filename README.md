@@ -34,13 +34,38 @@ source /opt/ros/humble/setup.bash
 source install/setup.bash
 ```
 
-For later WSL rebuilds, use the repository build helper so ROS Python
-entrypoints are generated with this workspace's `.venv`:
+Build the workspace through the repository helper. It activates `.venv` and
+generates ROS Python entrypoints with that interpreter rather than
+`/usr/bin/python3`:
 
 ```bash
-./build.sh haply_study_gui
+./build.sh
 source install/setup.bash
 ```
+
+If a launch fails with `ModuleNotFoundError` for `websockets` or `casadi`,
+rebuild the affected entrypoints and refresh the environment:
+
+```bash
+./build.sh haply_interface control_node
+source install/setup.bash
+```
+
+For other missing project Python modules, rebuild the full workspace with the
+first command above. To pass advanced `colcon build` arguments, start with an
+option:
+
+```bash
+./build.sh --packages-select haply_study_gui --event-handlers console_direct+
+```
+
+To verify a Python ROS executable uses `.venv`, inspect its first line:
+
+```bash
+head -n 1 install/haply_interface/lib/haply_interface/haply_driver_node
+```
+
+It should point at `.venv/bin/python`, not `/usr/bin/python3`.
 
 ### Docker / Devcontainer
 
@@ -172,77 +197,43 @@ Use this WSL-owned hardware path:
 
 5. Launch the study GUI:
 
-   For official study runs with GUI, mapper, and scenario generator:
-   ```bash
-   ros2 launch haply_study_gui study_gui.launch.py
-   ```
-
    To include a controller (and its required estimator):
    ```bash
+   # MPC controller including docking, which is always true here
+   ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03
+
+   # Alternative state-feedback controller with no docking enabled
    ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03
-   ros2 launch haply_study_gui study_gui.launch.py controller:=mpc participant_id:=P03
-   ```
 
-   To include a controller with docking:
-   ```bash
+   # Alternative state-feedback controller with docking enabled
    ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03 docking_enabled:=true
-   ros2 launch haply_study_gui study_gui.launch.py controller:=mpc participant_id:=P03 docking_enabled:=true
    ```
 
-   Until the hardware path is fixed, use the mouse test path instead, can also be tested with controller and estimator:
+   For debugging without Haply device, use the mouse test path instead, can also be tested with controller and estimator:
    ```bash
-   ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback participant_id:=P03
+   # No controller
+   ros2 launch haply_study_gui study_gui_mouse.launch.py participant_id:=P03
+
+   # MPC Controller, which always includes docking
    ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=mpc participant_id:=P03
+
+   # State-Feedback with no docking
+   ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback participant_id:=P03
+   
+   # State-Feedback with docking
+   ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback docking_enabled:=true participant_id:=P03
    ```
 
-   Use `controller:=none` for GUI/mapper/scenario testing without either
-   controller or estimator.
+   The participant sidebar shows the current trial, run state, and neutral
+   controller label (`A` for the first controller block, `B` for the second).
+   The GUI pauses with a Controller A/B overlay when the study changes blocks.
+   To reveal the underlying adaptive/fixed mode and control system while
+   debugging, append `mode:=debug` to either launch:
 
-## ROS Workspace Commands
-
-When using the direct WSL virtual environment, run workspace builds through the
-root-level helper:
-
-```bash
-./build.sh
-```
-
-The helper sources ROS, activates `.venv`, and runs `colcon` through the venv
-Python. This matters because the system `colcon` executable is `/usr/bin/colcon`
-and generates ROS Python entrypoint scripts with a `#!/usr/bin/python3` shebang.
-The helper generates entrypoints that use this repository's `.venv`, so package
-dependencies such as `websockets` are imported from the expected environment.
-
-After changing a ROS package, rebuild it from the workspace root. Replace
-`haply_study_gui` with the package you changed:
-
-```bash
-./build.sh haply_study_gui
-source install/setup.bash
-```
-
-For a full workspace rebuild, omit the package name:
-
-```bash
-./build.sh
-source install/setup.bash
-```
-
-Advanced `colcon build` arguments can still be passed directly by starting the
-arguments with an option:
-
-```bash
-./build.sh --packages-select haply_study_gui --event-handlers console_direct+
-```
-
-To verify a Python ROS executable is using the venv, check its first line after
-building:
-
-```bash
-head -n 1 install/haply_interface/lib/haply_interface/haply_driver_node
-```
-
-It should point at `.venv/bin/python`, not `/usr/bin/python3`.
+   ```bash
+   ros2 launch haply_study_gui study_gui.launch.py \
+     controller:=mpc participant_id:=P03 mode:=debug
+   ```
 
 ## Manual Checks
 

@@ -78,6 +78,9 @@ class StudyGui(Node):
         self.declare_parameter("width", 1280)
         self.declare_parameter("height", 720)
         self.declare_parameter("side_panel_width", 300)
+        self.declare_parameter("sidebar_scale", 1.0)
+        self.declare_parameter("marker_radius_px", 22)
+        self.declare_parameter("marker_label_font_size", 17)
         self.declare_parameter("workspace_padding", 0)
         self.declare_parameter("render_fps", 100.0)
         self.declare_parameter("state_publish_hz", 100.0)
@@ -103,11 +106,21 @@ class StudyGui(Node):
         self.declare_parameter("endpoint_reached_radius", 0.01)
         self.declare_parameter("require_system_ready", False)
         self.declare_parameter("controller_family", "none")
+        self.declare_parameter("mode", "participant")
         self.declare_parameter("cursor_max_age_s", 0.5)
 
         self.width = int(self.get_parameter("width").value)
         self.height = int(self.get_parameter("height").value)
         self.side_panel_width = int(self.get_parameter("side_panel_width").value)
+        self.sidebar_scale = max(
+            0.5, float(self.get_parameter("sidebar_scale").value)
+        )
+        self.marker_radius_px = max(
+            1, int(self.get_parameter("marker_radius_px").value)
+        )
+        self.marker_label_font_size = max(
+            1, int(self.get_parameter("marker_label_font_size").value)
+        )
         self.workspace_padding = int(self.get_parameter("workspace_padding").value)
         self.render_fps = float(self.get_parameter("render_fps").value)
         self.state_publish_hz = float(self.get_parameter("state_publish_hz").value)
@@ -169,6 +182,7 @@ class StudyGui(Node):
         self.raw_input_valid = False
         self.require_system_ready = bool(self.get_parameter("require_system_ready").value)
         self.controller_family = str(self.get_parameter("controller_family").value)
+        self.debug_mode = str(self.get_parameter("mode").value).strip().lower() == "debug"
         self.cursor_max_age_s = max(0.0, float(self.get_parameter("cursor_max_age_s").value))
         self.system_ready = not self.require_system_ready
         self.start_point_received = False
@@ -182,7 +196,12 @@ class StudyGui(Node):
         self.previous_mouse_time = time.monotonic()
         self.study_phase = "normal"
         self.mode_overlay_until = None
+        self.mode_overlay_title = ""
+        self.mode_overlay_instruction = ""
+        self.pending_mode_overlay = None
         self.controller_mode = "adaptive"
+        self.controller_labels = {}
+        self.current_controller_label = "A"
         self.drawn_line = []
         self.trial_started = self.auto_start
         self.is_running = self.auto_start
@@ -267,9 +286,19 @@ class StudyGui(Node):
         self.clock = pygame.time.Clock()
         self.title_font = self._load_font(22, bold=True)
         self.body_font = self._load_font(23)
-        self.label_font = self._load_font(17)
+        self.label_font = self._load_font(self.marker_label_font_size)
         self.pill_font = self._load_font(20, bold=True)
         self.icon_font = self._load_font(17, bold=True)
+        self.sidebar_title_font = self._load_font(
+            round(22 * self.sidebar_scale), bold=True
+        )
+        self.sidebar_label_font = self._load_font(round(17 * self.sidebar_scale))
+        self.sidebar_pill_font = self._load_font(
+            round(20 * self.sidebar_scale), bold=True
+        )
+        self.sidebar_icon_font = self._load_font(
+            round(17 * self.sidebar_scale), bold=True
+        )
         if self.source == "mouse":
             self.previous_mouse_position = self._screen_to_world(pygame.mouse.get_pos())
 
@@ -373,13 +402,24 @@ class StudyGui(Node):
 
     def _study_task(self, msg):
         previous_phase = self.study_phase.strip().lower()
+        previous_controller_mode = self.controller_mode.strip().lower()
         received_previous_task = self.start_point_received and self.end_point_received
         next_phase = str(msg.phase).strip().lower()
+        next_controller_mode = str(msg.controller_mode).strip().lower()
+        next_session_id = str(msg.session_id)
+        if next_session_id != self.current_session_id:
+            self.controller_labels = {}
+        controller_label = self._controller_label_for(next_controller_mode)
+        controller_changed = (
+            not received_previous_task
+            or next_controller_mode != previous_controller_mode
+        )
         self.start_point = self._copy_point_2d(msg.start_point)
         self.end_point = self._copy_point_2d(msg.end_point)
         self.study_phase = next_phase
-        self.controller_mode = str(msg.controller_mode)
-        self.current_session_id = str(msg.session_id)
+        self.controller_mode = next_controller_mode
+        self.current_controller_label = controller_label
+        self.current_session_id = next_session_id
         self.current_trial_id = int(msg.trial_id)
         self.cursor_received = False
         self.cursor_in_bounds = False
@@ -389,7 +429,21 @@ class StudyGui(Node):
         self.last_abort_reason = ""
         self.start_point_received = True
         self.end_point_received = True
-        if not received_previous_task or next_phase != previous_phase:
+        if controller_changed:
+            self.mode_overlay_title = f"Controller {controller_label}"
+            self.mode_overlay_instruction = f"Controller {controller_label} is starting."
+            self.mode_overlay_until = (
+                time.monotonic() + self.mode_overlay_duration_s
+            )
+            self.pending_mode_overlay = (
+                f"{self.current_behavior.capitalize()} mode",
+                self.MODE_INSTRUCTIONS[self.current_behavior],
+            )
+        elif next_phase != previous_phase:
+            self.mode_overlay_title = f"{self.current_behavior.capitalize()} mode"
+            self.mode_overlay_instruction = self.MODE_INSTRUCTIONS[
+                self.current_behavior
+            ]
             self.mode_overlay_until = (
                 time.monotonic() + self.mode_overlay_duration_s
             )
@@ -530,11 +584,11 @@ class StudyGui(Node):
 
         sx, sy = self._marker_canvas_position(
             self.start_point,
-            self._task_radius_to_pixels(self.start_reached_radius),
+            self.marker_radius_px,
         )
         ex, ey = self._marker_canvas_position(
             self.end_point,
-            self._task_radius_to_pixels(self.endpoint_reached_radius),
+            self.marker_radius_px,
         )
         cx, cy = self._world_to_canvas(self.current_position)
 
@@ -572,15 +626,21 @@ class StudyGui(Node):
 
     def _draw_behavioral_state_legend(self):
         card = self._side_card_rect()
-        x = card.x + 24
-        y = card.y + 24
+        scale = self.sidebar_scale
+        x = card.x + round(24 * scale)
+        y = card.y + round(24 * scale)
 
-        title = self.title_font.render("Behavioral State", True, self.TEXT)
+        title = self.sidebar_title_font.render("Behavioral State", True, self.TEXT)
         self.draw_target.blit(title, (x, y))
 
-        y += 44
+        y += round(44 * scale)
         for index, color_name in enumerate(["red", "yellow", "green"]):
-            pill = pygame.Rect(x, y + (index * 56), card.width - 48, 42)
+            pill = pygame.Rect(
+                x,
+                y + (index * round(56 * scale)),
+                card.width - round(48 * scale),
+                round(42 * scale),
+            )
             self._draw_state_pill(pill, color_name)
 
     def _draw_state_pill(self, rect, color_name):
@@ -615,15 +675,18 @@ class StudyGui(Node):
             border_radius=16,
         )
 
-        dot_center = (rect.x + 23, rect.centery)
-        pygame.draw.circle(self.draw_target, fill, dot_center, 10)
+        scale = self.sidebar_scale
+        dot_center = (rect.x + round(23 * scale), rect.centery)
+        pygame.draw.circle(self.draw_target, fill, dot_center, round(10 * scale))
 
-        icon = self.icon_font.render(config["icon"], True, self.SURFACE)
+        icon = self.sidebar_icon_font.render(config["icon"], True, self.SURFACE)
         icon_rect = icon.get_rect(center=dot_center)
         self.draw_target.blit(icon, icon_rect)
 
-        label = self.pill_font.render(config["behavior"].capitalize(), True, text_color)
-        label_rect = label.get_rect(midleft=(rect.x + 46, rect.centery))
+        label = self.sidebar_pill_font.render(
+            config["behavior"].capitalize(), True, text_color
+        )
+        label_rect = label.get_rect(midleft=(rect.x + round(46 * scale), rect.centery))
         self.draw_target.blit(label, label_rect)
 
     def _mode_overlay_visible(self):
@@ -634,6 +697,14 @@ class StudyGui(Node):
 
     def _draw_mode_overlay(self):
         if not self._mode_overlay_visible():
+            if self.pending_mode_overlay is not None:
+                self.mode_overlay_title, self.mode_overlay_instruction = (
+                    self.pending_mode_overlay
+                )
+                self.pending_mode_overlay = None
+                self.mode_overlay_until = (
+                    time.monotonic() + self.mode_overlay_duration_s
+                )
             return
 
         remaining = self.mode_overlay_until - time.monotonic()
@@ -648,11 +719,9 @@ class StudyGui(Node):
         self.draw_target.blit(overlay, workspace.topleft)
 
         config = self.COLORS[self.current_condition]
-        title = self.title_font.render(
-            f"{self.current_behavior.capitalize()} mode", True, config["text"]
-        )
+        title = self.title_font.render(self.mode_overlay_title, True, config["text"])
         instruction = self.body_font.render(
-            self.MODE_INSTRUCTIONS[self.current_behavior], True, self.TEXT
+            self.mode_overlay_instruction, True, self.TEXT
         )
         title_rect = title.get_rect(center=(workspace.centerx, workspace.centery - 20))
         instruction_rect = instruction.get_rect(
@@ -669,15 +738,17 @@ class StudyGui(Node):
 
     def _legend_rect(self):
         card = self._side_card_rect()
-        return pygame.Rect(card.x, card.y, card.width, 230)
+        return pygame.Rect(
+            card.x, card.y, card.width, round(230 * self.sidebar_scale)
+        )
 
     def _draw_target_marker(self, x, y):
-        radius = self._task_radius_to_pixels(self.start_reached_radius)
+        radius = self.marker_radius_px
         pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), radius)
         pygame.draw.circle(self.draw_target, self.TEXT, (x, y), radius, 3)
 
     def _draw_endpoint_marker(self, x, y):
-        radius = self._task_radius_to_pixels(self.endpoint_reached_radius)
+        radius = self.marker_radius_px
         pygame.draw.circle(self.draw_target, self.SURFACE, (x, y), radius)
         pygame.draw.circle(self.draw_target, self.TEXT, (x, y), radius, 3)
         pygame.draw.line(self.draw_target, self.TEXT, (x - 7, y - 7), (x + 7, y + 7), 3)
@@ -689,26 +760,34 @@ class StudyGui(Node):
 
     def _draw_status_text(self):
         card = self._side_card_rect()
-        x = card.x + 24
-        y = self._legend_rect().bottom + 18
+        scale = self.sidebar_scale
+        x = card.x + round(24 * scale)
+        y = self._legend_rect().bottom + round(18 * scale)
 
-        title = self.title_font.render("Run Status", True, self.TEXT)
+        title = self.sidebar_title_font.render("Run Status", True, self.TEXT)
         self.draw_target.blit(title, (x, y))
 
-        row_y = y + 44
-        value_x = x + 98
-        value_width = max(card.right - value_x - 18, 1)
+        row_y = y + round(44 * scale)
+        value_x = x + round(98 * scale)
+        value_width = max(card.right - value_x - round(18 * scale), 1)
         for label, value in self._status_rows():
-            label_text = self.label_font.render(label, True, self.MUTED_TEXT)
+            label_text = self.sidebar_label_font.render(label, True, self.MUTED_TEXT)
             self.draw_target.blit(label_text, (x, row_y))
             lines = self._wrap_sidebar_text(value, value_width)
             for line_index, line in enumerate(lines):
-                value_text = self.label_font.render(line, True, self.TEXT)
+                value_text = self.sidebar_label_font.render(line, True, self.TEXT)
                 self.draw_target.blit(
                     value_text,
-                    (value_x, row_y + (line_index * self.label_font.get_linesize())),
+                    (
+                        value_x,
+                        row_y + (line_index * self.sidebar_label_font.get_linesize()),
+                    ),
                 )
-            row_y += max(40, (len(lines) * self.label_font.get_linesize()) + 8)
+            row_y += max(
+                round(40 * scale),
+                (len(lines) * self.sidebar_label_font.get_linesize())
+                + round(8 * scale),
+            )
 
     def _wrap_sidebar_text(self, value, max_width, max_lines=3):
         """Wrap a status value to the available sidebar width (up to three lines)."""
@@ -720,7 +799,7 @@ class StudyGui(Node):
         current = ""
         for word in words:
             candidate = f"{current} {word}".strip()
-            if self.label_font.size(candidate)[0] <= max_width:
+            if self.sidebar_label_font.size(candidate)[0] <= max_width:
                 current = candidate
                 continue
             if current:
@@ -764,12 +843,28 @@ class StudyGui(Node):
             )
         else:
             state = "move to start then press A"
-        return [
+        rows = [
             ("State", state),
             ("Trial", str(self.current_trial_id) if self.current_trial_id is not None else "-"),
-            ("Controller", self._controller_family_label()),
-            ("Mode", self.controller_mode),
+            ("Controller", self.current_controller_label),
         ]
+        if self.debug_mode:
+            rows.extend(
+                [
+                    ("Mode", self.controller_mode),
+                    ("Control System", self._controller_family_label()),
+                ]
+            )
+        return rows
+
+    def _controller_label_for(self, controller_mode):
+        """Assign A/B labels in the order controller modes first appear."""
+        normalized_mode = str(controller_mode).strip().lower()
+        if normalized_mode not in self.controller_labels:
+            self.controller_labels[normalized_mode] = chr(
+                ord("A") + len(self.controller_labels)
+            )
+        return self.controller_labels[normalized_mode]
 
     def _controller_family_label(self):
         labels = {

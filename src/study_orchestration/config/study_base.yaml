@@ -51,9 +51,13 @@ experiment_mapper:
 
 study_gui:
   ros__parameters:
-    width: 1280
-    height: 720
-    side_panel_width: 300
+    width: 2560
+    height: 1440
+    side_panel_width: 600
+    sidebar_scale: 1.6
+    marker_radius_px: 22
+    marker_label_font_size: 34
+    mode: participant
     workspace_padding: 0
     state_publish_hz: 100.0
     auto_start: false

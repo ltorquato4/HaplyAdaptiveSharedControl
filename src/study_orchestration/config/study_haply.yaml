@@ -2,7 +2,7 @@ experiment_mapper:
   ros__parameters:
     mapping_mode: anchored_delta
     use_z_as_y: true
-    scale_x: 2.0
+    scale_x: 3.0
     scale_y: 2.0
     clamp_raw: true
     raw_x_min: -0.20

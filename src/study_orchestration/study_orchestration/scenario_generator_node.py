@@ -360,10 +360,13 @@ class ScenarioGenerator(Node):
         return modes or ["adaptive", "fixed"]
 
     def _expand_session_tasks(self) -> list[ScheduledTask]:
-        """Expand every condition with reproducible phase and path ordering."""
+        """Expand every condition with reproducible mode, phase, and path ordering."""
         tasks = []
         for _ in range(self.repetitions):
-            for mode in self.controller_modes:
+            modes = list(self.controller_modes)
+            if self.order_strategy == "seeded_random":
+                self._schedule_rng.shuffle(modes)
+            for mode in modes:
                 phases = list(self.PHASES)
                 if self.order_strategy == "seeded_random":
                     self._schedule_rng.shuffle(phases)

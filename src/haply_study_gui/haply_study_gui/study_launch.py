@@ -16,6 +16,7 @@ def create_study_stack(
     controller_log_level="INFO",
     require_system_ready=False,
     docking_enabled=False,
+    gui_mode="participant",
 ):
     """Return common study nodes and the GUI node used for shutdown."""
     config_dir = get_package_share_directory("study_orchestration") + "/config"
@@ -168,6 +169,7 @@ def create_study_stack(
             {
                 "require_system_ready": require_system_ready,
                 "controller_family": controller_family,
+                "mode": gui_mode,
             },
         ],
     )
