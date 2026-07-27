@@ -66,6 +66,7 @@ def _gui():
     gui.raw_input_valid = True
     gui.system_ready = True
     gui.controller_family = "mpc"
+    gui.debug_mode = False
     gui.start_point_received = True
     gui.end_point_received = True
     gui.start_point = _point(0.0, 0.0)
@@ -90,6 +91,7 @@ def _gui():
     gui.start_requested_pub = FakePublisher()
     gui.abort_requested_pub = FakePublisher()
     gui.get_logger = lambda: FakeLogger()
+    gui.sidebar_label_font = FakeFont()
     gui.current_session_id = "test-session"
     gui.current_trial_id = 0
     return gui
@@ -306,6 +308,21 @@ def test_controller_family_label_is_participant_facing():
     gui.controller_family = "state_feedback"
 
     assert gui._controller_family_label() == "State Feedback"
+
+
+def test_controller_details_are_visible_only_in_debug_mode():
+    gui = _gui()
+
+    assert [label for label, _value in gui._status_rows()] == ["State", "Trial"]
+
+    gui.debug_mode = True
+
+    assert [label for label, _value in gui._status_rows()] == [
+        "State",
+        "Trial",
+        "Controller",
+        "Mode",
+    ]
 
 
 def test_gui_exit_requests_abort_for_running_trial(monkeypatch):

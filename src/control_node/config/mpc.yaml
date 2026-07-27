@@ -15,8 +15,8 @@ control_node:
     prediction_horizon: 5
 
     # Match the current Scenario/GUI workspace constraints.
-    x_bounds: 0.12
-    y_bounds: 0.18
+    x_bounds: 0.24
+    y_bounds: 0.36
 
     # Existing adaptive-MPC terminal docking behavior, formerly hard-coded in
     # AdaptiveMpcController. These defaults preserve the previous behavior.
