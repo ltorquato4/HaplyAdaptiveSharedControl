@@ -1,5 +1,11 @@
 from geometry_msgs.msg import Point
-from haply_msgs.msg import StudyButtonPress, StudyCursor, StudyDwellProgress, StudyTask, StudyTrialState
+from haply_msgs.msg import (
+    StudyButtonPress,
+    StudyCursor,
+    StudyDwellProgress,
+    StudyTask,
+    StudyTrialState,
+)
 from haply_study_gui.study_gui_node import StudyGui
 from std_msgs.msg import Bool
 
@@ -65,7 +71,10 @@ def _gui():
     gui.input_valid = True
     gui.raw_input_valid = True
     gui.system_ready = True
+    gui.source = "mouse"
+    gui.mouse_in_workspace = True
     gui.controller_family = "mpc"
+    gui.controller_mode = "adaptive"
     gui.debug_mode = False
     gui.controller_labels = {"adaptive": "A"}
     gui.current_controller_label = "A"
