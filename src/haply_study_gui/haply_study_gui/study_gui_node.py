@@ -196,7 +196,12 @@ class StudyGui(Node):
         self.previous_mouse_time = time.monotonic()
         self.study_phase = "normal"
         self.mode_overlay_until = None
+        self.mode_overlay_title = ""
+        self.mode_overlay_instruction = ""
+        self.pending_mode_overlay = None
         self.controller_mode = "adaptive"
+        self.controller_labels = {}
+        self.current_controller_label = "A"
         self.drawn_line = []
         self.trial_started = self.auto_start
         self.is_running = self.auto_start
@@ -397,13 +402,24 @@ class StudyGui(Node):
 
     def _study_task(self, msg):
         previous_phase = self.study_phase.strip().lower()
+        previous_controller_mode = self.controller_mode.strip().lower()
         received_previous_task = self.start_point_received and self.end_point_received
         next_phase = str(msg.phase).strip().lower()
+        next_controller_mode = str(msg.controller_mode).strip().lower()
+        next_session_id = str(msg.session_id)
+        if next_session_id != self.current_session_id:
+            self.controller_labels = {}
+        controller_label = self._controller_label_for(next_controller_mode)
+        controller_changed = (
+            not received_previous_task
+            or next_controller_mode != previous_controller_mode
+        )
         self.start_point = self._copy_point_2d(msg.start_point)
         self.end_point = self._copy_point_2d(msg.end_point)
         self.study_phase = next_phase
-        self.controller_mode = str(msg.controller_mode)
-        self.current_session_id = str(msg.session_id)
+        self.controller_mode = next_controller_mode
+        self.current_controller_label = controller_label
+        self.current_session_id = next_session_id
         self.current_trial_id = int(msg.trial_id)
         self.cursor_received = False
         self.cursor_in_bounds = False
@@ -413,7 +429,21 @@ class StudyGui(Node):
         self.last_abort_reason = ""
         self.start_point_received = True
         self.end_point_received = True
-        if not received_previous_task or next_phase != previous_phase:
+        if controller_changed:
+            self.mode_overlay_title = f"Controller {controller_label}"
+            self.mode_overlay_instruction = f"Controller {controller_label} is starting."
+            self.mode_overlay_until = (
+                time.monotonic() + self.mode_overlay_duration_s
+            )
+            self.pending_mode_overlay = (
+                f"{self.current_behavior.capitalize()} mode",
+                self.MODE_INSTRUCTIONS[self.current_behavior],
+            )
+        elif next_phase != previous_phase:
+            self.mode_overlay_title = f"{self.current_behavior.capitalize()} mode"
+            self.mode_overlay_instruction = self.MODE_INSTRUCTIONS[
+                self.current_behavior
+            ]
             self.mode_overlay_until = (
                 time.monotonic() + self.mode_overlay_duration_s
             )
@@ -667,6 +697,14 @@ class StudyGui(Node):
 
     def _draw_mode_overlay(self):
         if not self._mode_overlay_visible():
+            if self.pending_mode_overlay is not None:
+                self.mode_overlay_title, self.mode_overlay_instruction = (
+                    self.pending_mode_overlay
+                )
+                self.pending_mode_overlay = None
+                self.mode_overlay_until = (
+                    time.monotonic() + self.mode_overlay_duration_s
+                )
             return
 
         remaining = self.mode_overlay_until - time.monotonic()
@@ -681,11 +719,9 @@ class StudyGui(Node):
         self.draw_target.blit(overlay, workspace.topleft)
 
         config = self.COLORS[self.current_condition]
-        title = self.title_font.render(
-            f"{self.current_behavior.capitalize()} mode", True, config["text"]
-        )
+        title = self.title_font.render(self.mode_overlay_title, True, config["text"])
         instruction = self.body_font.render(
-            self.MODE_INSTRUCTIONS[self.current_behavior], True, self.TEXT
+            self.mode_overlay_instruction, True, self.TEXT
         )
         title_rect = title.get_rect(center=(workspace.centerx, workspace.centery - 20))
         instruction_rect = instruction.get_rect(
@@ -810,15 +846,25 @@ class StudyGui(Node):
         rows = [
             ("State", state),
             ("Trial", str(self.current_trial_id) if self.current_trial_id is not None else "-"),
+            ("Controller", self.current_controller_label),
         ]
         if self.debug_mode:
             rows.extend(
                 [
-                    ("Controller", self._controller_family_label()),
                     ("Mode", self.controller_mode),
+                    ("Control System", self._controller_family_label()),
                 ]
             )
         return rows
+
+    def _controller_label_for(self, controller_mode):
+        """Assign A/B labels in the order controller modes first appear."""
+        normalized_mode = str(controller_mode).strip().lower()
+        if normalized_mode not in self.controller_labels:
+            self.controller_labels[normalized_mode] = chr(
+                ord("A") + len(self.controller_labels)
+            )
+        return self.controller_labels[normalized_mode]
 
     def _controller_family_label(self):
         labels = {

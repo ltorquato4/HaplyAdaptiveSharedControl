@@ -67,6 +67,8 @@ def _gui():
     gui.system_ready = True
     gui.controller_family = "mpc"
     gui.debug_mode = False
+    gui.controller_labels = {"adaptive": "A"}
+    gui.current_controller_label = "A"
     gui.start_point_received = True
     gui.end_point_received = True
     gui.start_point = _point(0.0, 0.0)
@@ -313,7 +315,11 @@ def test_controller_family_label_is_participant_facing():
 def test_controller_details_are_visible_only_in_debug_mode():
     gui = _gui()
 
-    assert [label for label, _value in gui._status_rows()] == ["State", "Trial"]
+    assert [label for label, _value in gui._status_rows()] == [
+        "State",
+        "Trial",
+        "Controller",
+    ]
 
     gui.debug_mode = True
 
@@ -322,7 +328,17 @@ def test_controller_details_are_visible_only_in_debug_mode():
         "Trial",
         "Controller",
         "Mode",
+        "Control System",
     ]
+
+
+def test_controller_labels_follow_first_appearance_order():
+    gui = _gui()
+    gui.controller_labels = {}
+
+    assert gui._controller_label_for("fixed") == "A"
+    assert gui._controller_label_for("adaptive") == "B"
+    assert gui._controller_label_for("fixed") == "A"
 
 
 def test_gui_exit_requests_abort_for_running_trial(monkeypatch):

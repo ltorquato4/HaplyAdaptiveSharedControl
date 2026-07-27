@@ -136,11 +136,12 @@ a deliberate edit to its profile; `docking_enabled` remains a run-time switch.
   mapped hardware cursor outside the task workspace is hidden and reported as
   `cursor outside workspace` until it returns.
 - The drawing transform fills the visible workspace in both axes.
-- The default participant sidebar shows only the current trial and run state.
-  It does not reveal the controller family or whether a task uses adaptive or
-  fixed control.
-- Append `mode:=debug` to either GUI launch to show the `Controller` and
-  `Mode` rows in the sidebar, for example:
+- The default participant sidebar shows the current trial, run state, and a
+  neutral controller label: Controller A is the first controller block in the
+  randomized schedule, and Controller B is the second. The GUI shows a
+  Controller A/B overlay at each controller-block transition.
+- Append `mode:=debug` to either GUI launch to reveal the underlying
+  adaptive/fixed `Mode` and `Control System` rows in the sidebar, for example:
 
   ```bash
   ros2 launch haply_study_gui study_gui.launch.py \

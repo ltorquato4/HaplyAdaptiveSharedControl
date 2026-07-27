@@ -224,9 +224,11 @@ Use this WSL-owned hardware path:
    ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback docking_enabled:=true participant_id:=P03
    ```
 
-   The participant sidebar shows only the current trial and run state by
-   default. To reveal the controller family and whether the task uses adaptive
-   or fixed control while debugging, append `mode:=debug` to either launch:
+   The participant sidebar shows the current trial, run state, and neutral
+   controller label (`A` for the first controller block, `B` for the second).
+   The GUI pauses with a Controller A/B overlay when the study changes blocks.
+   To reveal the underlying adaptive/fixed mode and control system while
+   debugging, append `mode:=debug` to either launch:
 
    ```bash
    ros2 launch haply_study_gui study_gui.launch.py \
