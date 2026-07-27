@@ -20,7 +20,7 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         y_bounds=None,
         weight_comfort=50e1,
         weight_trajectory=10e2,
-        weight_goal=30e2,
+        weight_goal=10e1,
         docking_enabled=True,
         docking_start_percent=85.0,
         docking_comfort_reduction=0.9,
@@ -102,7 +102,7 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         # Divide by a soft-normalization factor to scale the influence, then
         # clip it to prevent extreme weights.
         normalization_scale = 50.0
-        stiffness_diff = (comfort_factor - trajectory_factor) / normalization_scale
+        stiffness_diff = (comfort_factor - 0.8 * trajectory_factor) / normalization_scale
         stiffness_diff = np.clip(stiffness_diff, -1.0, 1.0)
 
         # 4. Calculate adaptive weights
@@ -116,11 +116,11 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         goal_weight = self.weight_goal_base
 
         # 5. Ensure All Weights Stay Strictly Positive (Safety Guard)
-        comfort_weight = max(comfort_weight, self.weight_comfort_base * 0.1)
-        trajectory_weight = max(trajectory_weight, self.weight_trajectory_base * 0.1)
-        goal_weight = max(goal_weight, self.weight_goal_base * 0.1)
+        comfort_weight = max(comfort_weight, self.weight_comfort_base * 0.01)
+        trajectory_weight = max(trajectory_weight, self.weight_trajectory_base * 0.01)
+        goal_weight = max(goal_weight, self.weight_goal_base * 0.01)
 
-        # 6. Terminal Docking Zone Override (Last 20% of path)
+        # 6. Terminal Docking Zone Override
         terminal_threshold = self.docking_start_percent / 100.0
         docking_active = self.docking_enabled and (
             progress_along_path > terminal_threshold

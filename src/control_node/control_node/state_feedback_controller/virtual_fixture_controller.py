@@ -149,8 +149,7 @@ class VirtualFixtureStateFeedbackController:
         
         Curve specifications:
         - S(0.00) ≈ 0.0001 (0.01% control at start)
-        - S(0.05) = 0.10   (10% control at 5% distance)
-        - S(0.10) = 0.25   (25% control at 10% distance)
+        - S(0.20) = 0.34   (34% control at 20% distance)
         - S(d >= 0.4) = 1.0 (Full 100% control from 40% distance onwards)
         """
         curr = np.asarray(position[:2], dtype=float)
