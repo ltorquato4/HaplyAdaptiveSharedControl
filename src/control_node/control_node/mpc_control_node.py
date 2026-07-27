@@ -93,13 +93,16 @@ class MpcControlNode(Node):
         self.declare_parameter("delta_time", 0.1)
         self.declare_parameter("max_control_amplitude", 10.0)
         self.declare_parameter("max_velocity_amplitude", 10.0)
-        self.declare_parameter("acceleration_to_force_factor", 0.25)
+        self.declare_parameter("acceleration_to_force_factor", 0.2)
         self.declare_parameter("mpc_control_every_i_th_iteration", 1)
         self.declare_parameter("adapt_every_i_th_iterarion", 3)
         self.declare_parameter("prediction_horizon", 5)
         self.declare_parameter("x_bounds", 0.12)
         self.declare_parameter("y_bounds", 0.18)
         self.declare_parameter("cursor_timeout_s", 0.2)
+        self.declare_parameter("weight_comfort", 50e1)
+        self.declare_parameter("weight_trajectory", 10e2)
+        self.declare_parameter("weight_goal", 10e1)
         self.declare_parameter("docking_enabled", True)
         self.declare_parameter("docking_start_percent", 85.0)
         self.declare_parameter("docking_comfort_reduction", 0.9)
@@ -129,6 +132,9 @@ class MpcControlNode(Node):
         self.x_bounds = float(self.get_parameter("x_bounds").value)
         self.y_bounds = float(self.get_parameter("y_bounds").value)
         self.cursor_timeout_s = float(self.get_parameter("cursor_timeout_s").value)
+        self.weight_comfort = float(self.get_parameter("weight_comfort").value)
+        self.weight_trajectory = float(self.get_parameter("weight_trajectory").value)
+        self.weight_goal = float(self.get_parameter("weight_goal").value)
         self.docking_enabled = bool(self.get_parameter("docking_enabled").value)
         self.docking_start_percent = float(self.get_parameter("docking_start_percent").value)
         self.docking_comfort_reduction = float(
@@ -223,6 +229,9 @@ class MpcControlNode(Node):
                     end,
                     self.model_dt_s,
                     **common,
+                    weight_comfort=self.weight_comfort,
+                    weight_trajectory=self.weight_trajectory,
+                    weight_goal=self.weight_goal,
                     docking_enabled=self.docking_enabled,
                     docking_start_percent=self.docking_start_percent,
                     docking_comfort_reduction=self.docking_comfort_reduction,
@@ -234,6 +243,9 @@ class MpcControlNode(Node):
                     start,
                     end,
                     self.model_dt_s,
+                    weight_comfort=self.weight_comfort,
+                    weight_trajectory=self.weight_trajectory,
+                    weight_goal=self.weight_goal,
                     **common,
                 )
         except Exception as exc:
