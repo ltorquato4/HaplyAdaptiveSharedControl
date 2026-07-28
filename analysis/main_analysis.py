@@ -7,6 +7,7 @@ import preprocess
 import trajectory_analysis
 import mpc_weight_analysis
 import authority_disagreement_analysis
+import compare_directories_error
 
 def run_pipeline(run_name):
     # Define base directories relative to this script
@@ -91,5 +92,18 @@ if __name__ == "__main__":
             # Loop through the found directories chronologically/alphabetically and run the pipeline
             for run_dir in sorted(run_directories):
                 run_pipeline(run_dir)
+                
+            print("5. RUNNING CROSS-DIRECTORY COMPARISON ANALYSIS")
+            print("--------------------------------------------------")
+            # After all individual runs are processed, run the global comparison
+            all_processed_logs_dir = os.path.join(script_base_dir, "../processed_logs")
+            global_comparison_plots_dir = os.path.join(script_base_dir, "../plots/comparison_plots")
             
-            print(">>> ALL RUNS PROCESSED SUCCESSFULLY! <<<")
+            # This calls the actual function inside your compare script
+            compare_directories_error.plot_directories_error_by_mode(
+                base_data_dir=all_processed_logs_dir,
+                output_dir=global_comparison_plots_dir
+            )
+            print("")
+            
+            print(">>> ALL RUNS PROCESSED AND COMPARED SUCCESSFULLY! <<<")
