@@ -95,7 +95,7 @@ def _gui():
     gui.endpoint_dwell_progress = 0.0
     gui.last_abort_reason = ""
     gui.study_phase = "normal"
-    gui.mode_overlay_duration_s = 4.0
+    gui.mode_overlay_duration_s = 3.0
     gui.mode_overlay_until = None
     gui.trial_completion_latched = False
     gui.mapping_ready = False
@@ -321,7 +321,7 @@ def test_mode_change_shows_overlay_and_delays_start(monkeypatch):
     gui._button_pressed(_press())
     assert gui.trial_started is False
 
-    clock[0] = 14.1
+    clock[0] = 13.1
     assert not gui._mode_overlay_visible()
     gui._button_pressed(_press())
     assert gui.trial_started is True
