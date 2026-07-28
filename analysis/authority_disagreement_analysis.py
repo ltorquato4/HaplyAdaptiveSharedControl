@@ -11,23 +11,34 @@ from pathlib import Path
 # ==========================================
 
 def parse_and_calculate_inputs(df):
-    kh_parsed = []
+    kh_x1, kh_x2, kh_y1, kh_y2 = [], [], [], []
     
     for json_str in df.get('K_h', []):
         if pd.isna(json_str):
-            kh_parsed.append(np.nan)
+            kh_x1.append(np.nan); kh_x2.append(np.nan)
+            kh_y1.append(np.nan); kh_y2.append(np.nan)
             continue
         try:
+            # Parse the string into a Python list
             data = json.loads(json_str)
-            if isinstance(data, list) and len(data) > 0:
-                if isinstance(data[0], list): kh_parsed.append(data[0][0])
-                else: kh_parsed.append(data[0])
+            
+            # Map the flat 8-element list to the 2x4 matrix components
+            if isinstance(data, list) and len(data) >= 8 and not isinstance(data[0], list):
+                kh_x1.append(data[0])  # k_x1
+                kh_x2.append(data[1])  # k_x2
+                kh_y1.append(data[6])  # k_y1
+                kh_y2.append(data[7])  # k_y2
             else:
-                kh_parsed.append(np.nan)
+                kh_x1.append(np.nan); kh_x2.append(np.nan)
+                kh_y1.append(np.nan); kh_y2.append(np.nan)
         except (json.JSONDecodeError, TypeError, IndexError):
-            kh_parsed.append(np.nan)
+            kh_x1.append(np.nan); kh_x2.append(np.nan)
+            kh_y1.append(np.nan); kh_y2.append(np.nan)
 
-    df['Kh_value'] = kh_parsed
+    df['Kh_x1'] = kh_x1
+    df['Kh_x2'] = kh_x2
+    df['Kh_y1'] = kh_y1
+    df['Kh_y2'] = kh_y2
 
     def parse_input_array(val):
         if pd.isna(val): return np.nan
@@ -67,6 +78,9 @@ def generate_authority_plots(df, controller, behavior, output_dir, limits, aggre
     prefix = f"{controller}_{behavior}"
     title_info = f"Controller: {controller.title()} | Phase: {behavior.replace('_', ' ').title()}"
 
+    # Define consistent colors for the four parameters
+    colors = {'x1': 'tab:blue', 'x2': 'tab:orange', 'y1': 'tab:green', 'y2': 'tab:red'}
+
     # ----------------------------------------
     # INDIVIDUAL PLOTS
     # ----------------------------------------
@@ -76,14 +90,20 @@ def generate_authority_plots(df, controller, behavior, output_dir, limits, aggre
             
             # --- Plot 1: Kh Evolution ---
             plt.figure(figsize=(10, 6))
-            if 'Kh_value' in traj_data.columns and not traj_data['Kh_value'].isna().all():
-                plt.plot(traj_data['timestamp'], traj_data['Kh_value'], color='purple')
-            plt.title(f"Human Control Parameter ($K_h$) Evolution\n{title_info} | Run: {traj}")
+            
+            if not traj_data[['Kh_x1', 'Kh_x2', 'Kh_y1', 'Kh_y2']].isna().all().all():
+                plt.plot(traj_data['timestamp'], traj_data['Kh_x1'], color=colors['x1'], label=r'$k_{x_1}$')
+                plt.plot(traj_data['timestamp'], traj_data['Kh_x2'], color=colors['x2'], label=r'$k_{x_2}$')
+                plt.plot(traj_data['timestamp'], traj_data['Kh_y1'], color=colors['y1'], label=r'$k_{y_1}$')
+                plt.plot(traj_data['timestamp'], traj_data['Kh_y2'], color=colors['y2'], label=r'$k_{y_2}$')
+                
+            plt.title(f"Human Control Parameters ($K_h$) Evolution\n{title_info} | Run: {traj}")
             plt.xlabel("Timestamp")
-            plt.ylabel("Estimated $K_h$ Magnitude")
+            plt.ylabel("Estimated $K_h$ Components")
             plt.xlim(limits['time'])
             plt.ylim(limits['kh'])
             plt.grid(True)
+            plt.legend(loc='upper right')
             plt.tight_layout()
             plt.savefig(os.path.join(save_dir, f"{prefix}_{traj}_Kh.pdf"))
             plt.close()
@@ -108,16 +128,27 @@ def generate_authority_plots(df, controller, behavior, output_dir, limits, aggre
     # ----------------------------------------
     # --- Plot 1: Kh Evolution (all) ---
     plt.figure(figsize=(10, 6))
-    for traj in trajectories:
+    for idx, traj in enumerate(trajectories):
         traj_data = df[df['file_stem'] == traj]
-        if 'Kh_value' in traj_data.columns and not traj_data['Kh_value'].isna().all():
-            plt.plot(traj_data['timestamp'], traj_data['Kh_value'], color='purple')
-    plt.title(f"Human Control Parameter ($K_h$) Evolution\n{title_info}")
+        
+        lbl_x1 = r'$k_{x_1}$' if idx == 0 else ""
+        lbl_x2 = r'$k_{x_2}$' if idx == 0 else ""
+        lbl_y1 = r'$k_{y_1}$' if idx == 0 else ""
+        lbl_y2 = r'$k_{y_2}$' if idx == 0 else ""
+        
+        if not traj_data[['Kh_x1', 'Kh_x2', 'Kh_y1', 'Kh_y2']].isna().all().all():
+            plt.plot(traj_data['timestamp'], traj_data['Kh_x1'], color=colors['x1'], label=lbl_x1)
+            plt.plot(traj_data['timestamp'], traj_data['Kh_x2'], color=colors['x2'], label=lbl_x2)
+            plt.plot(traj_data['timestamp'], traj_data['Kh_y1'], color=colors['y1'], label=lbl_y1)
+            plt.plot(traj_data['timestamp'], traj_data['Kh_y2'], color=colors['y2'], label=lbl_y2)
+            
+    plt.title(f"Human Control Parameters ($K_h$) Evolution\n{title_info}")
     plt.xlabel("Timestamp")
-    plt.ylabel("Estimated $K_h$ Magnitude")
+    plt.ylabel("Estimated $K_h$ Components")
     plt.xlim(limits['time'])
     plt.ylim(limits['kh'])
     plt.grid(True)
+    plt.legend(loc='upper right')
     plt.tight_layout()
     plt.savefig(os.path.join(save_dir, f"{prefix}_all_Kh.pdf"))
     plt.close()
@@ -131,6 +162,7 @@ def generate_authority_plots(df, controller, behavior, output_dir, limits, aggre
         
         if 'u_h_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_h_mag'], color='blue', label=label_h)
         if 'u_a_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_a_mag'], color='red', label=label_a)
+        
     plt.title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info}")
     plt.xlabel("Timestamp")
     plt.ylabel("Control Input Magnitude")
@@ -155,19 +187,28 @@ def main(data_directory="data", base_output_dir="authority_plots"):
 
     all_data = []
     for file in csv_files:
-        df = pd.read_csv(file)
-        if 'study_controller_mode' in df.columns: df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
-        if 'study_phase' in df.columns: df['study_phase'] = df['study_phase'].astype(str).str.strip().str.lower()
-            
-        df = parse_and_calculate_inputs(df)
-        df['file_stem'] = Path(file).stem
-        all_data.append(df)
+        try:
+            df = pd.read_csv(file)
+            if 'study_controller_mode' in df.columns: 
+                df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
+            if 'study_phase' in df.columns: 
+                df['study_phase'] = df['study_phase'].astype(str).str.strip().str.lower()
+                
+            df = parse_and_calculate_inputs(df)
+            df['file_stem'] = Path(file).stem
+            all_data.append(df)
+        except Exception as e:
+            print(f"Skipping {file} due to error: {e}")
+        
+    if not all_data:
+        print("No valid data could be processed.")
+        return
         
     master_df = pd.concat(all_data, ignore_index=True)
     
     limits = {
         'time': get_padded_limits([master_df['timestamp']], pad=0),
-        'kh': get_padded_limits([master_df['Kh_value']]),
+        'kh': get_padded_limits([master_df['Kh_x1'], master_df['Kh_x2'], master_df['Kh_y1'], master_df['Kh_y2']]),
         'u_mag': get_padded_limits([master_df['u_h_mag'], master_df['u_a_mag']])
     }
 
@@ -177,11 +218,9 @@ def main(data_directory="data", base_output_dir="authority_plots"):
     for controller in controllers:
         controller_df = master_df[master_df['study_controller_mode'] == controller]
         
-        # 1. Plot aggregated all phases for this controller
         print(f"Generating aggregated all phases plots for {controller.upper()} Controller...")
         generate_authority_plots(controller_df, controller, "all_phases", base_output_dir, limits, aggregate_only=True)
 
-        # 2. Iterate through specific phases
         for behavior in behaviors:
             behavior_df = controller_df[controller_df['study_phase'] == behavior]
             
