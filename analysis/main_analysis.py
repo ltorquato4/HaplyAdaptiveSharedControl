@@ -39,7 +39,7 @@ def run_pipeline(run_name):
 
     print("2. RUNNING TRAJECTORY ANALYSIS")
     print("--------------------------------------------------")
-    # Passes the specific processed directory to calculate metrics and outputs to the mirrored plots dir[cite: 4]
+    # Passes the specific processed directory to calculate metrics and outputs to the mirrored plots dir
     trajectory_analysis.main(
         data_directory=processed_logs_dir, 
         output_directory=os.path.join(plots_base_dir, "trajectory_plots")
@@ -48,7 +48,7 @@ def run_pipeline(run_name):
 
     print("3. RUNNING MPC WEIGHTS ANALYSIS")
     print("--------------------------------------------------")
-    # Parses JSON K_a columns and outputs to the mirrored plots dir[cite: 2]
+    # Parses JSON K_a columns and outputs to the mirrored plots dir
     mpc_weight_analysis.main(
         data_directory=processed_logs_dir, 
         output_directory=os.path.join(plots_base_dir, "mpc_plots")
@@ -57,7 +57,7 @@ def run_pipeline(run_name):
 
     print("4. RUNNING AUTHORITY DISAGREEMENT ANALYSIS")
     print("--------------------------------------------------")
-    # Calculates control inputs and outputs to the mirrored plots dir[cite: 1]
+    # Calculates control inputs and outputs to the mirrored plots dir
     authority_disagreement_analysis.main(
         data_directory=processed_logs_dir, 
         base_output_dir=os.path.join(plots_base_dir, "authority_plots")
@@ -65,18 +65,31 @@ def run_pipeline(run_name):
     print("")
 
     print("==================================================")
-    print("PIPELINE COMPLETE!")
+    print(f"PIPELINE COMPLETE FOR: {run_name}")
     print(f"Cleaned data saved to:   {os.path.abspath(processed_logs_dir)}")
     print(f"Generated plots saved to: {os.path.abspath(plots_base_dir)}")
-    print("==================================================")
+    print("==================================================\n")
+
 
 if __name__ == "__main__":
-    parser = argparse.ArgumentParser(description="Master Execution Script for Specific Runs")
-    parser.add_argument(
-        "run_name", 
-        type=str, 
-        help="The name of the directory inside 'logs' to process (e.g., 'session_1')"
-    )
+    # Define the base directory and the path to the main logs folder
+    script_base_dir = os.path.dirname(os.path.abspath(__file__))
+    logs_base_dir = os.path.join(script_base_dir, "../logs")
     
-    args = parser.parse_args()
-    run_pipeline(args.run_name)
+    # Ensure the logs directory exists before attempting to loop through it
+    if not os.path.exists(logs_base_dir):
+        print(f"Error: The root logs directory was not found at {os.path.abspath(logs_base_dir)}")
+    else:
+        # Identify all items in the logs directory that are explicitly folders
+        run_directories = [d for d in os.listdir(logs_base_dir) if os.path.isdir(os.path.join(logs_base_dir, d))]
+        
+        if not run_directories:
+            print(f"No run directories found inside {os.path.abspath(logs_base_dir)}")
+        else:
+            print(f"Found {len(run_directories)} directories to process. Starting batch analysis...\n")
+            
+            # Loop through the found directories chronologically/alphabetically and run the pipeline
+            for run_dir in sorted(run_directories):
+                run_pipeline(run_dir)
+            
+            print(">>> ALL RUNS PROCESSED SUCCESSFULLY! <<<")
