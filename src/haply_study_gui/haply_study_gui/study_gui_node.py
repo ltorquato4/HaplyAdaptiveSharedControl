@@ -108,7 +108,7 @@ class StudyGui(Node):
         self.declare_parameter("debug_controls_enabled", False)
         self.declare_parameter("max_callbacks_per_frame", 16)
         self.declare_parameter("max_drawn_points", 2000)
-        self.declare_parameter("mode_overlay_duration_s", 2.0)
+        self.declare_parameter("mode_overlay_duration_s", 4.0)
         self.declare_parameter("popup_title_font_size", 48)
         self.declare_parameter("popup_message_font_size", 40)
         self.declare_parameter("start_x", -0.08)

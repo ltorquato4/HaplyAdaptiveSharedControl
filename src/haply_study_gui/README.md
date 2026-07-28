@@ -18,7 +18,7 @@ Both `source=mouse` and `source=haply` follow the same press interaction:
    reused as a press for the next scenario.
 
 On the first task and each behavioral-mode change, the workspace shows a
-two-second fading instruction overlay. It does not require a click; trial start
+four-second fading instruction overlay. It does not require a click; trial start
 is enabled automatically when the overlay has faded. A persistent
 `Session finished` overlay is shown after the final trial.
 
@@ -131,7 +131,7 @@ a deliberate edit to its profile; `docking_enabled` remains a run-time switch.
 - `auto_start` is ignored unless debug controls are enabled.
 - `max_callbacks_per_frame` defaults to `16`, preventing ROS callback backlog
   without unbounded work in one render frame.
-- `mode_overlay_duration_s` defaults to `2.0`. It controls the automatic
+- `mode_overlay_duration_s` defaults to `4.0`. It controls the automatic
   behavioral-mode instruction overlay shown on the initial task and mode changes.
 - `popup_title_font_size` and `popup_message_font_size` default to `48` and
   `40` pixels.
