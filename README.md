@@ -229,11 +229,11 @@ Use this WSL-owned hardware path:
    example, for a `1920x1080` display:
 
    ```bash
-   # Hardware GUI at Full HD resolution
+   # Hardware GUI with another resolution
    ros2 launch haply_study_gui study_gui.launch.py \
      participant_id:=P03 screen_size:=1920x1080
 
-   # Mouse GUI at Full HD resolution
+   # Mouse GUI with another resolution
    ros2 launch haply_study_gui study_gui_mouse.launch.py \
      participant_id:=P03 screen_size:=1920x1080
    ```
