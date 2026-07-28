@@ -1,3 +1,4 @@
+import pytest
 from geometry_msgs.msg import Point
 from haply_msgs.msg import (
     StudyButtonPress,
@@ -6,7 +7,7 @@ from haply_msgs.msg import (
     StudyTask,
     StudyTrialState,
 )
-from haply_study_gui.study_gui_node import StudyGui
+from haply_study_gui.study_gui_node import StudyGui, parse_screen_size
 from std_msgs.msg import Bool
 
 
@@ -106,6 +107,17 @@ def _gui():
     gui.current_session_id = "test-session"
     gui.current_trial_id = 0
     return gui
+
+
+def test_screen_size_parser_accepts_standard_resolutions():
+    assert parse_screen_size("2560x1440") == (2560, 1440)
+    assert parse_screen_size(" 1920 X 1080 ") == (1920, 1080)
+
+
+@pytest.mark.parametrize("value", ["1920", "full-hd", "1920x0"])
+def test_screen_size_parser_rejects_invalid_values(value):
+    with pytest.raises(ValueError, match="screen_size"):
+        parse_screen_size(value)
 
 
 def test_mapping_ready_does_not_start_trial():

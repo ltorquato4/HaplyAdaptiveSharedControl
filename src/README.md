@@ -96,6 +96,10 @@ default.
 # GUI, Mapper, and Scenario with mouse input
 ros2 launch haply_study_gui study_gui_mouse.launch.py
 
+# Use a Full HD screen instead of the default 2560x1440
+ros2 launch haply_study_gui study_gui_mouse.launch.py \
+  screen_size:=1920x1080
+
 # Mouse input with Controller, Estimator, and automatic Data Logger
 ros2 launch haply_study_gui study_gui_mouse.launch.py \
   controller:=state_feedback

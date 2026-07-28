@@ -135,14 +135,21 @@ a deliberate edit to its profile; `docking_enabled` remains a run-time switch.
   behavioral-mode instruction overlay shown on the initial task and mode changes.
 - `popup_title_font_size` and `popup_message_font_size` default to `48` and
   `40` pixels.
+- `screen_size` defaults to `2560x1440` and accepts `WIDTHxHEIGHT`. For a
+  Full HD display, append `screen_size:=1920x1080` to either GUI launch:
+
+  ```bash
+  ros2 launch haply_study_gui study_gui_mouse.launch.py \
+    screen_size:=1920x1080
+  ```
 - Mouse simulation stops publishing raw state outside the drawing area. A
   mapped hardware cursor outside the task workspace is hidden and reported as
   `cursor outside workspace` until it returns.
 - The drawing transform fills the visible workspace in both axes.
 - The default participant sidebar shows the current trial, run state, and a
-  neutral controller label: Controller A is the first controller block in the
-  randomized schedule, and Controller B is the second. The GUI shows a
-  Controller A/B overlay at each controller-block transition.
+  neutral controller label: Controller A is the fixed block, and Controller B
+  is the adaptive block. The GUI shows a Controller A/B overlay at each
+  controller-block transition.
 - Append `mode:=debug` to either GUI launch to reveal the underlying
   adaptive/fixed `Mode` and `Control System` rows in the sidebar, for example:
 

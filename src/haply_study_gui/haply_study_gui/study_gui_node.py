@@ -3,6 +3,7 @@
 """Participant-facing Pygame GUI for the Haply study."""
 
 import os
+import re
 import time
 from math import isfinite
 
@@ -26,6 +27,19 @@ from haply_msgs.msg import (  # noqa: E402
 from rclpy.node import Node  # noqa: E402
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy  # noqa: E402
 from std_msgs.msg import Bool  # noqa: E402
+
+
+def parse_screen_size(value):
+    """Parse a WIDTHxHEIGHT screen-size string into positive pixel dimensions."""
+    match = re.fullmatch(r"\s*(\d+)\s*[xX×]\s*(\d+)\s*", str(value))
+    if match is None:
+        raise ValueError(
+            "screen_size must use WIDTHxHEIGHT, for example 1920x1080"
+        )
+    width, height = (int(dimension) for dimension in match.groups())
+    if width <= 0 or height <= 0:
+        raise ValueError("screen_size dimensions must be positive")
+    return width, height
 
 
 class StudyGui(Node):
@@ -77,8 +91,9 @@ class StudyGui(Node):
         """Create ROS interfaces and initialize the Pygame window."""
         super().__init__("study_gui")
 
-        self.declare_parameter("width", 1280)
-        self.declare_parameter("height", 720)
+        self.declare_parameter("screen_size", "")
+        self.declare_parameter("width", 2560)
+        self.declare_parameter("height", 1440)
         self.declare_parameter("side_panel_width", 300)
         self.declare_parameter("sidebar_scale", 1.0)
         self.declare_parameter("marker_radius_px", 22)
@@ -113,8 +128,14 @@ class StudyGui(Node):
         self.declare_parameter("mode", "participant")
         self.declare_parameter("cursor_max_age_s", 0.5)
 
-        self.width = int(self.get_parameter("width").value)
-        self.height = int(self.get_parameter("height").value)
+        configured_screen_size = str(
+            self.get_parameter("screen_size").value
+        ).strip()
+        if configured_screen_size:
+            self.width, self.height = parse_screen_size(configured_screen_size)
+        else:
+            self.width = int(self.get_parameter("width").value)
+            self.height = int(self.get_parameter("height").value)
         self.side_panel_width = int(self.get_parameter("side_panel_width").value)
         self.sidebar_scale = max(
             0.5, float(self.get_parameter("sidebar_scale").value)

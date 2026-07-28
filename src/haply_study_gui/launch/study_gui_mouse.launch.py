@@ -21,6 +21,7 @@ def generate_launch_description():
     mode = LaunchConfiguration("mode")
     participant_id = LaunchConfiguration("participant_id")
     log_directory = LaunchConfiguration("log_directory")
+    screen_size = LaunchConfiguration("screen_size")
     nodes, study_gui = create_study_stack(
         "mouse",
         controller,
@@ -29,6 +30,7 @@ def generate_launch_description():
         controller_log_level=controller_log_level,
         docking_enabled=docking_enabled,
         gui_mode=mode,
+        screen_size=screen_size,
     )
 
     return LaunchDescription(
@@ -61,7 +63,15 @@ def generate_launch_description():
             DeclareLaunchArgument(
                 "mode",
                 default_value="participant",
-                description="GUI display mode: participant hides controller details; debug shows them.",
+                description=(
+                    "GUI display mode: participant hides controller details; "
+                    "debug shows them."
+                ),
+            ),
+            DeclareLaunchArgument(
+                "screen_size",
+                default_value="2560x1440",
+                description="GUI dimensions as WIDTHxHEIGHT.",
             ),
             SetEnvironmentVariable("SDL_AUDIODRIVER", "dummy"),
             SetEnvironmentVariable("PYGAME_HIDE_SUPPORT_PROMPT", "1"),
