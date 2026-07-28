@@ -169,13 +169,13 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
             # 2. Origin-Aligned (f(x)=0) Trajectory
             plt.figure(figsize=(8, 6))
             plt.plot(traj_data['norm_x'], traj_data['norm_y'])
-            plt.scatter(0, 0, c='green', marker='o', s=100, label='Start', zorder=5)
+            plt.scatter(0, 0, c='green', marker='o', s=100, label='Start (0,0)', zorder=5)
             end_x = traj_data['norm_end_x'].iloc[0]
-            plt.scatter(end_x, 0, c='red', marker='X', s=100, label='End', zorder=5)
+            plt.scatter(end_x, 0, c='red', marker='X', s=100, label='End (Aligned)', zorder=5)
             
-            plt.plot([0, end_x], [0, 0], 'k--', alpha=0.5, label='Reference Trajectory')
+            plt.plot([0, end_x], [0, 0], 'k--', alpha=0.5, label='f(x) = 0')
             
-            plt.title(f"Aligned Trajectory \nController: {controller.title()} | Phase: {title_phase} | Run: {traj}")
+            plt.title(f"Aligned Trajectory (f(x)=0)\nController: {controller.title()} | Phase: {title_phase} | Run: {traj}")
             plt.xlabel("Normalized X")
             plt.ylabel("Normalized Y")
             plt.xlim(limits['norm_x'])
@@ -263,9 +263,9 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
         plt.scatter(end_x, 0, c='red', marker='X', s=100, label=l_end, zorder=5, alpha=0.7)
         max_end_x = max(max_end_x, end_x)
         
-    plt.plot([0, max_end_x], [0, 0], 'k--', alpha=0.5, label='Reference Trajectory' if len(trajectories) > 0 else "")
+    plt.plot([0, max_end_x], [0, 0], 'k--', alpha=0.5, label='f(x) = 0' if len(trajectories) > 0 else "")
         
-    plt.title(f"Aligned Trajectory \nController: {controller.title()} | {title_phase}")
+    plt.title(f"Aligned Trajectory (f(x)=0)\nController: {controller.title()} | {title_phase}")
     plt.xlabel("Normalized X")
     plt.ylabel("Normalized Y")
     plt.xlim(limits['norm_x'])
@@ -285,7 +285,7 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
         traj_data = df[df['file_stem'] == traj]
         traj_data_sorted = traj_data.sort_values(by='normalized_distance')
         
-        plt.plot(traj_data_sorted['normalized_distance'], traj_data_sorted['orthogonal_error'], alpha=0.6)
+        plt.plot(traj_data_sorted['normalized_distance'], traj_data_sorted['orthogonal_error'], alpha=0.3)
         
         if len(traj_data_sorted) > 1:
             interp_error = np.interp(
@@ -295,16 +295,27 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
             )
             interpolated_errors.append(interp_error)
 
+    # Dynamic limits for variance area
+    min_err_y = limits['error'][0]
+    max_err_y = limits['error'][1]
+
     if interpolated_errors:
         mean_error = np.mean(interpolated_errors, axis=0)
+        std_error = np.std(interpolated_errors, axis=0)
+        
+        plt.fill_between(common_norm_dist, mean_error - std_error, mean_error + std_error, color='black', alpha=0.2, label=r'$\pm 1$ Std. Dev.', zorder=9)
         plt.plot(common_norm_dist, mean_error, color='black', linewidth=3, linestyle='--', label='Mean Error', zorder=10)
         plt.legend()
+        
+        # Stretch limits to fit the shaded area completely
+        min_err_y = min(min_err_y, np.min(mean_error - std_error))
+        max_err_y = max(max_err_y, np.max(mean_error + std_error))
 
     plt.title(f"Positional Error vs Normalized Distance\nController: {controller.title()} | {title_phase}")
     plt.xlabel("Position along Reference Trajectory (Normalized)")
     plt.ylabel("Orthogonal Error")
     plt.xlim(0, 1)
-    plt.ylim(limits['error'])
+    plt.ylim(min_err_y, max_err_y * 1.05) # Apply adjusted limits
     plt.grid(True)
     plt.savefig(os.path.join(save_dir, f"{prefix_all}_positional_error.pdf"))
     plt.close()
@@ -338,7 +349,7 @@ def generate_controller_summary_plot(df, controller, behaviors, output_dir, limi
     """
     Creates a 4-panel subplot for a specific controller.
     Panels 1-3 contain aligned trajectories for the first up to 3 behaviors.
-    Panel 4 compares the mean error for each behavior and the global mean error against the reference trajectory.
+    Panel 4 compares the mean error & variance for each behavior and the global mean error against the reference trajectory.
     """
     save_dir = os.path.join(output_dir, controller)
     os.makedirs(save_dir, exist_ok=True)
@@ -354,8 +365,11 @@ def generate_controller_summary_plot(df, controller, behaviors, output_dir, limi
     ax_err.set_xlabel("Position along Reference Trajectory (Normalized)")
     ax_err.set_ylabel("Mean Orthogonal Error")
     ax_err.set_xlim(0, 1)
-    ax_err.set_ylim(limits['error'])
-    ax_err.grid(True)
+    ax_err.grid(True) # Re-added the grid that was accidentally dropped
+    
+    # Track min/max for subplot 4 dynamically to fit variance
+    min_err_y = limits['error'][0]
+    max_err_y = limits['error'][1]
     
     # Explicit zero-error line to represent the Reference Trajectory
     ax_err.plot([0, 1], [0, 0], 'k--', alpha=0.5, linewidth=2, label='Reference Trajectory (0 Error)', zorder=1)
@@ -384,8 +398,8 @@ def generate_controller_summary_plot(df, controller, behaviors, output_dir, limi
                 max_end_x = max(max_end_x, end_x)
                 
                 # Scatter Start and End points
-                l_start = 'Start' if idx == 0 else ""
-                l_end = 'End' if idx == 0 else ""
+                l_start = 'Start (0,0)' if idx == 0 else ""
+                l_end = 'End (Aligned)' if idx == 0 else ""
                 ax.scatter(0, 0, c='green', marker='o', s=50, zorder=5, label=l_start, alpha=0.7)
                 ax.scatter(end_x, 0, c='red', marker='X', s=50, zorder=5, label=l_end, alpha=0.7)
                 
@@ -400,25 +414,32 @@ def generate_controller_summary_plot(df, controller, behaviors, output_dir, limi
                     interp_errors.append(interp_err)
             
             # Draw f(x)=0 baseline for this panel
-            ax.plot([0, max_end_x], [0, 0], 'k--', alpha=0.8, label='Reference Trajectory')
+            ax.plot([0, max_end_x], [0, 0], 'k--', alpha=0.8, label='f(x) = 0')
             
             ax.set_title(f"Aligned Trajectories\nPhase: {behavior.replace('_', ' ').title()}")
             ax.set_xlabel("Normalized X")
             ax.set_ylabel("Normalized Y")
             ax.set_xlim(limits['norm_x'])
             ax.set_ylim(limits['norm_y'])
-            ax.set_aspect('equal', adjustable='box')
+            # Removed ax.set_aspect('equal') to ensure uniform subplot window sizes in the 2x2 grid
             ax.grid(True)
             ax.legend(loc='best')
             
-            # Calculate and plot the mean error curve for this behavior in subplot 4
+            # Calculate and plot the mean error curve & variance for this behavior in subplot 4
             if interp_errors:
                 mean_err = np.mean(interp_errors, axis=0)
+                std_err = np.std(interp_errors, axis=0)
+                
+                ax_err.fill_between(common_norm_dist, mean_err - std_err, mean_err + std_err, color=colors[i], alpha=0.2, zorder=4)
                 ax_err.plot(common_norm_dist, mean_err, color=colors[i], linewidth=2, label=f"{behavior.replace('_', ' ').title()} Mean", zorder=5)
+                
+                # Update limits
+                min_err_y = min(min_err_y, np.min(mean_err - std_err))
+                max_err_y = max(max_err_y, np.max(mean_err + std_err))
         else:
             ax.axis('off') # Hide axes if there are fewer than 3 behaviors
             
-    # Calculate the overall mean error across ALL phases in this controller mode
+    # Calculate the overall mean error & variance across ALL phases in this controller mode
     all_interp_errors = []
     for traj in df['file_stem'].unique():
         traj_data = df[df['file_stem'] == traj].sort_values(by='normalized_distance')
@@ -432,8 +453,16 @@ def generate_controller_summary_plot(df, controller, behaviors, output_dir, limi
             
     if all_interp_errors:
         overall_mean = np.mean(all_interp_errors, axis=0)
+        overall_std = np.std(all_interp_errors, axis=0)
+        
+        ax_err.fill_between(common_norm_dist, overall_mean - overall_std, overall_mean + overall_std, color='black', alpha=0.1, label='All Phases Std. Dev.', zorder=9)
         ax_err.plot(common_norm_dist, overall_mean, color='black', linewidth=3, linestyle='-', alpha=0.8, label='All Phases Mean', zorder=10)
         
+        # Final update of limits for the overall summary line
+        min_err_y = min(min_err_y, np.min(overall_mean - overall_std))
+        max_err_y = max(max_err_y, np.max(overall_mean + overall_std))
+        
+    ax_err.set_ylim(min_err_y, max_err_y * 1.05) # Apply adjusted limits to subplot 4
     ax_err.legend()
     
     plt.tight_layout()
