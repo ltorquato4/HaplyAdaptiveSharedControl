@@ -19,7 +19,8 @@ Both `source=mouse` and `source=haply` follow the same press interaction:
 
 On the first task and each behavioral-mode change, the workspace shows a
 two-second fading instruction overlay. It does not require a click; trial start
-is enabled automatically when the overlay has faded.
+is enabled automatically when the overlay has faded. A persistent
+`Session finished` overlay is shown after the final trial.
 
 Before calibration the cursor is hidden. The GUI also hides it and prevents
 trial start when device input is stale, unavailable, or outside the configured
@@ -132,6 +133,8 @@ a deliberate edit to its profile; `docking_enabled` remains a run-time switch.
   without unbounded work in one render frame.
 - `mode_overlay_duration_s` defaults to `2.0`. It controls the automatic
   behavioral-mode instruction overlay shown on the initial task and mode changes.
+- `popup_title_font_size` and `popup_message_font_size` default to `48` and
+  `40` pixels.
 - Mouse simulation stops publishing raw state outside the drawing area. A
   mapped hardware cursor outside the task workspace is hidden and reported as
   `cursor outside workspace` until it returns.

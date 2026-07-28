@@ -30,7 +30,7 @@ scenario_generator:
     # Other supported values are advance and end_session.
     timeout_policy: retry
     publish_hz: 10.0
-    controller_modes: adaptive,fixed
+    controller_modes: fixed,adaptive
     repetitions: 1
     loop_tasks: false
     order_strategy: seeded_random

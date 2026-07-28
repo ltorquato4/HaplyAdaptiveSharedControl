@@ -283,6 +283,18 @@ def test_controller_failure_abort_is_visible_to_the_gui():
     assert gui.last_abort_reason == "controller_failure"
 
 
+def test_session_finished_shows_persistent_popup():
+    gui = _gui()
+
+    gui._trial_state(_state("SESSION_FINISHED"))
+
+    assert gui.session_finished
+    assert gui.mode_overlay_title == "Session finished"
+    assert gui.mode_overlay_instruction == "Thank you."
+    assert gui.mode_overlay_until == float("inf")
+    assert gui._mode_overlay_visible()
+
+
 def test_mode_change_shows_overlay_and_delays_start(monkeypatch):
     gui = _gui()
     clock = [10.0]

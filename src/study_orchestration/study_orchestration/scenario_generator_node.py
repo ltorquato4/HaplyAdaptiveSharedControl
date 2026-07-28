@@ -47,7 +47,8 @@ class ScheduledTask:
 class ScenarioGenerator(Node):
     """Own phase rollout, task points, controller mode, and endpoint detection."""
 
-    PHASES = ("aggressive", "normal", "careful")
+    PHASES = ("careful", "normal", "aggressive")
+    CONTROLLER_MODES = ("fixed", "adaptive")
     POINT_COUNT = 5
     SCHEMA_VERSION = 3
 
@@ -84,7 +85,7 @@ class ScenarioGenerator(Node):
         self.declare_parameter("timeout_policy", "retry")
         self.declare_parameter("publish_hz", 10.0)
         self.declare_parameter("initial_segment_index", 0)
-        self.declare_parameter("controller_modes", "adaptive,fixed")
+        self.declare_parameter("controller_modes", "fixed,adaptive")
         self.declare_parameter("repetitions", 1)
         self.declare_parameter("loop_tasks", False)
         self.declare_parameter("order_strategy", "seeded_random")
@@ -355,21 +356,29 @@ class ScenarioGenerator(Node):
         return segments
 
     def _parse_modes(self, value: str) -> list[str]:
-        modes = [mode.strip().lower() for mode in value.split(",")]
-        modes = [mode for mode in modes if mode in ("adaptive", "fixed")]
-        return modes or ["adaptive", "fixed"]
+        configured_modes = {
+            mode.strip().lower()
+            for mode in value.split(",")
+            if mode.strip().lower() in self.CONTROLLER_MODES
+        }
+        return [
+            mode for mode in self.CONTROLLER_MODES if mode in configured_modes
+        ] or list(self.CONTROLLER_MODES)
 
     def _expand_session_tasks(self) -> list[ScheduledTask]:
-        """Expand every condition with reproducible mode, phase, and path ordering."""
+        """Expand conditions in canonical mode and phase blocks.
+
+        Controller and behavioral-state order is fixed across participants for
+        direct comparison. Seeded randomization applies only to paths within a
+        behavioral-state block.
+        """
         tasks = []
-        for _ in range(self.repetitions):
-            modes = list(self.controller_modes)
-            if self.order_strategy == "seeded_random":
-                self._schedule_rng.shuffle(modes)
-            for mode in modes:
+        modes = [
+            mode for mode in self.CONTROLLER_MODES if mode in self.controller_modes
+        ]
+        for mode in modes:
+            for _ in range(self.repetitions):
                 phases = list(self.PHASES)
-                if self.order_strategy == "seeded_random":
-                    self._schedule_rng.shuffle(phases)
                 for phase in phases:
                     segments = list(range(len(self.segments)))
                     if self.order_strategy == "seeded_random":

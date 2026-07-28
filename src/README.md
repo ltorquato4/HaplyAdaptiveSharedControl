@@ -146,7 +146,7 @@ configuration.
 
 Task paths are configured in `study_orchestration/config/default_tasks.yaml`.
 Each YAML path has independent `start_point` and `end_point` values; it need
-not be a closed chain.
+not be a closed chain. The default paths all have the same `0.16`-unit length.
 
 ## Configuration layers
 
