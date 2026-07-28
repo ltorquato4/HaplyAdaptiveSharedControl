@@ -19,10 +19,7 @@ def parse_and_calculate_inputs(df):
             kh_y1.append(np.nan); kh_y2.append(np.nan)
             continue
         try:
-            # Parse the string into a Python list
             data = json.loads(json_str)
-            
-            # Map the flat 8-element list to the 2x4 matrix components
             if isinstance(data, list) and len(data) >= 8 and not isinstance(data[0], list):
                 kh_x1.append(data[0])  # k_x1
                 kh_x2.append(data[1])  # k_x2
@@ -67,67 +64,109 @@ def get_padded_limits(series_list, pad=0.05):
     return (min_val - pad * rng, max_val + pad * rng)
 
 # ==========================================
-# 2. Plotting Functions
+# 2. Plotting & Phase Marker Logic
 # ==========================================
 
-def generate_authority_plots(df, controller, behavior, output_dir, limits, aggregate_only=False):
-    save_dir = os.path.join(output_dir, controller, behavior)
+def add_global_phase_labels(ax, df):
+    """
+    Finds the exact time intervals for all phases across ALL trajectories,
+    merges them into chronological blocks, and draws dimension arrows for each execution mode.
+    Returns the number of vertically stacked levels used, to adjust label padding dynamically.
+    """
+    if 'study_phase' not in df.columns:
+        return 1
+        
+    blocks = []
+    
+    # 1. Identify continuous phase blocks within EVERY trajectory
+    for traj in df['file_stem'].unique():
+        traj_df = df[df['file_stem'] == traj].sort_values('timestamp')
+        if traj_df.empty: 
+            continue
+        
+        traj_df['block'] = (traj_df['study_phase'] != traj_df['study_phase'].shift(1)).cumsum()
+        for _, block_df in traj_df.groupby('block'):
+            blocks.append({
+                'phase': block_df['study_phase'].iloc[0],
+                'min': block_df['timestamp'].min(),
+                'max': block_df['timestamp'].max()
+            })
+            
+    if not blocks: 
+        return 1
+    
+    # 2. Sort all extracted blocks chronologically
+    blocks_df = pd.DataFrame(blocks).sort_values('min')
+    
+    # 3. Merge overlapping or sequential blocks of the SAME phase
+    merged_blocks = []
+    for _, row in blocks_df.iterrows():
+        if not merged_blocks:
+            merged_blocks.append(row.to_dict())
+        else:
+            last = merged_blocks[-1]
+            # If the phase is identical and timestamps are close/overlapping, merge them
+            if row['phase'] == last['phase'] and row['min'] <= last['max'] + 5.0: 
+                last['max'] = max(last['max'], row['max'])
+            else:
+                merged_blocks.append(row.to_dict())
+                
+    trans = ax.get_xaxis_transform()
+    levels = [] # Tracks ending timestamps to allow safe vertical stacking if phases overlap
+    
+    # 4. Draw the boundaries, arrows, and labels
+    for idx, row in pd.DataFrame(merged_blocks).iterrows():
+        phase_name = str(row['phase']).replace('_', ' ').title()
+        p_start = row['min']
+        p_end = row['max']
+        p_mid = (p_start + p_end) / 2
+        
+        # Determine vertical level to prevent text collision if modes overlap in time
+        level = 0
+        for l_idx, l_end in enumerate(levels):
+            if p_start >= l_end:
+                level = l_idx
+                break
+        else:
+            level = len(levels)
+            levels.append(p_end)
+        
+        levels[level] = p_end
+        
+        y_arrow = -0.06 - (level * 0.08)
+        y_text = -0.09 - (level * 0.08)
+        
+        # Draw vertical dividers (skip global edges to avoid overlapping the y-axis)
+        if p_start > df['timestamp'].min():
+            ax.axvline(x=p_start, color='black', linestyle='--', linewidth=1.2, alpha=0.6)
+        if p_end < df['timestamp'].max():
+            ax.axvline(x=p_end, color='black', linestyle='--', linewidth=1.2, alpha=0.6)
+            
+        # Draw horizontal dimension arrow
+        ax.annotate('', xy=(p_start, y_arrow), xytext=(p_end, y_arrow),
+                    xycoords=trans, textcoords=trans,
+                    arrowprops=dict(arrowstyle='<|-|>', color='black', shrinkA=0, shrinkB=0),
+                    annotation_clip=False)
+                    
+        # Place the execution mode label
+        ax.text(p_mid, y_text, phase_name, transform=trans,
+                ha='center', va='top', fontsize=11, color='black', clip_on=False)
+                
+    return len(levels)
+
+def generate_aggregated_plots(df, controller, output_dir, limits):
+    save_dir = os.path.join(output_dir, controller)
     os.makedirs(save_dir, exist_ok=True)
     
     trajectories = df['file_stem'].unique()
-    prefix = f"{controller}_{behavior}"
-    title_info = f"Controller: {controller.title()} | Phase: {behavior.replace('_', ' ').title()}"
-
-    # Define consistent colors for the four parameters
+    title_info = f"Controller: {controller.title()} | Phase: All Phases"
     colors = {'x1': 'tab:blue', 'x2': 'tab:orange', 'y1': 'tab:green', 'y2': 'tab:red'}
 
     # ----------------------------------------
-    # INDIVIDUAL PLOTS
+    # Plot 1: Kh Evolution (Aggregated)
     # ----------------------------------------
-    if not aggregate_only:
-        for traj in trajectories:
-            traj_data = df[df['file_stem'] == traj]
-            
-            # --- Plot 1: Kh Evolution ---
-            plt.figure(figsize=(10, 6))
-            
-            if not traj_data[['Kh_x1', 'Kh_x2', 'Kh_y1', 'Kh_y2']].isna().all().all():
-                plt.plot(traj_data['timestamp'], traj_data['Kh_x1'], color=colors['x1'], label=r'$k_{x_1}$')
-                plt.plot(traj_data['timestamp'], traj_data['Kh_x2'], color=colors['x2'], label=r'$k_{x_2}$')
-                plt.plot(traj_data['timestamp'], traj_data['Kh_y1'], color=colors['y1'], label=r'$k_{y_1}$')
-                plt.plot(traj_data['timestamp'], traj_data['Kh_y2'], color=colors['y2'], label=r'$k_{y_2}$')
-                
-            plt.title(f"Human Control Parameters ($K_h$) Evolution\n{title_info} | Run: {traj}")
-            plt.xlabel("Timestamp")
-            plt.ylabel("Estimated $K_h$ Components")
-            plt.xlim(limits['time'])
-            plt.ylim(limits['kh'])
-            plt.grid(True)
-            plt.legend(loc='upper right')
-            plt.tight_layout()
-            plt.savefig(os.path.join(save_dir, f"{prefix}_{traj}_Kh.pdf"))
-            plt.close()
-
-            # --- Plot 2: Input Comparison ---
-            plt.figure(figsize=(12, 6))
-            if 'u_h_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_h_mag'], color='blue', label="Human Input ($u_h$)")
-            if 'u_a_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_a_mag'], color='red', label="Adaptive Input ($u_a$)")
-            plt.title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info} | Run: {traj}")
-            plt.xlabel("Timestamp")
-            plt.ylabel("Control Input Magnitude")
-            plt.xlim(limits['time'])
-            plt.ylim(limits['u_mag'])
-            plt.grid(True)
-            plt.legend(loc='upper right')
-            plt.tight_layout()
-            plt.savefig(os.path.join(save_dir, f"{prefix}_{traj}_inputs.pdf"))
-            plt.close()
-
-    # ----------------------------------------
-    # AGGREGATED PLOTS
-    # ----------------------------------------
-    # --- Plot 1: Kh Evolution (all) ---
-    plt.figure(figsize=(10, 6))
+    fig, ax = plt.subplots(figsize=(12, 7))
+    
     for idx, traj in enumerate(trajectories):
         traj_data = df[df['file_stem'] == traj]
         
@@ -137,46 +176,64 @@ def generate_authority_plots(df, controller, behavior, output_dir, limits, aggre
         lbl_y2 = r'$k_{y_2}$' if idx == 0 else ""
         
         if not traj_data[['Kh_x1', 'Kh_x2', 'Kh_y1', 'Kh_y2']].isna().all().all():
-            plt.plot(traj_data['timestamp'], traj_data['Kh_x1'], color=colors['x1'], label=lbl_x1)
-            plt.plot(traj_data['timestamp'], traj_data['Kh_x2'], color=colors['x2'], label=lbl_x2)
-            plt.plot(traj_data['timestamp'], traj_data['Kh_y1'], color=colors['y1'], label=lbl_y1)
-            plt.plot(traj_data['timestamp'], traj_data['Kh_y2'], color=colors['y2'], label=lbl_y2)
+            ax.plot(traj_data['timestamp'], traj_data['Kh_x1'], color=colors['x1'], label=lbl_x1)
+            ax.plot(traj_data['timestamp'], traj_data['Kh_x2'], color=colors['x2'], label=lbl_x2)
+            ax.plot(traj_data['timestamp'], traj_data['Kh_y1'], color=colors['y1'], label=lbl_y1)
+            ax.plot(traj_data['timestamp'], traj_data['Kh_y2'], color=colors['y2'], label=lbl_y2)
             
-    plt.title(f"Human Control Parameters ($K_h$) Evolution\n{title_info}")
-    plt.xlabel("Timestamp")
-    plt.ylabel("Estimated $K_h$ Components")
-    plt.xlim(limits['time'])
-    plt.ylim(limits['kh'])
-    plt.grid(True)
-    plt.legend(loc='upper right')
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, f"{prefix}_all_Kh.pdf"))
+    ax.set_title(f"Human Control Parameters ($K_h$) Evolution\n{title_info}", pad=15)
+    ax.set_ylabel("Estimated $K_h$ Components")
+    ax.set_xlim(limits['time'])
+    ax.set_ylim(limits['kh'])
+    ax.grid(True)
+    
+    # Process phase labels and adjust bottom padding based on how many levels were used
+    num_levels = add_global_phase_labels(ax, df)
+    ax.set_xlabel("Timestamp", labelpad=35 + (num_levels * 18))
+    
+    ax.legend(loc='upper right')
+    plt.savefig(os.path.join(save_dir, f"{controller}_all_Kh.pdf"), bbox_inches='tight')
     plt.close()
 
-    # --- Plot 2: Input Comparison (all) ---
-    plt.figure(figsize=(12, 6))
+    # ----------------------------------------
+    # Plot 2: Input Comparison (Aggregated)
+    # ----------------------------------------
+    fig, ax = plt.subplots(figsize=(12, 7))
+    
     for idx, traj in enumerate(trajectories):
         traj_data = df[df['file_stem'] == traj]
         label_h = "Human Input ($u_h$)" if idx == 0 else ""
         label_a = "Adaptive Input ($u_a$)" if idx == 0 else ""
         
-        if 'u_h_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_h_mag'], color='blue', label=label_h)
-        if 'u_a_mag' in traj_data.columns: plt.plot(traj_data['timestamp'], traj_data['u_a_mag'], color='red', label=label_a)
-        
-    plt.title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info}")
-    plt.xlabel("Timestamp")
-    plt.ylabel("Control Input Magnitude")
-    plt.xlim(limits['time'])
-    plt.ylim(limits['u_mag'])
-    plt.grid(True)
-    plt.legend(loc='upper right')
-    plt.tight_layout()
-    plt.savefig(os.path.join(save_dir, f"{prefix}_all_inputs.pdf"))
+        if 'u_h_mag' in traj_data.columns: ax.plot(traj_data['timestamp'], traj_data['u_h_mag'], color='blue', label=label_h)
+        if 'u_a_mag' in traj_data.columns: ax.plot(traj_data['timestamp'], traj_data['u_a_mag'], color='red', label=label_a)
+            
+    ax.set_title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info}", pad=15)
+    ax.set_ylabel("Control Input Magnitude")
+    ax.set_xlim(limits['time'])
+    ax.set_ylim(limits['u_mag'])
+    ax.grid(True)
+    
+    num_levels = add_global_phase_labels(ax, df)
+    ax.set_xlabel("Timestamp", labelpad=35 + (num_levels * 18))
+    
+    ax.legend(loc='upper right')
+    plt.savefig(os.path.join(save_dir, f"{controller}_all_inputs.pdf"), bbox_inches='tight')
     plt.close()
 
 # ==========================================
 # 3. Main Execution Workflow
 # ==========================================
+
+def process_dataframe(df, file_stem):
+    if 'study_controller_mode' in df.columns: 
+        df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
+    if 'study_phase' in df.columns: 
+        df['study_phase'] = df['study_phase'].astype(str).str.strip().str.lower()
+        
+    df = parse_and_calculate_inputs(df)
+    df['file_stem'] = file_stem
+    return df
 
 def main(data_directory="data", base_output_dir="authority_plots"):
     csv_files = glob.glob(os.path.join(data_directory, "**", "*.csv"), recursive=True)
@@ -189,14 +246,7 @@ def main(data_directory="data", base_output_dir="authority_plots"):
     for file in csv_files:
         try:
             df = pd.read_csv(file)
-            if 'study_controller_mode' in df.columns: 
-                df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
-            if 'study_phase' in df.columns: 
-                df['study_phase'] = df['study_phase'].astype(str).str.strip().str.lower()
-                
-            df = parse_and_calculate_inputs(df)
-            df['file_stem'] = Path(file).stem
-            all_data.append(df)
+            all_data.append(process_dataframe(df, Path(file).stem))
         except Exception as e:
             print(f"Skipping {file} due to error: {e}")
         
@@ -213,20 +263,12 @@ def main(data_directory="data", base_output_dir="authority_plots"):
     }
 
     controllers = master_df['study_controller_mode'].dropna().unique()
-    behaviors = master_df['study_phase'].dropna().unique()
 
     for controller in controllers:
         controller_df = master_df[master_df['study_controller_mode'] == controller]
         
-        print(f"Generating aggregated all phases plots for {controller.upper()} Controller...")
-        generate_authority_plots(controller_df, controller, "all_phases", base_output_dir, limits, aggregate_only=True)
-
-        for behavior in behaviors:
-            behavior_df = controller_df[controller_df['study_phase'] == behavior]
-            
-            if not behavior_df.empty:
-                print(f"Generating scaled & aggregated plots for {controller} controller - {behavior} phase...")
-                generate_authority_plots(behavior_df, controller, behavior, base_output_dir, limits, aggregate_only=False)
+        print(f"Generating aggregated plot for {controller.upper()} Controller...")
+        generate_aggregated_plots(controller_df, controller, base_output_dir, limits)
 
 if __name__ == "__main__":
     main(data_directory="../processed_logs", base_output_dir="../plots/authority_plots")
