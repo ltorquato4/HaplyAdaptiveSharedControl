@@ -3,7 +3,6 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
-from matplotlib.gridspec import GridSpec
 from pathlib import Path
 
 # ==========================================
@@ -320,25 +319,17 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
             )
             interpolated_errors.append(interp_error)
 
-    min_err_y = limits['error'][0]
-    max_err_y = limits['error'][1]
-
     if interpolated_errors:
         mean_error = np.mean(interpolated_errors, axis=0)
-        std_error = np.std(interpolated_errors, axis=0)
-        
-        plt.fill_between(common_norm_dist, mean_error - std_error, mean_error + std_error, color='black', alpha=0.2, label=r'$\pm 1$ Std. Dev.', zorder=9)
+        # Variance shading removed as requested for the standard aggregated plots
         plt.plot(common_norm_dist, mean_error, color='black', linewidth=3, linestyle='--', label='Mean Error', zorder=10)
         plt.legend()
-        
-        min_err_y = min(min_err_y, np.min(mean_error - std_error))
-        max_err_y = max(max_err_y, np.max(mean_error + std_error))
 
     plt.title(f"Positional Error vs Normalized Distance\nController: {controller.title()} | {title_phase}")
     plt.xlabel("Position along Reference Trajectory (Normalized)")
     plt.ylabel("Orthogonal Error")
     plt.xlim(0, 1)
-    plt.ylim(min_err_y, max_err_y * 1.05)
+    plt.ylim(limits['error'])
     plt.grid(True)
     plt.savefig(os.path.join(save_dir, f"{prefix_all}_positional_error.pdf"))
     plt.close()
@@ -368,156 +359,164 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
     plt.close()
 
 
-def generate_controller_summary_plot(df, controller, behaviors, output_dir, limits):
+def generate_controller_summary_plots(df, controller, behaviors, output_dir, limits):
     """
-    Creates a master layout for a specific controller.
-    Top Half / Bottom Left: Large panels containing aligned trajectories for up to 3 behaviors.
-    Bottom Right: A 4x1 nested subplot stack isolating the Mean Positional Error for each phase + All phases.
+    Creates two distinct summary figures for a specific controller:
+    1. A 1x3 grid containing Aligned Trajectories for each behavior (Shared scales).
+    2. A 4x1 grid containing Mean Positional Error for each behavior + All phases (Independent dynamic scaling).
     """
     save_dir = os.path.join(output_dir, controller)
     os.makedirs(save_dir, exist_ok=True)
     
-    fig = plt.figure(figsize=(14, 12))
-    
-    # 1. Create main 2x2 grid layout
-    gs = GridSpec(2, 2, figure=fig, hspace=0.3, wspace=0.2)
-    
-    # Large subplots for trajectories
-    traj_axes = [
-        fig.add_subplot(gs[0, 0]), # Top Left
-        fig.add_subplot(gs[0, 1]), # Top Right
-        fig.add_subplot(gs[1, 0])  # Bottom Left
-    ]
-    
-    # 2. Create nested 4x1 grid inside the Bottom Right quadrant
-    gs_err = gs[1, 1].subgridspec(4, 1, hspace=0.35)
-    err_axes = [fig.add_subplot(gs_err[i]) for i in range(4)]
-    
     common_norm_dist = np.linspace(0, 1, 500)
     colors = ['tab:blue', 'tab:orange', 'tab:green']
     
-    min_err_y = limits['error'][0]
-    max_err_y = limits['error'][1]
-    
+    # ==========================================
+    # Plot 1: Aligned Trajectories (1x3 Grid)
+    # ==========================================
+    fig_traj, axes_traj = plt.subplots(1, 3, figsize=(18, 5), sharex=True, sharey=True)
+    if not isinstance(axes_traj, np.ndarray):
+        axes_traj = [axes_traj]
+        
     min_norm_y = limits['norm_y'][0]
     max_norm_y = limits['norm_y'][1]
     
-    # Format the 4 Error Subplots
-    err_axes[0].set_title(f"Mean Positional Error\nController: {controller.title()}", fontsize=12)
-    err_axes[3].set_xlabel("Position along Reference Trajectory (Normalized)", fontsize=10)
-    
-    for i, ax in enumerate(err_axes):
-        ax.plot([0, 1], [0, 0], 'k--', alpha=0.5, linewidth=1.5, zorder=1)
-        ax.set_xlim(0, 1)
-        ax.grid(True)
-        ax.set_ylabel("Error", fontsize=8)
-        ax.tick_params(axis='both', which='major', labelsize=8)
-        # Hide X-labels for the top 3 plots so they look flush and neat
-        if i < 3:
-            ax.tick_params(labelbottom=False)
-            
-    # 3. Process up to the first 3 distinct behaviors
     for i in range(3):
-        ax_traj = traj_axes[i]
-        ax_err = err_axes[i]
-        
+        ax = axes_traj[i]
         if i < len(behaviors):
             behavior = behaviors[i]
             beh_df = df[df['study_phase'] == behavior]
             
             trajectories = beh_df['file_stem'].unique()
             max_end_x = 0
-            
-            interp_errors = []
             interp_nx = []
             interp_ny = []
             
             for idx, traj in enumerate(trajectories):
                 traj_data = beh_df[beh_df['file_stem'] == traj]
-                
-                # Plot aligned trajectory
-                ax_traj.plot(traj_data['norm_x'], traj_data['norm_y'], alpha=0.2, color=colors[i])
+                ax.plot(traj_data['norm_x'], traj_data['norm_y'], alpha=0.2, color=colors[i])
                 
                 end_x = traj_data['norm_end_x'].iloc[0]
                 max_end_x = max(max_end_x, end_x)
                 
                 l_start = 'Start' if idx == 0 else ""
                 l_end = 'End' if idx == 0 else ""
-                ax_traj.scatter(0, 0, c='green', marker='o', s=50, zorder=5, label=l_start, alpha=0.7)
-                ax_traj.scatter(end_x, 0, c='red', marker='X', s=50, zorder=5, label=l_end, alpha=0.7)
+                ax.scatter(0, 0, c='green', marker='o', s=50, zorder=5, label=l_start, alpha=0.7)
+                ax.scatter(end_x, 0, c='red', marker='X', s=50, zorder=5, label=l_end, alpha=0.7)
                 
                 traj_data_sorted = traj_data.sort_values(by='normalized_distance')
                 if len(traj_data_sorted) > 1:
-                    interp_errors.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['orthogonal_error']))
                     interp_nx.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['norm_x']))
                     interp_ny.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['norm_y']))
             
-            ax_traj.plot([0, max_end_x], [0, 0], 'k--', alpha=0.8, label='f(x) = 0')
+            ax.plot([0, max_end_x], [0, 0], 'k--', alpha=0.8, label='f(x) = 0')
             
-            # Trajectory Mean Line
             if interp_nx and interp_ny:
                 mean_nx = np.mean(interp_nx, axis=0)
                 mean_ny = np.mean(interp_ny, axis=0)
-                ax_traj.plot(mean_nx, mean_ny, color=colors[i], linewidth=2, linestyle='--', label=f"Mean Path", zorder=10)
+                ax.plot(mean_nx, mean_ny, color=colors[i], linewidth=2, linestyle='--', label=f"Mean Path", zorder=10)
+                
+                min_norm_y = min(min_norm_y, np.min(mean_ny))
+                max_norm_y = max(max_norm_y, np.max(mean_ny))
             
-            ax_traj.set_title(f"Aligned Trajectories\nPhase: {behavior.replace('_', ' ').title()}")
-            ax_traj.set_xlabel("Normalized X")
-            ax_traj.set_ylabel("Normalized Y")
-            ax_traj.set_xlim(limits['norm_x'])
-            ax_traj.grid(True)
-            ax_traj.legend(loc='best', fontsize=9)
+            ax.set_title(f"Aligned Trajectories\nPhase: {behavior.replace('_', ' ').title()}")
+            ax.set_xlabel("Normalized X")
+            if i == 0:
+                ax.set_ylabel("Normalized Y")
+            ax.grid(True)
+            ax.set_aspect('equal', adjustable='box')
+            ax.legend(loc='best', fontsize=9)
+        else:
+            ax.set_visible(False)
             
-            # Error Mean & Variance for the nested 4x1 stack
+    # Apply unified Y-limits for the 1x3 grid
+    pad_norm_y = (max_norm_y - min_norm_y) * 0.05 if max_norm_y != min_norm_y else 1.0
+    axes_traj[0].set_ylim(min_norm_y - pad_norm_y, max_norm_y + pad_norm_y)
+    axes_traj[0].set_xlim(limits['norm_x'])
+    
+    plt.tight_layout()
+    fig_traj.savefig(os.path.join(save_dir, f"{controller}_summary_aligned_trajectories.pdf"), bbox_inches='tight')
+    plt.close(fig_traj)
+    
+    # ==========================================
+    # Plot 2: Mean Positional Error (4x1 Grid)
+    # ==========================================
+    fig_err, axes_err = plt.subplots(4, 1, figsize=(8, 10), sharex=True, sharey=True)
+    if not isinstance(axes_err, np.ndarray):
+        axes_err = [axes_err]
+        
+    fig_err.suptitle(f"Mean Positional Error\nController: {controller.title()}", fontsize=14)
+    
+    # Dynamically track min and max specifically for this grid, independent of global raw errors
+    min_err_y = float('inf')
+    max_err_y = float('-inf')
+    
+    all_interp_errors = []
+    
+    for i in range(3):
+        ax = axes_err[i]
+        ax.plot([0, 1], [0, 0], 'k--', alpha=0.5, linewidth=1.5, zorder=1)
+        ax.grid(True)
+        ax.set_ylabel("Error")
+        
+        if i < len(behaviors):
+            behavior = behaviors[i]
+            beh_df = df[df['study_phase'] == behavior]
+            
+            interp_errors = []
+            for traj in beh_df['file_stem'].unique():
+                traj_data = beh_df[beh_df['file_stem'] == traj].sort_values(by='normalized_distance')
+                if len(traj_data) > 1:
+                    err = np.interp(common_norm_dist, traj_data['normalized_distance'], traj_data['orthogonal_error'])
+                    interp_errors.append(err)
+                    all_interp_errors.append(err)
+            
             if interp_errors:
                 mean_err = np.mean(interp_errors, axis=0)
                 std_err = np.std(interp_errors, axis=0)
                 
-                ax_err.fill_between(common_norm_dist, mean_err - std_err, mean_err + std_err, color=colors[i], alpha=0.2, zorder=4)
-                ax_err.plot(common_norm_dist, mean_err, color=colors[i], linewidth=2, zorder=5)
-                # Label is placed inside the graph to save space
-                ax_err.text(0.02, 0.85, f"{behavior.replace('_', ' ').title()}", transform=ax_err.transAxes, fontsize=9, fontweight='bold', va='top')
+                ax.fill_between(common_norm_dist, mean_err - std_err, mean_err + std_err, color=colors[i], alpha=0.2, zorder=4)
+                ax.plot(common_norm_dist, mean_err, color=colors[i], linewidth=2, zorder=5)
                 
                 min_err_y = min(min_err_y, np.min(mean_err - std_err))
                 max_err_y = max(max_err_y, np.max(mean_err + std_err))
+                
+            # Inline bold label for the behavior phase
+            ax.text(0.02, 0.85, f"{behavior.replace('_', ' ').title()}", transform=ax.transAxes, fontsize=11, fontweight='bold', va='top')
         else:
-            ax_traj.axis('off')
-            ax_err.axis('off')
+            ax.set_visible(False)
             
-    # 4. Calculate the overall mean error for the 4th nested subplot ("All Phases")
-    all_interp_errors = []
-    for traj in df['file_stem'].unique():
-        traj_data = df[df['file_stem'] == traj].sort_values(by='normalized_distance')
-        if len(traj_data) > 1:
-            interp_err = np.interp(
-                common_norm_dist, 
-                traj_data['normalized_distance'], 
-                traj_data['orthogonal_error']
-            )
-            all_interp_errors.append(interp_err)
-            
-    ax_err_all = err_axes[3]
+    # Subplot 4: All Phases Combined
+    ax_all = axes_err[3]
+    ax_all.plot([0, 1], [0, 0], 'k--', alpha=0.5, linewidth=1.5, zorder=1)
+    ax_all.grid(True)
+    ax_all.set_ylabel("Error")
+    ax_all.set_xlabel("Position along Reference Trajectory (Normalized)")
+    
     if all_interp_errors:
         overall_mean = np.mean(all_interp_errors, axis=0)
         overall_std = np.std(all_interp_errors, axis=0)
         
-        ax_err_all.fill_between(common_norm_dist, overall_mean - overall_std, overall_mean + overall_std, color='black', alpha=0.1, zorder=9)
-        ax_err_all.plot(common_norm_dist, overall_mean, color='black', linewidth=2, linestyle='-', alpha=0.8, zorder=10)
-        ax_err_all.text(0.02, 0.85, "All Phases", transform=ax_err_all.transAxes, fontsize=9, fontweight='bold', va='top')
+        ax_all.fill_between(common_norm_dist, overall_mean - overall_std, overall_mean + overall_std, color='black', alpha=0.1, zorder=9)
+        ax_all.plot(common_norm_dist, overall_mean, color='black', linewidth=2, linestyle='-', alpha=0.8, zorder=10)
         
         min_err_y = min(min_err_y, np.min(overall_mean - overall_std))
         max_err_y = max(max_err_y, np.max(overall_mean + overall_std))
         
-    # 5. Apply dynamic uniform limits across all active subplots so variance is never cut
-    pad_norm_y = (max_norm_y - min_norm_y) * 0.05 if max_norm_y != min_norm_y else 1.0
-    for i in range(3):
-        if i < len(behaviors):
-            traj_axes[i].set_ylim(min_norm_y - pad_norm_y, max_norm_y + pad_norm_y)
-            
-    for ax in err_axes:
-        ax.set_ylim(min_err_y, max_err_y * 1.05) 
-        
-    plt.savefig(os.path.join(save_dir, f"{controller}_summary_dashboard.pdf"), bbox_inches='tight')
-    plt.close()
+    ax_all.text(0.02, 0.85, "All Phases", transform=ax_all.transAxes, fontsize=11, fontweight='bold', va='top')
+    
+    # Enforce uniform limits derived specifically from the plotted means and variances
+    if min_err_y == float('inf'): # Fallback just in case no data was parsed
+        min_err_y, max_err_y = 0, 0.1
+    
+    pad_err_y = (max_err_y - min_err_y) * 0.05
+    axes_err[0].set_ylim(min_err_y - pad_err_y, max_err_y + pad_err_y)
+    axes_err[0].set_xlim(0, 1)
+    
+    plt.tight_layout()
+    fig_err.subplots_adjust(top=0.92) # Leave space for the suptitle so it doesn't overlap
+    fig_err.savefig(os.path.join(save_dir, f"{controller}_summary_positional_error.pdf"), bbox_inches='tight')
+    plt.close(fig_err)
 
 # ==========================================
 # 3. Main Execution Workflow
@@ -570,8 +569,8 @@ def main(data_directory="data", output_directory="analysis_plots"):
                 print(f"Generating scaled & aggregated plots for {controller} controller - {behavior} phase...")
                 generate_plots(behavior_df, controller, behavior, output_directory, limits, aggregate_only=False)
 
-        print(f"Generating 4-panel summary dashboard for {controller} controller...")
-        generate_controller_summary_plot(controller_df, controller, behaviors, output_directory, limits)
+        print(f"Generating summary dashboard plots for {controller} controller...")
+        generate_controller_summary_plots(controller_df, controller, behaviors, output_directory, limits)
 
 if __name__ == "__main__":
     main(data_directory="../processed_logs", output_directory="../plots/trajectory_plots")
