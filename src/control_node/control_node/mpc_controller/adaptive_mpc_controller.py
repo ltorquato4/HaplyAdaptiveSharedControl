@@ -102,7 +102,7 @@ class AdaptiveMpcController(AdaptiveController, MpcController):
         # Divide by a soft-normalization factor to scale the influence, then
         # clip it to prevent extreme weights.
         normalization_scale = 50.0
-        stiffness_diff = (comfort_factor - 0.8 * trajectory_factor) / normalization_scale
+        stiffness_diff = (comfort_factor - trajectory_factor) / normalization_scale
         stiffness_diff = np.clip(stiffness_diff, -1.0, 1.0)
 
         # 4. Calculate adaptive weights

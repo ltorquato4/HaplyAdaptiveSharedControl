@@ -8,7 +8,7 @@ control_node:
     # State Feedback controller's 2 N Euclidean vector-norm limit.
     max_control_amplitude: 10.0
     max_velocity_amplitude: 10.0
-    acceleration_to_force_factor: 0.18
+    acceleration_to_force_factor: 0.2
     cursor_timeout_s: 0.2
     mpc_control_every_i_th_iteration: 1
     adapt_every_i_th_iterarion: 3
