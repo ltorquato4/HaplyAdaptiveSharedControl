@@ -224,6 +224,20 @@ Use this WSL-owned hardware path:
    ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback docking_enabled:=true participant_id:=P03
    ```
 
+   The GUI defaults to `2560x1440`. To use another display resolution, append
+   `screen_size:=WIDTHxHEIGHT` to either the hardware or mouse launch. For
+   example, for a `1920x1080` display:
+
+   ```bash
+   # Hardware GUI at Full HD resolution
+   ros2 launch haply_study_gui study_gui.launch.py \
+     participant_id:=P03 screen_size:=1920x1080
+
+   # Mouse GUI at Full HD resolution
+   ros2 launch haply_study_gui study_gui_mouse.launch.py \
+     participant_id:=P03 screen_size:=1920x1080
+   ```
+
    The participant sidebar shows the current trial, run state, and neutral
    controller label (`A` for the first controller block, `B` for the second).
    The GUI pauses with a Controller A/B overlay when the study changes blocks.
