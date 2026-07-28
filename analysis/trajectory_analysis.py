@@ -18,28 +18,27 @@ def calculate_metrics(df):
     point_vec_x = df['cursor_x'] - df['start_x']
     point_vec_y = df['cursor_y'] - df['start_y']
 
+    # Absolute orthogonal error (magnitude of deviation)
     cross_prod = np.abs(point_vec_x * line_vec_y - point_vec_y * line_vec_x)
     df['orthogonal_error'] = np.where(line_len == 0, 0, cross_prod / line_len)
 
+    # Position along the reference trajectory
     dot_prod = (point_vec_x * line_vec_x) + (point_vec_y * line_vec_y)
     df['normalized_distance'] = np.where(line_len_sq == 0, 0, dot_prod / line_len_sq)
 
-    # --- f(x)=x (Ursprungsgerade) Transformation ---
-    # Translate start point to (0,0) and rotate so the end point lies on y = x
-    theta_orig = np.arctan2(line_vec_y, line_vec_x)
+    # --- f(x)=0 (Ursprungsgerade) Transformation ---
+    # Translate start point to (0,0) and rotate so the end point lies flat on the X-axis
+    theta = np.arctan2(line_vec_y, line_vec_x)
+    cos_theta = np.cos(theta)
+    sin_theta = np.sin(theta)
     
-    # Angle needed to rotate the original vector onto pi/4 (45 degrees, where y=x)
-    delta_theta = (np.pi / 4) - theta_orig
-    cos_d = np.cos(delta_theta)
-    sin_d = np.sin(delta_theta)
+    # Apply 2D rotation matrix by -theta
+    df['norm_x'] = point_vec_x * cos_theta + point_vec_y * sin_theta
+    df['norm_y'] = -point_vec_x * sin_theta + point_vec_y * cos_theta
     
-    # Apply 2D rotation matrix
-    df['norm_x'] = point_vec_x * cos_d - point_vec_y * sin_d
-    df['norm_y'] = point_vec_x * sin_d + point_vec_y * cos_d
-    
-    # If the end point is on y=x, its coordinates are (len/sqrt(2), len/sqrt(2))
-    df['norm_end_x'] = line_len / np.sqrt(2)
-    df['norm_end_y'] = line_len / np.sqrt(2)
+    # The end point is now perfectly on the X-axis
+    df['norm_end_x'] = line_len
+    df['norm_end_y'] = 0.0
 
     return df
 
@@ -167,23 +166,20 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
             plt.savefig(os.path.join(save_dir, f"{prefix}_2d_trajectory.pdf"))
             plt.close()
 
-            # 2. Origin-Aligned (f(x)=x) Trajectory
+            # 2. Origin-Aligned (f(x)=0) Trajectory
             plt.figure(figsize=(8, 6))
             plt.plot(traj_data['norm_x'], traj_data['norm_y'])
-            plt.scatter(0, 0, c='green', marker='o', s=100, label='Start (0,0)', zorder=5)
+            plt.scatter(0, 0, c='green', marker='o', s=100, label='Start', zorder=5)
             end_x = traj_data['norm_end_x'].iloc[0]
-            end_y = traj_data['norm_end_y'].iloc[0]
-            plt.scatter(end_x, end_y, c='red', marker='X', s=100, label='End (Aligned)', zorder=5)
+            plt.scatter(end_x, 0, c='red', marker='X', s=100, label='End', zorder=5)
             
-            # Plot the literal f(x)=x baseline
-            plt.plot([0, end_x], [0, end_y], 'k--', alpha=0.5, label='f(x) = x')
+            plt.plot([0, end_x], [0, 0], 'k--', alpha=0.5, label='Reference Trajectory')
             
-            plt.title(f"Aligned Trajectory (f(x)=x)\nController: {controller.title()} | Phase: {title_phase} | Run: {traj}")
+            plt.title(f"Aligned Trajectory \nController: {controller.title()} | Phase: {title_phase} | Run: {traj}")
             plt.xlabel("Normalized X")
             plt.ylabel("Normalized Y")
             plt.xlim(limits['norm_x'])
             plt.ylim(limits['norm_y'])
-            # Ensures the diagonal line visually appears at a 45-degree angle
             plt.gca().set_aspect('equal', adjustable='box') 
             plt.legend()
             plt.grid(True)
@@ -195,7 +191,7 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
             traj_data_sorted = traj_data.sort_values(by='normalized_distance')
             plt.plot(traj_data_sorted['normalized_distance'], traj_data_sorted['orthogonal_error'])
             plt.title(f"Positional Error vs Normalized Distance\nController: {controller.title()} | Phase: {title_phase} | Run: {traj}")
-            plt.xlabel("Normalized Distance (0 = Start, 1 = End)")
+            plt.xlabel("Position along Reference Trajectory (Normalized)")
             plt.ylabel("Orthogonal Error")
             plt.xlim(0, 1)
             plt.ylim(limits['error'])
@@ -251,36 +247,33 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
     plt.savefig(os.path.join(save_dir, f"{prefix_all}_2d_trajectory.pdf"))
     plt.close()
 
-    # 2. Origin-Aligned (f(x)=x) Trajectory (all)
+    # 2. Origin-Aligned (f(x)=0) Trajectory (all)
     plt.figure(figsize=(8, 6))
     max_end_x = 0
     for idx, traj in enumerate(trajectories):
         traj_data = df[df['file_stem'] == traj]
         plt.plot(traj_data['norm_x'], traj_data['norm_y'], alpha=0.7)
         
-        l_start = 'Start' if idx == 0 else ""
-        l_end = 'End' if idx == 0 else ""
+        l_start = 'Start (0,0)' if idx == 0 else ""
+        l_end = 'End (Aligned)' if idx == 0 else ""
         
         end_x = traj_data['norm_end_x'].iloc[0]
-        end_y = traj_data['norm_end_y'].iloc[0]
         
         plt.scatter(0, 0, c='green', marker='o', s=100, label=l_start, zorder=5, alpha=0.7)
-        plt.scatter(end_x, end_y, c='red', marker='X', s=100, label=l_end, zorder=5, alpha=0.7)
+        plt.scatter(end_x, 0, c='red', marker='X', s=100, label=l_end, zorder=5, alpha=0.7)
         max_end_x = max(max_end_x, end_x)
         
-    # Baseline for all plots on f(x)=x
-    plt.plot([0, max_end_x], [0, max_end_x], 'k--', alpha=0.5, label='Reference Trajectory' if len(trajectories) > 0 else "")
+    plt.plot([0, max_end_x], [0, 0], 'k--', alpha=0.5, label='Reference Trajectory' if len(trajectories) > 0 else "")
         
     plt.title(f"Aligned Trajectory \nController: {controller.title()} | {title_phase}")
     plt.xlabel("Normalized X")
     plt.ylabel("Normalized Y")
     plt.xlim(limits['norm_x'])
     plt.ylim(limits['norm_y'])
-    # Force the axes to have the same scale so f(x)=x actually looks like 45 degrees
     plt.gca().set_aspect('equal', adjustable='box')
     plt.legend()
     plt.grid(True)
-    plt.savefig(os.path.join(save_dir, f"{prefix_all}_aligned_trajectory.pdf"))
+    plt.savefig(os.path.join(save_dir, f"{prefix_all}_fx_aligned_trajectory.pdf"))
     plt.close()
 
     # 3. Positional Error (all)
@@ -308,7 +301,7 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
         plt.legend()
 
     plt.title(f"Positional Error vs Normalized Distance\nController: {controller.title()} | {title_phase}")
-    plt.xlabel("Normalized Distance (0 = Start, 1 = End)")
+    plt.xlabel("Position along Reference Trajectory (Normalized)")
     plt.ylabel("Orthogonal Error")
     plt.xlim(0, 1)
     plt.ylim(limits['error'])
@@ -340,6 +333,113 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
     plt.savefig(os.path.join(save_dir, f"{prefix_all}_velocity_profiles.pdf"), bbox_inches='tight')
     plt.close()
 
+
+def generate_controller_summary_plot(df, controller, behaviors, output_dir, limits):
+    """
+    Creates a 4-panel subplot for a specific controller.
+    Panels 1-3 contain aligned trajectories for the first up to 3 behaviors.
+    Panel 4 compares the mean error for each behavior and the global mean error against the reference trajectory.
+    """
+    save_dir = os.path.join(output_dir, controller)
+    os.makedirs(save_dir, exist_ok=True)
+    
+    fig, axes = plt.subplots(2, 2, figsize=(14, 12))
+    axes = axes.flatten()
+    
+    common_norm_dist = np.linspace(0, 1, 500)
+    
+    # Pre-configure subplot 4 (Index 3) for Mean Errors
+    ax_err = axes[3]
+    ax_err.set_title(f"Mean Positional Error\nController: {controller.title()}")
+    ax_err.set_xlabel("Position along Reference Trajectory (Normalized)")
+    ax_err.set_ylabel("Mean Orthogonal Error")
+    ax_err.set_xlim(0, 1)
+    ax_err.set_ylim(limits['error'])
+    ax_err.grid(True)
+    
+    # Explicit zero-error line to represent the Reference Trajectory
+    ax_err.plot([0, 1], [0, 0], 'k--', alpha=0.5, linewidth=2, label='Reference Trajectory (0 Error)', zorder=1)
+    
+    colors = ['tab:blue', 'tab:orange', 'tab:green']
+    
+    # Process up to the first 3 distinct behaviors
+    for i in range(3):
+        ax = axes[i]
+        if i < len(behaviors):
+            behavior = behaviors[i]
+            beh_df = df[df['study_phase'] == behavior]
+            
+            trajectories = beh_df['file_stem'].unique()
+            max_end_x = 0
+            
+            interp_errors = []
+            
+            for idx, traj in enumerate(trajectories):
+                traj_data = beh_df[beh_df['file_stem'] == traj]
+                
+                # Plot aligned trajectory
+                ax.plot(traj_data['norm_x'], traj_data['norm_y'], alpha=0.5, color=colors[i])
+                
+                end_x = traj_data['norm_end_x'].iloc[0]
+                max_end_x = max(max_end_x, end_x)
+                
+                # Scatter Start and End points
+                l_start = 'Start' if idx == 0 else ""
+                l_end = 'End' if idx == 0 else ""
+                ax.scatter(0, 0, c='green', marker='o', s=50, zorder=5, label=l_start, alpha=0.7)
+                ax.scatter(end_x, 0, c='red', marker='X', s=50, zorder=5, label=l_end, alpha=0.7)
+                
+                # Calculate errors for subplot 4
+                traj_data_sorted = traj_data.sort_values(by='normalized_distance')
+                if len(traj_data_sorted) > 1:
+                    interp_err = np.interp(
+                        common_norm_dist, 
+                        traj_data_sorted['normalized_distance'], 
+                        traj_data_sorted['orthogonal_error']
+                    )
+                    interp_errors.append(interp_err)
+            
+            # Draw f(x)=0 baseline for this panel
+            ax.plot([0, max_end_x], [0, 0], 'k--', alpha=0.8, label='Reference Trajectory')
+            
+            ax.set_title(f"Aligned Trajectories\nPhase: {behavior.replace('_', ' ').title()}")
+            ax.set_xlabel("Normalized X")
+            ax.set_ylabel("Normalized Y")
+            ax.set_xlim(limits['norm_x'])
+            ax.set_ylim(limits['norm_y'])
+            ax.set_aspect('equal', adjustable='box')
+            ax.grid(True)
+            ax.legend(loc='best')
+            
+            # Calculate and plot the mean error curve for this behavior in subplot 4
+            if interp_errors:
+                mean_err = np.mean(interp_errors, axis=0)
+                ax_err.plot(common_norm_dist, mean_err, color=colors[i], linewidth=2, label=f"{behavior.replace('_', ' ').title()} Mean", zorder=5)
+        else:
+            ax.axis('off') # Hide axes if there are fewer than 3 behaviors
+            
+    # Calculate the overall mean error across ALL phases in this controller mode
+    all_interp_errors = []
+    for traj in df['file_stem'].unique():
+        traj_data = df[df['file_stem'] == traj].sort_values(by='normalized_distance')
+        if len(traj_data) > 1:
+            interp_err = np.interp(
+                common_norm_dist, 
+                traj_data['normalized_distance'], 
+                traj_data['orthogonal_error']
+            )
+            all_interp_errors.append(interp_err)
+            
+    if all_interp_errors:
+        overall_mean = np.mean(all_interp_errors, axis=0)
+        ax_err.plot(common_norm_dist, overall_mean, color='black', linewidth=3, linestyle='-', alpha=0.8, label='All Phases Mean', zorder=10)
+        
+    ax_err.legend()
+    
+    plt.tight_layout()
+    plt.savefig(os.path.join(save_dir, f"{controller}_summary_dashboard.pdf"))
+    plt.close()
+
 # ==========================================
 # 3. Main Execution Workflow
 # ==========================================
@@ -364,7 +464,6 @@ def main(data_directory="data", output_directory="analysis_plots"):
 
     master_df = pd.concat(all_data, ignore_index=True)
     
-    # Calculate limits including the new rotated Y values
     limits = {
         'x_2d': get_padded_limits([master_df['cursor_x'], master_df['start_x'], master_df['end_x']]),
         'y_2d': get_padded_limits([master_df['cursor_y'], master_df['start_y'], master_df['end_y']]),
@@ -391,6 +490,9 @@ def main(data_directory="data", output_directory="analysis_plots"):
             if not behavior_df.empty:
                 print(f"Generating scaled & aggregated plots for {controller} controller - {behavior} phase...")
                 generate_plots(behavior_df, controller, behavior, output_directory, limits, aggregate_only=False)
+
+        print(f"Generating 4-panel summary dashboard for {controller} controller...")
+        generate_controller_summary_plot(controller_df, controller, behaviors, output_directory, limits)
 
 if __name__ == "__main__":
     main(data_directory="../processed_logs", output_directory="../plots/trajectory_plots")
