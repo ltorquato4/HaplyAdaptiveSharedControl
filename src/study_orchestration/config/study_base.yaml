@@ -12,14 +12,13 @@ scenario_generator:
     point_3_x: -0.08
     point_3_y: 0.08
     point_3_z: 0.0
-    point_4_x: 0.0
-    point_4_y: -0.15
+    point_4_x: 0.0585640646055102
+    point_4_y: 0.0
     point_4_z: 0.0
     workspace_x_min: -0.12
     workspace_x_max: 0.12
     workspace_y_min: -0.18
     workspace_y_max: 0.15
-    min_segment_length: 0.10
     start_reached_radius: 0.01
     endpoint_reached_radius: 0.01
     min_phase_duration_s: 0.8

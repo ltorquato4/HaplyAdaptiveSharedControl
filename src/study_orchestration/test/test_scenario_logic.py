@@ -7,6 +7,7 @@ from study_orchestration.scenario_logic import (
     chained_segment,
     endpoint_reached,
     update_start_gate,
+    validate_equal_segment_lengths,
     validate_task_points,
 )
 
@@ -15,7 +16,7 @@ DEFAULT_POINTS = [
     StudyPoint(0.08, -0.08, 0.0),
     StudyPoint(0.08, 0.08, 0.0),
     StudyPoint(-0.08, 0.08, 0.0),
-    StudyPoint(0.0, -0.15, 0.0),
+    StudyPoint(0.0585640646055102, 0.0, 0.0),
 ]
 DEFAULT_BOUNDS = WorkspaceBounds(
     x_min=-0.12,
@@ -26,7 +27,10 @@ DEFAULT_BOUNDS = WorkspaceBounds(
 
 
 def test_default_points_are_valid():
-    validate_task_points(DEFAULT_POINTS, DEFAULT_BOUNDS, min_segment_length=0.10)
+    validate_task_points(DEFAULT_POINTS, DEFAULT_BOUNDS)
+    validate_equal_segment_lengths(
+        [chained_segment(DEFAULT_POINTS, index) for index in range(5)]
+    )
 
 
 def test_chained_segments_reuse_previous_endpoint_as_next_start():
@@ -48,20 +52,17 @@ def test_rejects_points_outside_workspace():
     ]
 
     with pytest.raises(ValueError, match="outside workspace"):
-        validate_task_points(points, DEFAULT_BOUNDS, min_segment_length=0.10)
+        validate_task_points(points, DEFAULT_BOUNDS)
 
 
-def test_rejects_short_segments():
-    points = [
-        StudyPoint(-0.08, -0.08, 0.0),
-        StudyPoint(-0.07, -0.08, 0.0),
-        StudyPoint(0.08, 0.08, 0.0),
-        StudyPoint(-0.08, 0.08, 0.0),
-        StudyPoint(0.0, -0.15, 0.0),
+def test_rejects_unequal_segment_lengths():
+    segments = [
+        (StudyPoint(0.0, 0.0), StudyPoint(0.16, 0.0)),
+        (StudyPoint(0.0, 0.0), StudyPoint(0.15, 0.0)),
     ]
 
-    with pytest.raises(ValueError, match="shorter than"):
-        validate_task_points(points, DEFAULT_BOUNDS, min_segment_length=0.10)
+    with pytest.raises(ValueError, match="does not match"):
+        validate_equal_segment_lengths(segments)
 
 
 def test_endpoint_reached_uses_radius():

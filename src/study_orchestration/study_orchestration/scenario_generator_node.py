@@ -31,6 +31,7 @@ from study_orchestration.scenario_logic import (
     StudyPoint,
     WorkspaceBounds,
     endpoint_reached,
+    validate_equal_segment_lengths,
     validate_task_points,
 )
 
@@ -68,14 +69,13 @@ class ScenarioGenerator(Node):
         self.declare_parameter("point_3_x", -0.08)
         self.declare_parameter("point_3_y", 0.08)
         self.declare_parameter("point_3_z", 0.0)
-        self.declare_parameter("point_4_x", 0.0)
-        self.declare_parameter("point_4_y", -0.15)
+        self.declare_parameter("point_4_x", 0.0585640646055102)
+        self.declare_parameter("point_4_y", 0.0)
         self.declare_parameter("point_4_z", 0.0)
         self.declare_parameter("workspace_x_min", -0.12)
         self.declare_parameter("workspace_x_max", 0.12)
         self.declare_parameter("workspace_y_min", -0.18)
         self.declare_parameter("workspace_y_max", 0.15)
-        self.declare_parameter("min_segment_length", 0.10)
         self.declare_parameter("endpoint_reached_radius", 0.01)
         self.declare_parameter("start_reached_radius", 0.01)
         self.declare_parameter("min_phase_duration_s", 0.8)
@@ -110,17 +110,16 @@ class ScenarioGenerator(Node):
             y_min=float(self.get_parameter("workspace_y_min").value),
             y_max=float(self.get_parameter("workspace_y_max").value),
         )
-        self.min_segment_length = float(self.get_parameter("min_segment_length").value)
         validate_task_points(
             self.points,
             self.bounds,
-            self.min_segment_length,
             expected_count=self.POINT_COUNT,
         )
         self.segments = self._read_yaml_segments() or [
             (self.points[index], self.points[(index + 1) % len(self.points)])
             for index in range(len(self.points))
         ]
+        validate_equal_segment_lengths(self.segments)
 
         self.endpoint_reached_radius = float(
             self.get_parameter("endpoint_reached_radius").value
@@ -346,12 +345,6 @@ class ScenarioGenerator(Node):
                 for point in (start, end)
             ):
                 raise ValueError(f"path entry {index} is outside workspace bounds")
-            if (
-                (end.x - start.x) ** 2 + (end.y - start.y) ** 2
-            ) ** 0.5 < self.min_segment_length:
-                raise ValueError(
-                    f"path entry {index} is shorter than min_segment_length"
-                )
             segments.append((start, end))
         return segments
 

@@ -115,9 +115,10 @@ The default task coordinates are bounded by:
 
 - x: `-0.12` to `0.12`
 - y: `-0.15` to `0.15`
-- minimum segment length: `0.10`
+- required equal path length: `0.16`
 
-The nodes validate configured path endpoints and segment lengths at startup.
+The nodes reject the configuration at startup unless every start/end pair has
+the same path length.
 These task-space bounds must still be verified against the physical Haply
 workspace before a participant run.
 
