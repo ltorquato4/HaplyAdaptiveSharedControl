@@ -1,3 +1,4 @@
+import pytest
 from geometry_msgs.msg import Point
 from haply_msgs.msg import (
     StudyButtonPress,
@@ -6,7 +7,7 @@ from haply_msgs.msg import (
     StudyTask,
     StudyTrialState,
 )
-from haply_study_gui.study_gui_node import StudyGui
+from haply_study_gui.study_gui_node import StudyGui, parse_screen_size
 from std_msgs.msg import Bool
 
 
@@ -94,7 +95,7 @@ def _gui():
     gui.endpoint_dwell_progress = 0.0
     gui.last_abort_reason = ""
     gui.study_phase = "normal"
-    gui.mode_overlay_duration_s = 2.0
+    gui.mode_overlay_duration_s = 3.0
     gui.mode_overlay_until = None
     gui.trial_completion_latched = False
     gui.mapping_ready = False
@@ -106,6 +107,17 @@ def _gui():
     gui.current_session_id = "test-session"
     gui.current_trial_id = 0
     return gui
+
+
+def test_screen_size_parser_accepts_standard_resolutions():
+    assert parse_screen_size("2560x1440") == (2560, 1440)
+    assert parse_screen_size(" 1920 X 1080 ") == (1920, 1080)
+
+
+@pytest.mark.parametrize("value", ["1920", "full-hd", "1920x0"])
+def test_screen_size_parser_rejects_invalid_values(value):
+    with pytest.raises(ValueError, match="screen_size"):
+        parse_screen_size(value)
 
 
 def test_mapping_ready_does_not_start_trial():
@@ -283,6 +295,18 @@ def test_controller_failure_abort_is_visible_to_the_gui():
     assert gui.last_abort_reason == "controller_failure"
 
 
+def test_session_finished_shows_persistent_popup():
+    gui = _gui()
+
+    gui._trial_state(_state("SESSION_FINISHED"))
+
+    assert gui.session_finished
+    assert gui.mode_overlay_title == "Session finished"
+    assert gui.mode_overlay_instruction == "Thank you."
+    assert gui.mode_overlay_until == float("inf")
+    assert gui._mode_overlay_visible()
+
+
 def test_mode_change_shows_overlay_and_delays_start(monkeypatch):
     gui = _gui()
     clock = [10.0]
@@ -297,7 +321,7 @@ def test_mode_change_shows_overlay_and_delays_start(monkeypatch):
     gui._button_pressed(_press())
     assert gui.trial_started is False
 
-    clock[0] = 12.1
+    clock[0] = 13.1
     assert not gui._mode_overlay_visible()
     gui._button_pressed(_press())
     assert gui.trial_started is True

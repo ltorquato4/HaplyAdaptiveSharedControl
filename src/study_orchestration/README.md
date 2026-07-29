@@ -45,10 +45,12 @@ clamp relative to the first-click anchor. The Haply launch uses `z` as task
 
 The Scenario Generator expands every phase, configured path segment, and
 controller mode into a finite session schedule. `order_strategy:=seeded_random`
-shuffles the behavioral-state order and the path order within each state. Its
-resolved seed and complete order are emitted once in the startup log and in the
-retained `/study_session` definition; set `order_seed` to a non-negative value
-to reproduce a run exactly. `fixed` is available for debugging.
+shuffles only the path order within each behavioral state. Controller blocks
+always run `fixed` then `adaptive`, and each block runs `careful`, `normal`,
+then `aggressive`, so condition order is identical across participants. The
+resolved seed and complete order are emitted once in the startup log and in
+the retained `/study_session` definition; set `order_seed` to a non-negative
+value to reproduce a run exactly. `fixed` keeps path order fixed as well.
 
 The Scenario Generator is the authoritative trial-state owner. The GUI publishes
 an ID-bearing `/study_start_requested`; orchestration validates the current
@@ -91,7 +93,8 @@ and aborts an active trial.
 
 `task_file` may point to a YAML file containing a `paths` list. Each entry has
 an independently defined `start_point` and `end_point`; paths need not form a
-closed chain. The shared launches use `config/default_tasks.yaml`.
+closed chain. The shared launches use `config/default_tasks.yaml`, whose five
+paths are all `0.16` task units long for direct trial comparison.
 
 Endpoint completion requires all of the following:
 
@@ -112,9 +115,10 @@ The default task coordinates are bounded by:
 
 - x: `-0.12` to `0.12`
 - y: `-0.15` to `0.15`
-- minimum segment length: `0.10`
+- required equal path length: `0.16`
 
-The nodes validate configured path endpoints and segment lengths at startup.
+The nodes reject the configuration at startup unless every start/end pair has
+the same path length.
 These task-space bounds must still be verified against the physical Haply
 workspace before a participant run.
 

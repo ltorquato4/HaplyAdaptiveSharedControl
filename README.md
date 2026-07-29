@@ -51,21 +51,6 @@ rebuild the affected entrypoints and refresh the environment:
 source install/setup.bash
 ```
 
-For other missing project Python modules, rebuild the full workspace with the
-first command above. To pass advanced `colcon build` arguments, start with an
-option:
-
-```bash
-./build.sh --packages-select haply_study_gui --event-handlers console_direct+
-```
-
-To verify a Python ROS executable uses `.venv`, inspect its first line:
-
-```bash
-head -n 1 install/haply_interface/lib/haply_interface/haply_driver_node
-```
-
-It should point at `.venv/bin/python`, not `/usr/bin/python3`.
 
 ### Docker / Devcontainer
 
@@ -197,16 +182,35 @@ Use this WSL-owned hardware path:
 
 5. Launch the study GUI:
 
-   To include a controller (and its required estimator):
+   For a participant experiment, use the questionnaire runner. It assigns the
+   next participant ID (`P01`, `P02`, ...), collects demographics, launches the
+   default MPC hardware study, and asks the post-study questions after the GUI
+   closes:
+
    ```bash
-   # MPC controller including docking, which is always true here
+   python3 scripts/run_experiment.py
+   ```
+
+   The questionnaire is stored with its session at
+   `logs/<participant-id>_<timestamp>/questionnaire/questionnaire.csv`.
+
+   The runner uses the normal hardware-launch defaults:
+
+  - the next participant ID is generated automatically (`P01`, `P02`, ...);
+  - the controller family is MPC;
+  - adaptive-MPC terminal docking is enabled by
+    `control_node/config/mpc.yaml` and begins at 90% path progress;
+  - fixed MPC trials use the base MPC controller without the adaptive docking
+    modifiers;
+  - the GUI resolution is `2560x1440`;
+  - participant display mode is used; and
+  - experiment data is written below `./logs`.
+
+   To launch the study manually:
+
+   ```bash
+   # Default MPC controller; adaptive-MPC docking is enabled by mpc.yaml
    ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03
-
-   # Alternative state-feedback controller with no docking enabled
-   ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03
-
-   # Alternative state-feedback controller with docking enabled
-   ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03 docking_enabled:=true
    ```
 
    For debugging without Haply device, use the mouse test path instead, can also be tested with controller and estimator:
@@ -214,15 +218,13 @@ Use this WSL-owned hardware path:
    # No controller
    ros2 launch haply_study_gui study_gui_mouse.launch.py participant_id:=P03
 
-   # MPC Controller, which always includes docking
+   # MPC controller; adaptive-MPC docking is enabled by the MPC profile
    ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=mpc participant_id:=P03
-
-   # State-Feedback with no docking
-   ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback participant_id:=P03
-   
-   # State-Feedback with docking
-   ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback docking_enabled:=true participant_id:=P03
    ```
+
+   The GUI defaults to `2560x1440`. To use another display resolution, append
+   `screen_size:=WIDTHxHEIGHT` to either the hardware or mouse launch, for
+   example,  `1920x1080`.
 
    The participant sidebar shows the current trial, run state, and neutral
    controller label (`A` for the first controller block, `B` for the second).
@@ -235,9 +237,61 @@ Use this WSL-owned hardware path:
      controller:=mpc participant_id:=P03 mode:=debug
    ```
 
+## Analyze Experiment Data
+
+After an experiment, generate the analysis tables and multipage PDF report for
+one logger session with:
+
+```bash
+ros2 run study_analysis analyze_session \
+  --input logs/<participant-id>_<timestamp>
+```
+
+For example:
+
+```bash
+ros2 run study_analysis analyze_session \
+  --input logs/P03_2026-07-29_06-05-00Z
+```
+
+The logger uses UTC for the session-folder timestamp, indicated by the trailing
+`Z`. Questionnaire timestamps inside the session use `Europe/Berlin` local
+time.
+
+By default, the results are written to
+`analysis_results/<session-folder>/`:
+
+- `analysis_report.pdf` contains the plots and descriptive analysis;
+- `trial_metrics.csv` contains one row of metrics per attempt;
+- `condition_summary.csv` compares the recorded conditions; and
+- `data_quality.csv` reports missing, malformed, or timing-related data.
+
+Use `--output` to select a different result directory:
+
+```bash
+ros2 run study_analysis analyze_session \
+  --input logs/<session-folder> \
+  --output analysis_results/<result-name>
+```
+
+The deterministic estimator and controller benchmark is separate from
+participant-session analysis. Run it with:
+
+```bash
+ros2 run study_analysis run_benchmark \
+  --output analysis_results/benchmark \
+  --seed 20260721
+```
+
+It creates `benchmark_results.csv` and `benchmark_report.pdf`. More details
+about the metrics, log compatibility, and optional arguments are available in
+the [`study_analysis` package documentation](src/study_analysis/README.md).
+
+
+
 ## Manual Checks
 
-This repository does not install git hooks. Run formatting, linting, and type
+Run formatting, linting, and type
 checks manually from the repository root:
 
 ```bash
@@ -252,15 +306,3 @@ To apply Ruff formatting and autofixes:
 ruff format --force-exclude .
 ruff check --fix --force-exclude .
 ```
-
-The copied Haply interface under `src/haply_ros2_interface/` is excluded by tool
-configuration and should not be reformatted as project-owned code.
-
-## Troubleshooting
-
-If `./setup.sh` reports `Conflicting values set for option Signed-By` for
-`packages.ros.org/ros2/ubuntu`, the machine has duplicate ROS apt source
-definitions. The setup script normalizes this automatically by backing up ROS
-source files under `/etc/apt/sources.list.d/` and writing one canonical
-`/etc/apt/sources.list.d/ros2.list` entry that uses
-`/usr/share/keyrings/ros-archive-keyring.gpg`.

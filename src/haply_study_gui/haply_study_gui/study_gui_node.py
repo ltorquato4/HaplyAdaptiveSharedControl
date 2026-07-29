@@ -3,6 +3,7 @@
 """Participant-facing Pygame GUI for the Haply study."""
 
 import os
+import re
 import time
 from math import isfinite
 
@@ -17,8 +18,8 @@ from haply_msgs.msg import (  # noqa: E402
     HaplyState,
     StudyAbortRequest,
     StudyButtonPress,
-    StudyDwellProgress,
     StudyCursor,
+    StudyDwellProgress,
     StudyStartRequest,
     StudyTask,
     StudyTrialState,
@@ -26,6 +27,19 @@ from haply_msgs.msg import (  # noqa: E402
 from rclpy.node import Node  # noqa: E402
 from rclpy.qos import DurabilityPolicy, QoSProfile, ReliabilityPolicy  # noqa: E402
 from std_msgs.msg import Bool  # noqa: E402
+
+
+def parse_screen_size(value):
+    """Parse a WIDTHxHEIGHT screen-size string into positive pixel dimensions."""
+    match = re.fullmatch(r"\s*(\d+)\s*[xX×]\s*(\d+)\s*", str(value))
+    if match is None:
+        raise ValueError(
+            "screen_size must use WIDTHxHEIGHT, for example 1920x1080"
+        )
+    width, height = (int(dimension) for dimension in match.groups())
+    if width <= 0 or height <= 0:
+        raise ValueError("screen_size dimensions must be positive")
+    return width, height
 
 
 class StudyGui(Node):
@@ -66,17 +80,20 @@ class StudyGui(Node):
     DARK_BLUE = (44, 82, 130)
     PATH = (52, 58, 64)
     MODE_INSTRUCTIONS = {
-        "aggressive": "Move quickly and decisively.",
-        "normal": "Use your natural, comfortable pace.",
-        "careful": "Move slowly and precisely.",
+        "aggressive": "Quick and decisive.",
+        "normal": "Natural pace.",
+        "careful": "Slow and precise.",
     }
+    SESSION_FINISHED_TITLE = "Session finished"
+    SESSION_FINISHED_MESSAGE = "Thank you."
 
     def __init__(self):
         """Create ROS interfaces and initialize the Pygame window."""
         super().__init__("study_gui")
 
-        self.declare_parameter("width", 1280)
-        self.declare_parameter("height", 720)
+        self.declare_parameter("screen_size", "")
+        self.declare_parameter("width", 2560)
+        self.declare_parameter("height", 1440)
         self.declare_parameter("side_panel_width", 300)
         self.declare_parameter("sidebar_scale", 1.0)
         self.declare_parameter("marker_radius_px", 22)
@@ -91,7 +108,9 @@ class StudyGui(Node):
         self.declare_parameter("debug_controls_enabled", False)
         self.declare_parameter("max_callbacks_per_frame", 16)
         self.declare_parameter("max_drawn_points", 2000)
-        self.declare_parameter("mode_overlay_duration_s", 2.0)
+        self.declare_parameter("mode_overlay_duration_s", 3.0)
+        self.declare_parameter("popup_title_font_size", 48)
+        self.declare_parameter("popup_message_font_size", 40)
         self.declare_parameter("start_x", -0.08)
         self.declare_parameter("start_y", -0.08)
         self.declare_parameter("start_z", 0.0)
@@ -109,8 +128,14 @@ class StudyGui(Node):
         self.declare_parameter("mode", "participant")
         self.declare_parameter("cursor_max_age_s", 0.5)
 
-        self.width = int(self.get_parameter("width").value)
-        self.height = int(self.get_parameter("height").value)
+        configured_screen_size = str(
+            self.get_parameter("screen_size").value
+        ).strip()
+        if configured_screen_size:
+            self.width, self.height = parse_screen_size(configured_screen_size)
+        else:
+            self.width = int(self.get_parameter("width").value)
+            self.height = int(self.get_parameter("height").value)
         self.side_panel_width = int(self.get_parameter("side_panel_width").value)
         self.sidebar_scale = max(
             0.5, float(self.get_parameter("sidebar_scale").value)
@@ -150,6 +175,12 @@ class StudyGui(Node):
         self.mode_overlay_duration_s = max(
             0.0, float(self.get_parameter("mode_overlay_duration_s").value)
         )
+        self.popup_title_font_size = max(
+            1, int(self.get_parameter("popup_title_font_size").value)
+        )
+        self.popup_message_font_size = max(
+            1, int(self.get_parameter("popup_message_font_size").value)
+        )
         self.endpoint_reached_radius = float(
             self.get_parameter("endpoint_reached_radius").value
         )
@@ -180,10 +211,16 @@ class StudyGui(Node):
         self.mouse_in_workspace = True
         self.input_valid = False
         self.raw_input_valid = False
-        self.require_system_ready = bool(self.get_parameter("require_system_ready").value)
+        self.require_system_ready = bool(
+            self.get_parameter("require_system_ready").value
+        )
         self.controller_family = str(self.get_parameter("controller_family").value)
-        self.debug_mode = str(self.get_parameter("mode").value).strip().lower() == "debug"
-        self.cursor_max_age_s = max(0.0, float(self.get_parameter("cursor_max_age_s").value))
+        self.debug_mode = (
+            str(self.get_parameter("mode").value).strip().lower() == "debug"
+        )
+        self.cursor_max_age_s = max(
+            0.0, float(self.get_parameter("cursor_max_age_s").value)
+        )
         self.system_ready = not self.require_system_ready
         self.start_point_received = False
         self.end_point_received = False
@@ -284,8 +321,8 @@ class StudyGui(Node):
             self.frame = self.frame.convert()
         self.draw_target = self.frame
         self.clock = pygame.time.Clock()
-        self.title_font = self._load_font(22, bold=True)
-        self.body_font = self._load_font(23)
+        self.title_font = self._load_font(self.popup_title_font_size, bold=True)
+        self.body_font = self._load_font(self.popup_message_font_size)
         self.label_font = self._load_font(self.marker_label_font_size)
         self.pill_font = self._load_font(20, bold=True)
         self.icon_font = self._load_font(17, bold=True)
@@ -398,7 +435,8 @@ class StudyGui(Node):
         stamp_s = float(msg.stamp.sec) + (float(msg.stamp.nanosec) * 1e-9)
         if stamp_s <= 0.0 or self.cursor_max_age_s <= 0.0:
             return True
-        return (self.get_clock().now().nanoseconds * 1e-9) - stamp_s <= self.cursor_max_age_s
+        age_s = (self.get_clock().now().nanoseconds * 1e-9) - stamp_s
+        return age_s <= self.cursor_max_age_s
 
     def _study_task(self, msg):
         previous_phase = self.study_phase.strip().lower()
@@ -431,7 +469,7 @@ class StudyGui(Node):
         self.end_point_received = True
         if controller_changed:
             self.mode_overlay_title = f"Controller {controller_label}"
-            self.mode_overlay_instruction = f"Controller {controller_label} is starting."
+            self.mode_overlay_instruction = "Get ready."
             self.mode_overlay_until = (
                 time.monotonic() + self.mode_overlay_duration_s
             )
@@ -450,7 +488,8 @@ class StudyGui(Node):
         self._reset_drawn_path()
         self.get_logger().info(
             "Applied study task "
-            f"{msg.trial_id}: start=({msg.start_point.x:.3f}, {msg.start_point.y:.3f}), "
+            f"{msg.trial_id}: "
+            f"start=({msg.start_point.x:.3f}, {msg.start_point.y:.3f}), "
             f"end=({msg.end_point.x:.3f}, {msg.end_point.y:.3f})"
         )
 
@@ -474,6 +513,10 @@ class StudyGui(Node):
         elif msg.state == "SESSION_FINISHED":
             self.session_finished = True
             self.is_running = False
+            self.mode_overlay_title = self.SESSION_FINISHED_TITLE
+            self.mode_overlay_instruction = self.SESSION_FINISHED_MESSAGE
+            self.pending_mode_overlay = None
+            self.mode_overlay_until = float("inf")
         elif msg.state == "READY" and self.trial_started and not self.is_running:
             self._reset_drawn_path()
 
@@ -845,7 +888,12 @@ class StudyGui(Node):
             state = "move to start then press A"
         rows = [
             ("State", state),
-            ("Trial", str(self.current_trial_id) if self.current_trial_id is not None else "-"),
+            (
+                "Trial",
+                str(self.current_trial_id)
+                if self.current_trial_id is not None
+                else "-",
+            ),
             ("Controller", self.current_controller_label),
         ]
         if self.debug_mode:
@@ -872,7 +920,9 @@ class StudyGui(Node):
             "mpc": "MPC",
             "none": "None",
         }
-        return labels.get(self.controller_family.strip().lower(), self.controller_family)
+        return labels.get(
+            self.controller_family.strip().lower(), self.controller_family
+        )
 
     def _world_to_canvas(self, point):
         scale_x, scale_y, left, bottom = self._canvas_transform()

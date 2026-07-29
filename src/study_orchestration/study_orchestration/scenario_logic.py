@@ -33,10 +33,9 @@ def distance(first: StudyPoint, second: StudyPoint) -> float:
 def validate_task_points(
     points: list[StudyPoint],
     bounds: WorkspaceBounds,
-    min_segment_length: float,
     expected_count: int = 5,
 ) -> None:
-    """Validate the configured chained task points.
+    """Validate the configured task points.
 
     Raises:
         ValueError: if the configured points are unsafe for the task frame.
@@ -52,13 +51,22 @@ def validate_task_points(
         if not bounds.y_min <= point.y <= bounds.y_max:
             raise ValueError(f"point_{index}_y={point.y} is outside workspace bounds")
 
-    for index in range(expected_count):
-        start, end = chained_segment(points, index)
-        segment_length = distance(start, end)
-        if segment_length < min_segment_length:
+
+def validate_equal_segment_lengths(
+    segments: list[tuple[StudyPoint, StudyPoint]],
+    tolerance: float = 1e-9,
+) -> None:
+    """Require every configured start/end pair to have equal planar length."""
+    if not segments:
+        raise ValueError("scenario_generator requires at least one path")
+
+    expected_length = distance(*segments[0])
+    for index, segment in enumerate(segments[1:], start=1):
+        segment_length = distance(*segment)
+        if abs(segment_length - expected_length) > tolerance:
             raise ValueError(
-                f"segment {index} length {segment_length:.4f} is shorter than "
-                f"min_segment_length={min_segment_length:.4f}"
+                f"path {index} length {segment_length:.6f} does not match "
+                f"path 0 length {expected_length:.6f}"
             )
 
 

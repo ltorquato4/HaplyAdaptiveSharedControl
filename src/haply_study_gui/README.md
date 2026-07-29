@@ -18,8 +18,9 @@ Both `source=mouse` and `source=haply` follow the same press interaction:
    reused as a press for the next scenario.
 
 On the first task and each behavioral-mode change, the workspace shows a
-two-second fading instruction overlay. It does not require a click; trial start
-is enabled automatically when the overlay has faded.
+three-second fading instruction overlay. It does not require a click; trial start
+is enabled automatically when the overlay has faded. A persistent
+`Session finished` overlay is shown after the final trial.
 
 Before calibration the cursor is hidden. The GUI also hides it and prevents
 trial start when device input is stale, unavailable, or outside the configured
@@ -75,12 +76,24 @@ source install/setup.bash
 | Purpose | Command |
 | --- | --- |
 | Mouse simulation | `ros2 launch haply_study_gui study_gui_mouse.launch.py` |
-| Full state-feedback hardware stack (default) | `ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03` |
-| Full MPC hardware stack (includes Estimator, Data Logger, and readiness gate) | `ros2 launch haply_study_gui study_gui.launch.py controller:=mpc participant_id:=P03` |
+| Full MPC hardware stack (default) | `ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03` |
 | Start state-feedback controller with hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03` |
 
-The hardware launch defaults to state feedback and requires the Haply Inverse SDK Service to be running at
-`ws://localhost:10001` before ROS starts.
+The hardware launch defaults to MPC and requires the Haply Inverse SDK Service
+to be running at `ws://localhost:10001` before ROS starts. Adaptive-MPC terminal
+docking is enabled by `control_node/config/mpc.yaml`; fixed MPC tasks use the
+base MPC controller without those adaptive docking modifiers. The launch
+argument `docking_enabled` applies only to State Feedback.
+
+For a participant run, prefer the repository questionnaire wrapper:
+
+```bash
+python3 scripts/run_experiment.py
+```
+
+It generates the participant ID, runs the default hardware launch, and stores
+the questionnaire under the logger-created session directory. Questionnaire
+timestamps use `Europe/Berlin` local time, including daylight-saving changes.
 
 When launched with `controller:=mpc` or `controller:=state_feedback`, the
 hardware GUI waits until Controller has applied its task and Estimator and
@@ -105,7 +118,7 @@ Enable it with one argument:
 
 ```bash
 ros2 launch haply_study_gui study_gui.launch.py \
-  participant_id:=P03 docking_enabled:=true
+  controller:=state_feedback participant_id:=P03 docking_enabled:=true
 ```
 
 This activates `docking_start_percent=85`, `docking_stiffness_scale=2.0`, and
@@ -130,16 +143,25 @@ a deliberate edit to its profile; `docking_enabled` remains a run-time switch.
 - `auto_start` is ignored unless debug controls are enabled.
 - `max_callbacks_per_frame` defaults to `16`, preventing ROS callback backlog
   without unbounded work in one render frame.
-- `mode_overlay_duration_s` defaults to `2.0`. It controls the automatic
+- `mode_overlay_duration_s` defaults to `3.0`. It controls the automatic
   behavioral-mode instruction overlay shown on the initial task and mode changes.
+- `popup_title_font_size` and `popup_message_font_size` default to `48` and
+  `40` pixels.
+- `screen_size` defaults to `2560x1440` and accepts `WIDTHxHEIGHT`. For a
+  Full HD display, append `screen_size:=1920x1080` to either GUI launch:
+
+  ```bash
+  ros2 launch haply_study_gui study_gui_mouse.launch.py \
+    screen_size:=1920x1080
+  ```
 - Mouse simulation stops publishing raw state outside the drawing area. A
   mapped hardware cursor outside the task workspace is hidden and reported as
   `cursor outside workspace` until it returns.
 - The drawing transform fills the visible workspace in both axes.
 - The default participant sidebar shows the current trial, run state, and a
-  neutral controller label: Controller A is the first controller block in the
-  randomized schedule, and Controller B is the second. The GUI shows a
-  Controller A/B overlay at each controller-block transition.
+  neutral controller label: Controller A is the fixed block, and Controller B
+  is the adaptive block. The GUI shows a Controller A/B overlay at each
+  controller-block transition.
 - Append `mode:=debug` to either GUI launch to reveal the underlying
   adaptive/fixed `Mode` and `Control System` rows in the sidebar, for example:
 

@@ -43,7 +43,7 @@ def _generator():
     node.timeout_policy = "retry"
     node.endpoint_dwell_s = 1.0
     node.inter_trial_delay_s = 1.0
-    node.controller_modes = ["adaptive", "fixed"]
+    node.controller_modes = ["fixed", "adaptive"]
     node.repetitions = 1
     node.order_strategy = "fixed"
     node.order_seed = 1
@@ -215,7 +215,7 @@ def test_scenario_rolls_out_after_delay_and_resets_endpoint(monkeypatch):
     assert node.task_index == 1
     assert not node.endpoint_latched
     assert node.rollout_due_time is None
-    assert node.task_pub.messages[-1].controller_mode == "adaptive"
+    assert node.task_pub.messages[-1].controller_mode == "fixed"
     assert node.task_pub.messages[-1].start_point.x == 1.0
 
 
@@ -295,16 +295,51 @@ def test_default_yaml_paths_fit_the_configured_mpc_workspace():
             assert -bounds["y_bounds"] <= point[1] <= bounds["y_bounds"]
 
 
+def test_default_yaml_paths_have_equal_length():
+    config_dir = Path(__file__).resolve().parents[1] / "config"
+    paths = yaml.safe_load((config_dir / "default_tasks.yaml").read_text())["paths"]
+
+    lengths = [
+        (
+            (path["end_point"][0] - path["start_point"][0]) ** 2
+            + (path["end_point"][1] - path["start_point"][1]) ** 2
+        )
+        ** 0.5
+        for path in paths
+    ]
+
+    assert all(abs(length - 0.16) < 1e-12 for length in lengths)
+
+
 def test_schedule_completes_one_controller_mode_before_switching():
     node = _generator()
 
     modes = [task.controller_mode for task in node.tasks]
 
-    assert modes[:15] == ["adaptive"] * 15
-    assert modes[15:] == ["fixed"] * 15
+    assert modes[:15] == ["fixed"] * 15
+    assert modes[15:] == ["adaptive"] * 15
 
 
-def test_seeded_random_schedule_shuffles_phases_and_segments_reproducibly():
+def test_schedule_uses_same_behavioral_state_order_in_each_controller_block():
+    node = _generator()
+
+    phase_starts = [
+        node.tasks[offset + (index * 5)].phase
+        for offset in (0, 15)
+        for index in range(3)
+    ]
+
+    assert phase_starts == [
+        "careful",
+        "normal",
+        "aggressive",
+        "careful",
+        "normal",
+        "aggressive",
+    ]
+
+
+def test_seeded_random_schedule_shuffles_segments_reproducibly():
     first = _generator()
     first.order_strategy = "seeded_random"
     first.order_seed = 20260721
@@ -320,7 +355,7 @@ def test_seeded_random_schedule_shuffles_phases_and_segments_reproducibly():
     assert first.tasks == second.tasks
     for offset in (0, 15):
         phase_order = [first.tasks[offset + (index * 5)].phase for index in range(3)]
-        assert set(phase_order) == set(ScenarioGenerator.PHASES)
+        assert phase_order == list(ScenarioGenerator.PHASES)
         segment_orders = [
             [
                 task.segment_index
@@ -332,21 +367,35 @@ def test_seeded_random_schedule_shuffles_phases_and_segments_reproducibly():
         assert any(order != list(range(5)) for order in segment_orders)
 
 
-def test_seeded_random_schedule_counterbalances_controller_mode_order():
-    fixed_first = _generator()
-    fixed_first.order_strategy = "seeded_random"
-    fixed_first._schedule_rng = random.Random(1)
-    fixed_first.tasks = fixed_first._expand_session_tasks()
+def test_seeded_random_schedule_keeps_condition_order_across_seeds():
+    for seed in (1, 5):
+        node = _generator()
+        node.order_strategy = "seeded_random"
+        node._schedule_rng = random.Random(seed)
+        node.tasks = node._expand_session_tasks()
 
-    adaptive_first = _generator()
-    adaptive_first.order_strategy = "seeded_random"
-    adaptive_first._schedule_rng = random.Random(5)
-    adaptive_first.tasks = adaptive_first._expand_session_tasks()
+        assert [task.controller_mode for task in node.tasks[:15]] == ["fixed"] * 15
+        assert [task.controller_mode for task in node.tasks[15:]] == [
+            "adaptive"
+        ] * 15
+        assert [
+            node.tasks[offset + (index * 5)].phase
+            for offset in (0, 15)
+            for index in range(3)
+        ] == [
+            "careful",
+            "normal",
+            "aggressive",
+            "careful",
+            "normal",
+            "aggressive",
+        ]
 
-    assert [task.controller_mode for task in fixed_first.tasks[:15]] == ["fixed"] * 15
-    assert [task.controller_mode for task in adaptive_first.tasks[:15]] == [
-        "adaptive"
-    ] * 15
+
+def test_controller_mode_parser_enforces_canonical_order():
+    node = _generator()
+
+    assert node._parse_modes("adaptive,fixed") == ["fixed", "adaptive"]
 
 
 def test_final_task_finishes_session_and_rejects_new_requests():
