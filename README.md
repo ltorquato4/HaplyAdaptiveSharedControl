@@ -105,77 +105,6 @@ docker run --rm research-seminar:humble \
 Package-specific launch commands are documented in each package README under
 [`src/`](src/).
 
-## Run a Participant Experiment
-
-After building and sourcing ROS and the workspace, start the complete
-participant workflow with:
-
-```bash
-python3 scripts/run_experiment.py
-```
-
-The runner uses the normal hardware-launch defaults:
-
-- the next participant ID is generated automatically (`P01`, `P02`, ...);
-- the controller family is MPC;
-- adaptive-MPC terminal docking is enabled by
-  `control_node/config/mpc.yaml` and begins at 90% path progress;
-- fixed MPC trials use the base MPC controller without the adaptive docking
-  modifiers;
-- the GUI resolution is `2560x1440`;
-- participant display mode is used; and
-- experiment data is written below `./logs`.
-
-## Analyze Experiment Data
-
-After an experiment, generate the analysis tables and multipage PDF report for
-one logger session with:
-
-```bash
-ros2 run study_analysis analyze_session \
-  --input logs/<participant-id>_<timestamp>
-```
-
-For example:
-
-```bash
-ros2 run study_analysis analyze_session \
-  --input logs/P03_2026-07-29_06-05-00Z
-```
-
-The logger uses UTC for the session-folder timestamp, indicated by the trailing
-`Z`. Questionnaire timestamps inside the session use `Europe/Berlin` local
-time.
-
-By default, the results are written to
-`analysis_results/<session-folder>/`:
-
-- `analysis_report.pdf` contains the plots and descriptive analysis;
-- `trial_metrics.csv` contains one row of metrics per attempt;
-- `condition_summary.csv` compares the recorded conditions; and
-- `data_quality.csv` reports missing, malformed, or timing-related data.
-
-Use `--output` to select a different result directory:
-
-```bash
-ros2 run study_analysis analyze_session \
-  --input logs/<session-folder> \
-  --output analysis_results/<result-name>
-```
-
-The deterministic estimator and controller benchmark is separate from
-participant-session analysis. Run it with:
-
-```bash
-ros2 run study_analysis run_benchmark \
-  --output analysis_results/benchmark \
-  --seed 20260721
-```
-
-It creates `benchmark_results.csv` and `benchmark_report.pdf`. More details
-about the metrics, log compatibility, and optional arguments are available in
-the [`study_analysis` package documentation](src/study_analysis/README.md).
-
 ## Haply Hardware Setup
 
 The study uses the Haply Inverse3 together with the VerseGrip Stylus. The
@@ -265,6 +194,18 @@ Use this WSL-owned hardware path:
    The questionnaire is stored with its session at
    `logs/<participant-id>_<timestamp>/questionnaire/questionnaire.csv`.
 
+   The runner uses the normal hardware-launch defaults:
+
+  - the next participant ID is generated automatically (`P01`, `P02`, ...);
+  - the controller family is MPC;
+  - adaptive-MPC terminal docking is enabled by
+    `control_node/config/mpc.yaml` and begins at 90% path progress;
+  - fixed MPC trials use the base MPC controller without the adaptive docking
+    modifiers;
+  - the GUI resolution is `2560x1440`;
+  - participant display mode is used; and
+  - experiment data is written below `./logs`.
+
    To launch the study manually:
 
    ```bash
@@ -295,6 +236,58 @@ Use this WSL-owned hardware path:
    ros2 launch haply_study_gui study_gui.launch.py \
      controller:=mpc participant_id:=P03 mode:=debug
    ```
+
+## Analyze Experiment Data
+
+After an experiment, generate the analysis tables and multipage PDF report for
+one logger session with:
+
+```bash
+ros2 run study_analysis analyze_session \
+  --input logs/<participant-id>_<timestamp>
+```
+
+For example:
+
+```bash
+ros2 run study_analysis analyze_session \
+  --input logs/P03_2026-07-29_06-05-00Z
+```
+
+The logger uses UTC for the session-folder timestamp, indicated by the trailing
+`Z`. Questionnaire timestamps inside the session use `Europe/Berlin` local
+time.
+
+By default, the results are written to
+`analysis_results/<session-folder>/`:
+
+- `analysis_report.pdf` contains the plots and descriptive analysis;
+- `trial_metrics.csv` contains one row of metrics per attempt;
+- `condition_summary.csv` compares the recorded conditions; and
+- `data_quality.csv` reports missing, malformed, or timing-related data.
+
+Use `--output` to select a different result directory:
+
+```bash
+ros2 run study_analysis analyze_session \
+  --input logs/<session-folder> \
+  --output analysis_results/<result-name>
+```
+
+The deterministic estimator and controller benchmark is separate from
+participant-session analysis. Run it with:
+
+```bash
+ros2 run study_analysis run_benchmark \
+  --output analysis_results/benchmark \
+  --seed 20260721
+```
+
+It creates `benchmark_results.csv` and `benchmark_report.pdf`. More details
+about the metrics, log compatibility, and optional arguments are available in
+the [`study_analysis` package documentation](src/study_analysis/README.md).
+
+
 
 ## Manual Checks
 
