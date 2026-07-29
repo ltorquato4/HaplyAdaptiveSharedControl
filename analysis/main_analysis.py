@@ -7,7 +7,7 @@ import preprocess
 import trajectory_analysis
 # import mpc_weight_analysis
 import authority_disagreement_analysis
-import analysis.compare_directories as compare_directories
+import compare_directories # <-- FIXED IMPORT
 
 def run_pipeline(run_name):
     # Define base directories relative to this script

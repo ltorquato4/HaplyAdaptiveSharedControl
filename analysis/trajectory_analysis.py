@@ -161,9 +161,6 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
     if not isinstance(axes_traj, np.ndarray):
         axes_traj = [axes_traj]
         
-    min_norm_y = limits['norm_y'][0]
-    max_norm_y = limits['norm_y'][1]
-    
     for i in range(3):
         ax = axes_traj[i]
         if i < len(ordered_behaviors):
@@ -198,14 +195,10 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
             if interp_nx and interp_ny:
                 mean_nx = np.mean(interp_nx, axis=0)
                 mean_ny = np.mean(interp_ny, axis=0)
-                
                 std_ny = np.std(interp_ny, axis=0)
                 
                 ax.fill_between(mean_nx, mean_ny - std_ny, mean_ny + std_ny, color=beh_color, alpha=0.2, zorder=4, label="Variance")
                 ax.plot(mean_nx, mean_ny, color=beh_color, linewidth=2, linestyle='--', label="Mean", zorder=10)
-                
-                min_norm_y = min(min_norm_y, np.min(mean_ny - std_ny))
-                max_norm_y = max(max_norm_y, np.max(mean_ny + std_ny))
             
             ax.set_title(f"Phase: {behavior.replace('_', ' ').title()}")
             ax.set_xlabel("Normalized X")
@@ -213,12 +206,18 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                 ax.set_ylabel("Normalized Y")
             ax.grid(True)
             ax.set_aspect('equal', adjustable='box')
-            ax.legend(loc='best', fontsize=9)
+            
+            # Force Legend location to top right with an opaque background
+            ax.legend(loc='upper right', fontsize=9, framealpha=0.95, edgecolor='gray')
         else:
             ax.set_visible(False)
             
-    pad_norm_y = (max_norm_y - min_norm_y) * 0.05 if max_norm_y != min_norm_y else 1.0
-    axes_traj[0].set_ylim(min_norm_y - pad_norm_y, max_norm_y + pad_norm_y)
+    # Apply the locally calculated limits specifically for THIS controller mode
+    y_min, y_max = limits['norm_y']
+    
+    # FIXED absolute padding added to the top to accommodate the legend safely
+    fixed_top_padding = 0.035
+    axes_traj[0].set_ylim(y_min, y_max + fixed_top_padding)
     axes_traj[0].set_xlim(limits['norm_x'])
     
     plt.tight_layout()
@@ -259,22 +258,23 @@ def main(data_directory="data", output_directory="analysis_plots"):
 
     master_df = pd.concat(all_data, ignore_index=True)
     
-    limits = {
-        'x_2d': get_padded_limits([master_df['cursor_x'], master_df['start_x'], master_df['end_x']]),
-        'y_2d': get_padded_limits([master_df['cursor_y'], master_df['start_y'], master_df['end_y']]),
-        'norm_x': get_padded_limits([master_df['norm_x'], master_df['norm_end_x'], pd.Series([0])]),
-        'norm_y': get_padded_limits([master_df['norm_y'], master_df['norm_end_y'], pd.Series([0])]),
-        'time': get_padded_limits([master_df['timestamp']], pad=0),
-        'error': get_padded_limits([master_df['orthogonal_error']]),
-        'vel_x': get_padded_limits([master_df['haply_vel_x']]),
-        'vel_y': get_padded_limits([master_df['haply_vel_y']])
-    }
-
     controllers = master_df['study_controller_mode'].dropna().unique()
     behaviors = master_df['study_phase'].dropna().unique()
 
     for controller in controllers:
         controller_df = master_df[master_df['study_controller_mode'] == controller]
+        
+        # Calculate limits SPECIFICALLY for the subset of data belonging to this controller
+        limits = {
+            'x_2d': get_padded_limits([controller_df['cursor_x'], controller_df['start_x'], controller_df['end_x']]),
+            'y_2d': get_padded_limits([controller_df['cursor_y'], controller_df['start_y'], controller_df['end_y']]),
+            'norm_x': get_padded_limits([controller_df['norm_x'], controller_df['norm_end_x'], pd.Series([0])]),
+            'norm_y': get_padded_limits([controller_df['norm_y'], controller_df['norm_end_y'], pd.Series([0])]),
+            'time': get_padded_limits([controller_df['timestamp']], pad=0),
+            'error': get_padded_limits([controller_df['orthogonal_error']]),
+            'vel_x': get_padded_limits([controller_df['haply_vel_x']]),
+            'vel_y': get_padded_limits([controller_df['haply_vel_y']])
+        }
         
         print(f"Generating summary dashboard plots for {controller} controller...")
         generate_controller_summary_plots(controller_df, controller, behaviors, output_directory, limits)

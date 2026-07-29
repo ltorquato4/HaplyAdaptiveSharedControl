@@ -77,7 +77,7 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
                 df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
                 df['study_phase'] = df['study_phase'].astype(str).str.strip().str.lower()
                 df = calculate_metrics(df)
-                
+
                 # Group by mode
                 for mode, mode_df in df.groupby('study_controller_mode'):
                     if mode not in mode_data:
@@ -117,14 +117,14 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
     for mode, phases_dict in mode_data.items():
         ordered_phases = [p for p in phase_config.keys() if p in phases_dict]
         
+        # Track limits specifically for THIS mode's plot
+        fig_min_x, fig_max_x = 0.0, 0.0
+        fig_min_y, fig_max_y = 0.0, 0.0
+        
         # We want exactly 3 columns (Careful, Normal, Aggressive)
         fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharex=True, sharey=True)
         if not isinstance(axes, np.ndarray):
             axes = [axes]
-        
-        min_norm_y = float('inf')
-        max_norm_y = float('-inf')
-        global_max_end_x = 0
         
         for i in range(3):
             ax = axes[i]
@@ -147,11 +147,16 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
                                 label="User Mean" if not label_added else "")
                         label_added = True
                         
-                        min_norm_y = min(min_norm_y, np.min(user_mean_ny))
-                        max_norm_y = max(max_norm_y, np.max(user_mean_ny))
+                        # Expand figure limits based on plotted lines
+                        fig_min_x = min(fig_min_x, np.min(user_mean_nx))
+                        fig_max_x = max(fig_max_x, np.max(user_mean_nx))
+                        fig_min_y = min(fig_min_y, np.min(user_mean_ny))
+                        fig_max_y = max(fig_max_y, np.max(user_mean_ny))
+                        
                         local_max_end_x = max(local_max_end_x, user_data['max_end_x'])
                 
-                global_max_end_x = max(global_max_end_x, local_max_end_x)
+                # Expand X bounds to cover reference line
+                fig_max_x = max(fig_max_x, local_max_end_x)
                 
                 # Markers and Reference Line
                 ax.plot([0, local_max_end_x], [0, 0], 'k--', alpha=0.8, label='Reference')
@@ -164,20 +169,22 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
                     ax.set_ylabel("Normalized Y")
                 ax.grid(True)
                 
-                # Hardcoded Legend location to bottom right
-                ax.legend(loc='lower right', fontsize=9)
+                # Force Legend location to top right with an opaque background
+                ax.legend(loc='upper right', fontsize=9, framealpha=0.95, edgecolor='gray')
             else:
                 ax.set_visible(False)
         
-        # Formatting limits safely
-        if min_norm_y == float('inf'):
-            min_norm_y, max_norm_y = -0.1, 0.1
-            
-        pad_norm_y = (max_norm_y - min_norm_y) * 0.05 if max_norm_y != min_norm_y else 1.0
-        axes[0].set_ylim(min_norm_y - pad_norm_y, max_norm_y + pad_norm_y)
+        # Calculate padding and apply safely to this specific plot
+        rng_x = fig_max_x - fig_min_x
+        pad_x = rng_x * 0.05 if rng_x != 0 else 1.0
+        axes[0].set_xlim(fig_min_x - pad_x, fig_max_x + pad_x)
         
-        if global_max_end_x > 0:
-            axes[0].set_xlim(-global_max_end_x * 0.05, global_max_end_x * 1.05)
+        rng_y = fig_max_y - fig_min_y
+        pad_y_bottom = rng_y * 0.05 if rng_y != 0 else 0.01
+        
+        # FIXED absolute padding added to the top to accommodate the legend safely
+        fixed_top_padding = 0.035
+        axes[0].set_ylim(fig_min_y - pad_y_bottom, fig_max_y + fixed_top_padding)
         
         # Ensure aspect ratio is equal to accurately reflect deviation magnitude
         for ax in axes:
