@@ -80,9 +80,10 @@ source install/setup.bash
 | Start state-feedback controller with hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03` |
 
 The hardware launch defaults to MPC and requires the Haply Inverse SDK Service
-to be running at `ws://localhost:10001` before ROS starts. MPC terminal docking
-is enabled by `control_node/config/mpc.yaml`; the launch argument
-`docking_enabled` applies only to State Feedback.
+to be running at `ws://localhost:10001` before ROS starts. Adaptive-MPC terminal
+docking is enabled by `control_node/config/mpc.yaml`; fixed MPC tasks use the
+base MPC controller without those adaptive docking modifiers. The launch
+argument `docking_enabled` applies only to State Feedback.
 
 For a participant run, prefer the repository questionnaire wrapper:
 

@@ -120,6 +120,32 @@ docker run --rm research-seminar:humble \
 Package-specific launch commands are documented in each package README under
 [`src/`](src/).
 
+## Run a Participant Experiment
+
+After building and sourcing ROS and the workspace, start the complete
+participant workflow with:
+
+```bash
+python3 scripts/run_experiment.py
+```
+
+The runner uses the normal hardware-launch defaults:
+
+- the next participant ID is generated automatically (`P01`, `P02`, ...);
+- the controller family is MPC;
+- adaptive-MPC terminal docking is enabled by
+  `control_node/config/mpc.yaml` and begins at 90% path progress;
+- fixed MPC trials use the base MPC controller without the adaptive docking
+  modifiers;
+- the GUI resolution is `2560x1440`;
+- participant display mode is used; and
+- experiment data is written below `./logs`.
+
+MPC docking is configurable rather than hard-coded, but it remains enabled in
+normal MPC runs because the committed MPC profile sets `docking_enabled: true`.
+The launch argument `docking_enabled` is a separate switch that applies only
+when `controller:=state_feedback` is selected.
+
 ## Haply Hardware Setup
 
 The study uses the Haply Inverse3 together with the VerseGrip Stylus. The
@@ -212,7 +238,7 @@ Use this WSL-owned hardware path:
    To launch the study manually:
 
    ```bash
-   # Default MPC controller; MPC docking is enabled by control_node/config/mpc.yaml
+   # Default MPC controller; adaptive-MPC docking is enabled by mpc.yaml
    ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03
 
    # Alternative State Feedback controller without docking
@@ -227,7 +253,7 @@ Use this WSL-owned hardware path:
    # No controller
    ros2 launch haply_study_gui study_gui_mouse.launch.py participant_id:=P03
 
-   # MPC controller; docking is enabled by the MPC profile
+   # MPC controller; adaptive-MPC docking is enabled by the MPC profile
    ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=mpc participant_id:=P03
 
    # State-Feedback with no docking
