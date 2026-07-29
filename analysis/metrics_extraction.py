@@ -91,7 +91,7 @@ def main(data_directory="../processed_logs", output_directory="../plots/metrics"
     print(f"Successfully calculated metrics for {len(metrics_df)} total trials.\n")
     
     # ---------------------------------------------------------
-    # 3. Group and Export Separated Files
+    # 3. Group and Export Separated Files with Summary Rows
     # ---------------------------------------------------------
     grouped = metrics_df.groupby(['controller_mode', 'phase'])
     
@@ -103,14 +103,27 @@ def main(data_directory="../processed_logs", output_directory="../plots/metrics"
         filename = f"{safe_controller}_{safe_phase}_metrics.csv"
         output_path = os.path.join(output_directory, filename)
         
-        # Save the separated dataset
-        group_df.to_csv(output_path, index=False)
-        print(f" -> Saved {len(group_df):02d} trials to: {filename}")
+        # Calculate the means for this specific mode/phase combination
+        summary_row = pd.DataFrame([{
+            'file_name': 'SUMMARY_MEAN',
+            'controller_mode': controller,
+            'phase': phase,
+            'duration_s': group_df['duration_s'].mean(),
+            'cross_track_rmse': group_df['cross_track_rmse'].mean(),
+            'cross_track_max': group_df['cross_track_max'].mean()
+        }])
         
-    # Keep one master summary file just in case you need it for global plotting
+        # Append the summary row to the bottom of the grouped dataframe
+        final_df = pd.concat([group_df, summary_row], ignore_index=True)
+        
+        # Save the separated dataset (now including the summary line)
+        final_df.to_csv(output_path, index=False)
+        print(f" -> Saved {len(group_df):02d} trials + summary to: {filename}")
+        
+    # Keep one master summary file without the aggregated rows mixed in
     master_path = os.path.join(output_directory, "all_trials_metrics_master.csv")
     metrics_df.to_csv(master_path, index=False)
-    print(f"\nMaster summary saved to: {master_path}")
+    print(f"\nMaster summary (raw trials only) saved to: {master_path}")
 
 if __name__ == "__main__":
     main()
