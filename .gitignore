@@ -4,8 +4,7 @@ install/
 log/
 
 # Experiment log results
-logs/*
-analysis_results/*
+
 
 # python environment
 .venv/
