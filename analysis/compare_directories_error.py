@@ -64,7 +64,7 @@ def plot_directories_error_by_mode(base_data_dir="../processed_logs", output_dir
                         mode_data[mode]['all_phases'][run_name] = []
                         
                     # 1. Store ALL PHASES data for this file
-                    traj_sorted = mode_df.sort_values(by='normalized_distance')
+                    traj_sorted = mode_df.dropna(subset=['normalized_distance', 'orthogonal_error']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
                     if len(traj_sorted) > 1:
                         interp = np.interp(
                             common_norm_dist, 
@@ -80,7 +80,7 @@ def plot_directories_error_by_mode(base_data_dir="../processed_logs", output_dir
                         if run_name not in mode_data[mode][phase]:
                             mode_data[mode][phase][run_name] = []
                             
-                        p_traj_sorted = phase_df.sort_values(by='normalized_distance')
+                        p_traj_sorted = phase_df.dropna(subset=['normalized_distance', 'orthogonal_error']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
                         if len(p_traj_sorted) > 1:
                             interp = np.interp(
                                 common_norm_dist, 
@@ -117,14 +117,12 @@ def plot_directories_error_by_mode(base_data_dir="../processed_logs", output_dir
                 if errors:
                     # Calculate mean line only, skipping variance fills
                     mean_err = np.mean(errors, axis=0)
-                    ax.plot(common_norm_dist, mean_err, linewidth=2)  # Label removed here
+                    ax.plot(common_norm_dist, mean_err, linewidth=2)
             
             # Label the subplot with the phase name inline
             phase_label = "All Phases" if phase == 'all_phases' else phase.replace('_', ' ').title()
             ax.text(0.02, 0.85, phase_label, transform=ax.transAxes, fontsize=11, fontweight='bold', va='top')
             
-            # The legend block has been removed completely
-                
         # Global limits and formatting
         axes[-1].set_xlabel("Position along Reference Trajectory (Normalized)")
         axes[0].set_xlim(0, 1)

@@ -82,7 +82,9 @@ if __name__ == "__main__":
         print(f"Error: The root logs directory was not found at {os.path.abspath(logs_base_dir)}")
     else:
         # Identify all items in the logs directory that are explicitly folders
-        run_directories = [d for d in os.listdir(logs_base_dir) if os.path.isdir(os.path.join(logs_base_dir, d))]
+        # AND ignore hidden folders (like .pending_questionnaires or .git)
+        run_directories = [d for d in os.listdir(logs_base_dir) 
+                           if os.path.isdir(os.path.join(logs_base_dir, d)) and not d.startswith('.')]
         
         if not run_directories:
             print(f"No run directories found inside {os.path.abspath(logs_base_dir)}")

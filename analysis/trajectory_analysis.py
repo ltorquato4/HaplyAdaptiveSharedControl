@@ -8,7 +8,6 @@ from pathlib import Path
 # ==========================================
 # 1. Math & Metric Calculations
 # ==========================================
-
 def calculate_metrics(df):
     line_vec_x = df['end_x'] - df['start_x']
     line_vec_y = df['end_y'] - df['start_y']
@@ -27,7 +26,6 @@ def calculate_metrics(df):
     df['normalized_distance'] = np.where(line_len_sq == 0, 0, dot_prod / line_len_sq)
 
     # --- f(x)=0 (Ursprungsgerade) Transformation ---
-    # Translate start point to (0,0) and rotate so the end point lies flat on the X-axis
     theta = np.arctan2(line_vec_y, line_vec_x)
     cos_theta = np.cos(theta)
     sin_theta = np.sin(theta)
@@ -57,7 +55,6 @@ def get_padded_limits(series_list, pad=0.05):
 # ==========================================
 # 2. Plotting & Phase Marker Logic
 # ==========================================
-
 def add_global_phase_labels(axes, df):
     if not isinstance(axes, (list, np.ndarray, tuple)):
         axes = [axes]
@@ -72,7 +69,7 @@ def add_global_phase_labels(axes, df):
         traj_df = df[df['file_stem'] == traj].sort_values('timestamp')
         if traj_df.empty: 
             continue
-        
+            
         traj_df['block'] = (traj_df['study_phase'] != traj_df['study_phase'].shift(1)).cumsum()
         for _, block_df in traj_df.groupby('block'):
             blocks.append({
@@ -92,7 +89,7 @@ def add_global_phase_labels(axes, df):
             merged_blocks.append(row.to_dict())
         else:
             last = merged_blocks[-1]
-            if row['phase'] == last['phase'] and row['min'] <= last['max'] + 5.0: 
+            if row['phase'] == last['phase'] and row['min'] <= last['max'] + 60.0: 
                 last['max'] = max(last['max'], row['max'])
             else:
                 merged_blocks.append(row.to_dict())
@@ -114,7 +111,7 @@ def add_global_phase_labels(axes, df):
         else:
             level = len(levels)
             levels.append(p_end)
-        
+            
         levels[level] = p_end
         
         y_arrow = -0.15 - (level * 0.12)
@@ -203,6 +200,7 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
             fig, (ax1, ax2) = plt.subplots(2, 1, figsize=(10, 8), sharex=True)
             ax1.plot(traj_data['timestamp'], traj_data['haply_vel_x'])
             ax2.plot(traj_data['timestamp'], traj_data['haply_vel_y'])
+
             ax1.set_title(f"Velocity Profile\nController: {controller.title()} | Phase: {title_phase} | Run: {traj}")
             ax1.set_ylabel("Velocity X")
             ax1.set_xlim(limits['time'])
@@ -240,7 +238,7 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
         plt.scatter(traj_data['start_x'].iloc[0], traj_data['start_y'].iloc[0], c='green', marker='o', s=100, label=l_start, zorder=5, alpha=0.7)
         plt.scatter(traj_data['end_x'].iloc[0], traj_data['end_y'].iloc[0], c='red', marker='X', s=100, label=l_end, zorder=5, alpha=0.7)
         
-        traj_data_sorted = traj_data.sort_values(by='normalized_distance')
+        traj_data_sorted = traj_data.dropna(subset=['normalized_distance', 'cursor_x', 'cursor_y']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
         if len(traj_data_sorted) > 1:
             interp_cx.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['cursor_x']))
             interp_cy.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['cursor_y']))
@@ -278,7 +276,7 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
         plt.scatter(end_x, 0, c='red', marker='X', s=100, label=l_end, zorder=5, alpha=0.7)
         max_end_x = max(max_end_x, end_x)
         
-        traj_data_sorted = traj_data.sort_values(by='normalized_distance')
+        traj_data_sorted = traj_data.dropna(subset=['normalized_distance', 'norm_x', 'norm_y']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
         if len(traj_data_sorted) > 1:
             interp_nx.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['norm_x']))
             interp_ny.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['norm_y']))
@@ -288,8 +286,7 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
         mean_ny = np.mean(interp_ny, axis=0)
         plt.plot(mean_nx, mean_ny, color='black', linewidth=3, linestyle='--', label='Mean Trajectory', zorder=10)
         
-    plt.plot([0, max_end_x], [0, 0], 'k--', alpha=0.5, label='f(x) = 0' if len(trajectories) > 0 else "")
-    
+    plt.plot([0, max_end_x], [0, 0], 'k--', alpha=0.5, label='f(x) = 0' if len(trajectories) > 0 else "") 
     plt.title(f"Aligned Trajectory (f(x)=0)\nController: {controller.title()} | {title_phase}")
     plt.xlabel("Normalized X")
     plt.ylabel("Normalized Y")
@@ -304,10 +301,9 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
     # 3. Positional Error (all)
     plt.figure(figsize=(8, 6))
     interpolated_errors = []
-
     for traj in trajectories:
         traj_data = df[df['file_stem'] == traj]
-        traj_data_sorted = traj_data.sort_values(by='normalized_distance')
+        traj_data_sorted = traj_data.dropna(subset=['normalized_distance', 'orthogonal_error']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
         
         plt.plot(traj_data_sorted['normalized_distance'], traj_data_sorted['orthogonal_error'], alpha=0.3)
         
@@ -321,7 +317,6 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
 
     if interpolated_errors:
         mean_error = np.mean(interpolated_errors, axis=0)
-        # Variance shading removed as requested for the standard aggregated plots
         plt.plot(common_norm_dist, mean_error, color='black', linewidth=3, linestyle='--', label='Mean Error', zorder=10)
         plt.legend()
 
@@ -358,13 +353,7 @@ def generate_plots(df, controller, behavior, output_dir, limits, aggregate_only=
     plt.savefig(os.path.join(save_dir, f"{prefix_all}_velocity_profiles.pdf"), bbox_inches='tight')
     plt.close()
 
-
 def generate_controller_summary_plots(df, controller, behaviors, output_dir, limits):
-    """
-    Creates two distinct summary figures for a specific controller:
-    1. A 1x3 grid containing Aligned Trajectories for each behavior (Shared scales).
-    2. A 4x1 grid containing Mean Positional Error for each behavior + All phases (Independent dynamic scaling).
-    """
     save_dir = os.path.join(output_dir, controller)
     os.makedirs(save_dir, exist_ok=True)
     
@@ -404,7 +393,7 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                 ax.scatter(0, 0, c='green', marker='o', s=50, zorder=5, label=l_start, alpha=0.7)
                 ax.scatter(end_x, 0, c='red', marker='X', s=50, zorder=5, label=l_end, alpha=0.7)
                 
-                traj_data_sorted = traj_data.sort_values(by='normalized_distance')
+                traj_data_sorted = traj_data.dropna(subset=['normalized_distance', 'norm_x', 'norm_y']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
                 if len(traj_data_sorted) > 1:
                     interp_nx.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['norm_x']))
                     interp_ny.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['norm_y']))
@@ -429,7 +418,6 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
         else:
             ax.set_visible(False)
             
-    # Apply unified Y-limits for the 1x3 grid
     pad_norm_y = (max_norm_y - min_norm_y) * 0.05 if max_norm_y != min_norm_y else 1.0
     axes_traj[0].set_ylim(min_norm_y - pad_norm_y, max_norm_y + pad_norm_y)
     axes_traj[0].set_xlim(limits['norm_x'])
@@ -447,7 +435,6 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
         
     fig_err.suptitle(f"Mean Positional Error\nController: {controller.title()}", fontsize=14)
     
-    # Dynamically track min and max specifically for this grid, independent of global raw errors
     min_err_y = float('inf')
     max_err_y = float('-inf')
     
@@ -465,7 +452,7 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
             
             interp_errors = []
             for traj in beh_df['file_stem'].unique():
-                traj_data = beh_df[beh_df['file_stem'] == traj].sort_values(by='normalized_distance')
+                traj_data = beh_df[beh_df['file_stem'] == traj].dropna(subset=['normalized_distance', 'orthogonal_error']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
                 if len(traj_data) > 1:
                     err = np.interp(common_norm_dist, traj_data['normalized_distance'], traj_data['orthogonal_error'])
                     interp_errors.append(err)
@@ -481,12 +468,10 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                 min_err_y = min(min_err_y, np.min(mean_err - std_err))
                 max_err_y = max(max_err_y, np.max(mean_err + std_err))
                 
-            # Inline bold label for the behavior phase
             ax.text(0.02, 0.85, f"{behavior.replace('_', ' ').title()}", transform=ax.transAxes, fontsize=11, fontweight='bold', va='top')
         else:
             ax.set_visible(False)
             
-    # Subplot 4: All Phases Combined
     ax_all = axes_err[3]
     ax_all.plot([0, 1], [0, 0], 'k--', alpha=0.5, linewidth=1.5, zorder=1)
     ax_all.grid(True)
@@ -505,29 +490,37 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
         
     ax_all.text(0.02, 0.85, "All Phases", transform=ax_all.transAxes, fontsize=11, fontweight='bold', va='top')
     
-    # Enforce uniform limits derived specifically from the plotted means and variances
-    if min_err_y == float('inf'): # Fallback just in case no data was parsed
+    if min_err_y == float('inf'): 
         min_err_y, max_err_y = 0, 0.1
-    
+        
     pad_err_y = (max_err_y - min_err_y) * 0.05
     axes_err[0].set_ylim(min_err_y - pad_err_y, max_err_y + pad_err_y)
     axes_err[0].set_xlim(0, 1)
     
     plt.tight_layout()
-    fig_err.subplots_adjust(top=0.92) # Leave space for the suptitle so it doesn't overlap
+    fig_err.subplots_adjust(top=0.92) 
     fig_err.savefig(os.path.join(save_dir, f"{controller}_summary_positional_error.pdf"), bbox_inches='tight')
     plt.close(fig_err)
 
 # ==========================================
 # 3. Main Execution Workflow
 # ==========================================
-
 def main(data_directory="data", output_directory="analysis_plots"):
     csv_files = glob.glob(os.path.join(data_directory, "**", "*.csv"), recursive=True)
     all_data = []
     
     for file in csv_files:
-        df = pd.read_csv(file)
+        try:
+            df = pd.read_csv(file)
+        except pd.errors.EmptyDataError:
+            print(f"Skipping empty file: {file}")
+            continue
+            
+        # SAFETY CHECK: Ensure critical columns exist before processing
+        required_cols = ['end_x', 'start_x', 'end_y', 'start_y', 'cursor_x', 'cursor_y']
+        if not all(col in df.columns for col in required_cols):
+            print(f"Skipping {Path(file).name}: Missing required coordinate columns.")
+            continue
         
         if 'study_controller_mode' in df.columns: df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
         if 'study_phase' in df.columns: df['study_phase'] = df['study_phase'].astype(str).str.strip().str.lower()
@@ -537,9 +530,8 @@ def main(data_directory="data", output_directory="analysis_plots"):
         all_data.append(df)
         
     if not all_data:
-        print("No CSV files found in the specified directory.")
+        print("No valid trajectories found.")
         return
-
     master_df = pd.concat(all_data, ignore_index=True)
     
     limits = {
@@ -552,7 +544,6 @@ def main(data_directory="data", output_directory="analysis_plots"):
         'vel_x': get_padded_limits([master_df['haply_vel_x']]),
         'vel_y': get_padded_limits([master_df['haply_vel_y']])
     }
-
     controllers = master_df['study_controller_mode'].dropna().unique()
     behaviors = master_df['study_phase'].dropna().unique()
 

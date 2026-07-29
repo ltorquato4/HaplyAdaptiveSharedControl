@@ -1,11 +1,14 @@
 import pandas as pd
 import argparse
+import re
+from collections import defaultdict
 from pathlib import Path
 
 def preprocess_directory(input_dir, output_dir):
     """
-    Scans a directory for CSV files, discards non-running study data,
-    and normalizes time across all files based on the first file's timestamp.
+    Scans a directory for CSV files, filters to keep only the highest attempt 
+    for each trial, discards non-running study data, drops uninitialized 
+    startup samples, and normalizes time.
     """
     input_path = Path(input_dir)
     output_path = Path(output_dir)
@@ -13,17 +16,38 @@ def preprocess_directory(input_dir, output_dir):
     if not input_path.is_dir():
         print(f"Error: The input directory '{input_dir}' does not exist.")
         return
-    
+        
     output_path.mkdir(parents=True, exist_ok=True)
     
-    # Sort files to ensure the "first" file is processed first consistently
-    csv_files = sorted(list(input_path.glob("*.csv")))
-    
-    if not csv_files:
+    all_csv_files = list(input_path.glob("*.csv"))
+    if not all_csv_files:
         print(f"No CSV files found in '{input_dir}'.")
         return
+
+    # Group files by trial_id and only keep the max attempt_id
+    trial_files = defaultdict(list)
+    pattern = re.compile(r'trial_(\d+)_attempt_(\d+)')
     
-    print(f"Found {len(csv_files)} CSV file(s). Starting processing...\n")
+    for file_path in all_csv_files:
+        match = pattern.search(file_path.name)
+        if match:
+            trial_id = int(match.group(1))
+            attempt_id = int(match.group(2))
+            trial_files[trial_id].append((attempt_id, file_path))
+        else:
+            # If filename doesn't match the pattern, keep it by default
+            trial_files[file_path.name].append((0, file_path))
+            
+    csv_files = []
+    for trial_key, files in trial_files.items():
+        # Sort by attempt_id descending and pick the first (highest)
+        highest_attempt_file = sorted(files, key=lambda x: x[0], reverse=True)[0][1]
+        csv_files.append(highest_attempt_file)
+        
+    # Sort files to ensure the "first" file is processed first consistently
+    csv_files = sorted(csv_files)
+    
+    print(f"Filtered down to {len(csv_files)} CSV file(s) (highest attempts only). Starting processing...\n")
     
     total_initial_rows = 0
     total_kept_rows = 0
@@ -42,16 +66,22 @@ def preprocess_directory(input_dir, output_dir):
                 filtered_df = df[
                     (df['study_running'] == True) | 
                     (df['study_running'].astype(str).str.strip().str.lower() == 'true')
-                ].copy() # .copy() prevents SettingWithCopyWarning when modifying time later
+                ].copy()
             else:
                 print(f"  -> Warning: 'study_running' column not found in {file_path.name}.")
                 filtered_df = df.copy()
             
+            # Drop rows where essential position data is missing (uninitialized state)
+            critical_cols = ['cursor_x', 'cursor_y', 'end_x', 'end_y']
+            available_critical = [col for col in critical_cols if col in filtered_df.columns]
+            if available_critical:
+                filtered_df = filtered_df.dropna(subset=available_critical)
+
             if filtered_df.empty:
-                print("  -> No valid running data found. Skipping.")
+                print("  -> No valid running data found after dropping NaNs. Skipping.")
                 continue
 
-            # Hardcoded check for the 'timestamp' column
+            # Time normalization
             if 'timestamp' not in filtered_df.columns:
                 print("  -> Warning: Column 'timestamp' not found. Cannot normalize time.")
             else:

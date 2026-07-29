@@ -9,7 +9,6 @@ from pathlib import Path
 # ==========================================
 # 1. Parsing and Mathematical Logic
 # ==========================================
-
 def parse_and_calculate_inputs(df):
     kh_x1, kh_x2, kh_y1, kh_y2 = [], [], [], []
     
@@ -45,7 +44,7 @@ def parse_and_calculate_inputs(df):
             elif isinstance(arr, (int, float)): return abs(arr)
             return np.nan
         except: return np.nan
-            
+        
     df['u_h_mag'] = df['u_h'].apply(parse_input_array) if 'u_h' in df.columns else np.nan
     df['u_a_mag'] = df['u_a'].apply(parse_input_array) if 'u_a' in df.columns else np.nan
 
@@ -66,13 +65,7 @@ def get_padded_limits(series_list, pad=0.05):
 # ==========================================
 # 2. Plotting & Phase Marker Logic
 # ==========================================
-
 def add_global_phase_labels(ax, df):
-    """
-    Finds the exact time intervals for all phases across ALL trajectories,
-    merges them into chronological blocks, and draws dimension arrows for each execution mode.
-    Returns the number of vertically stacked levels used, to adjust label padding dynamically.
-    """
     if 'study_phase' not in df.columns:
         return 1
         
@@ -83,7 +76,7 @@ def add_global_phase_labels(ax, df):
         traj_df = df[df['file_stem'] == traj].sort_values('timestamp')
         if traj_df.empty: 
             continue
-        
+            
         traj_df['block'] = (traj_df['study_phase'] != traj_df['study_phase'].shift(1)).cumsum()
         for _, block_df in traj_df.groupby('block'):
             blocks.append({
@@ -105,14 +98,14 @@ def add_global_phase_labels(ax, df):
             merged_blocks.append(row.to_dict())
         else:
             last = merged_blocks[-1]
-            # If the phase is identical and timestamps are close/overlapping, merge them
-            if row['phase'] == last['phase'] and row['min'] <= last['max'] + 5.0: 
+            # Increased gap to 60.0s to allow separate file intervals to comfortably span into aggregated visual blocks
+            if row['phase'] == last['phase'] and row['min'] <= last['max'] + 60.0: 
                 last['max'] = max(last['max'], row['max'])
             else:
                 merged_blocks.append(row.to_dict())
                 
     trans = ax.get_xaxis_transform()
-    levels = [] # Tracks ending timestamps to allow safe vertical stacking if phases overlap
+    levels = [] 
     
     # 4. Draw the boundaries, arrows, and labels
     for idx, row in pd.DataFrame(merged_blocks).iterrows():
@@ -121,7 +114,6 @@ def add_global_phase_labels(ax, df):
         p_end = row['max']
         p_mid = (p_start + p_end) / 2
         
-        # Determine vertical level to prevent text collision if modes overlap in time
         level = 0
         for l_idx, l_end in enumerate(levels):
             if p_start >= l_end:
@@ -130,25 +122,22 @@ def add_global_phase_labels(ax, df):
         else:
             level = len(levels)
             levels.append(p_end)
-        
+            
         levels[level] = p_end
         
         y_arrow = -0.06 - (level * 0.08)
         y_text = -0.09 - (level * 0.08)
         
-        # Draw vertical dividers (skip global edges to avoid overlapping the y-axis)
         if p_start > df['timestamp'].min():
             ax.axvline(x=p_start, color='black', linestyle='--', linewidth=1.2, alpha=0.6)
         if p_end < df['timestamp'].max():
             ax.axvline(x=p_end, color='black', linestyle='--', linewidth=1.2, alpha=0.6)
             
-        # Draw horizontal dimension arrow
         ax.annotate('', xy=(p_start, y_arrow), xytext=(p_end, y_arrow),
                     xycoords=trans, textcoords=trans,
                     arrowprops=dict(arrowstyle='<|-|>', color='black', shrinkA=0, shrinkB=0),
                     annotation_clip=False)
                     
-        # Place the execution mode label
         ax.text(p_mid, y_text, phase_name, transform=trans,
                 ha='center', va='top', fontsize=11, color='black', clip_on=False)
                 
@@ -187,7 +176,6 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
     ax.set_ylim(limits['kh'])
     ax.grid(True)
     
-    # Process phase labels and adjust bottom padding based on how many levels were used
     num_levels = add_global_phase_labels(ax, df)
     ax.set_xlabel("Timestamp", labelpad=35 + (num_levels * 18))
     
@@ -207,7 +195,7 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
         
         if 'u_h_mag' in traj_data.columns: ax.plot(traj_data['timestamp'], traj_data['u_h_mag'], color='blue', label=label_h)
         if 'u_a_mag' in traj_data.columns: ax.plot(traj_data['timestamp'], traj_data['u_a_mag'], color='red', label=label_a)
-            
+        
     ax.set_title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info}", pad=15)
     ax.set_ylabel("Control Input Magnitude")
     ax.set_xlim(limits['time'])
@@ -224,7 +212,6 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
 # ==========================================
 # 3. Main Execution Workflow
 # ==========================================
-
 def process_dataframe(df, file_stem):
     if 'study_controller_mode' in df.columns: 
         df['study_controller_mode'] = df['study_controller_mode'].astype(str).str.strip().str.lower()
@@ -249,7 +236,7 @@ def main(data_directory="data", base_output_dir="authority_plots"):
             all_data.append(process_dataframe(df, Path(file).stem))
         except Exception as e:
             print(f"Skipping {file} due to error: {e}")
-        
+
     if not all_data:
         print("No valid data could be processed.")
         return
