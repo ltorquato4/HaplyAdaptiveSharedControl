@@ -139,14 +139,16 @@ class MpcController(Controller):
 
         Curve specifications:
         - S(0.00) ≈ 0.0020 (0.2% control at start, allowing a gentler, wider slope)
-        - S(d >= 0.95) = 1.0 (Full 100% control from 95% distance onwards)
+        - S(d >= 0.32) = 1.0 (Hard-clamped to 100% control from 32% distance onwards;
+        the raw sigmoid yields ~0.9980 at d = 0.32)
         """
-        start = np.asarray(self.experiment_start_point, dtype=float)
-        end = np.asarray(self.experiment_end_point, dtype=float)
+        # Ensure all vectors share 2D spatial coordinates (x, y)
+        start = np.asarray(self.experiment_start_point[:2], dtype=float)
+        end = np.asarray(self.experiment_end_point[:2], dtype=float)
         curr = np.asarray(current_point[:2], dtype=float)
 
         path_vec = end - start
-        path_length_sq = np.dot(path_vec, path_vec)
+        path_length_sq = float(np.dot(path_vec, path_vec))
 
         if path_length_sq < 1e-9:
             return 0.0
@@ -156,13 +158,13 @@ class MpcController(Controller):
         d_rel = np.dot(progress_vec, path_vec) / path_length_sq
         d_rel = float(np.clip(d_rel, 0.0, 1.0))
 
-        # Full 100% control reached from 95% distance onwards
-        if d_rel >= 0.95:
+        # Full 100% control reached from 32% distance onwards
+        if d_rel >= 0.32:
             return 1.0
 
         # Stretched Logistic Sigmoid: S(d) = 1 / (1 + exp(-k * (d - d0)))
-        d0 = 0.475  # Midpoint of [0.0, 0.95]
-        k = 13.10   # Stretches the curve to give a smoother, wider transition zone
+        d0 = 0.16   # Midpoint of interval [0.0, 0.32]
+        k = 38.83   # Stretches the curve to yield S(0) ≈ 0.0020 and S(0.32) ≈ 0.9980
 
         scale = 1.0 / (1.0 + np.exp(-k * (d_rel - d0)))
         return float(np.clip(scale, 0.0, 1.0))

@@ -20,17 +20,17 @@ control_node:
 
     # MPC cost-function weights. These are tuned to produce a comfortable
     # docking experience. The trajectory weight is the most important for
-    weight_comfort: 10e2
-    weight_trajectory: 10e2
-    weight_goal: 1e1
+    weight_comfort: 50e1
+    weight_trajectory: 30e2
+    weight_goal: 10e2
 
     # Existing adaptive-MPC terminal docking behavior, formerly hard-coded in
     # AdaptiveMpcController. These defaults preserve the previous behavior.
     docking_enabled: true
-    docking_start_percent: 90.0
+    docking_start_percent: 80.0
     docking_comfort_reduction: 0.9
-    docking_trajectory_weight_scale: 10e2
-    docking_goal_weight_scale: 50e2
+    docking_trajectory_weight_scale: 5e2
+    docking_goal_weight_scale: 25e2
 
 scenario_generator:
   ros__parameters:
