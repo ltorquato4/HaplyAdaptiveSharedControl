@@ -76,12 +76,22 @@ source install/setup.bash
 | Purpose | Command |
 | --- | --- |
 | Mouse simulation | `ros2 launch haply_study_gui study_gui_mouse.launch.py` |
-| Full state-feedback hardware stack (default) | `ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03` |
-| Full MPC hardware stack (includes Estimator, Data Logger, and readiness gate) | `ros2 launch haply_study_gui study_gui.launch.py controller:=mpc participant_id:=P03` |
+| Full MPC hardware stack (default) | `ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03` |
 | Start state-feedback controller with hardware GUI | `ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03` |
 
-The hardware launch defaults to state feedback and requires the Haply Inverse SDK Service to be running at
-`ws://localhost:10001` before ROS starts.
+The hardware launch defaults to MPC and requires the Haply Inverse SDK Service
+to be running at `ws://localhost:10001` before ROS starts. MPC terminal docking
+is enabled by `control_node/config/mpc.yaml`; the launch argument
+`docking_enabled` applies only to State Feedback.
+
+For a participant run, prefer the repository questionnaire wrapper:
+
+```bash
+python3 scripts/run_experiment.py
+```
+
+It generates the participant ID, runs the default hardware launch, and stores
+the questionnaire under the logger-created session directory.
 
 When launched with `controller:=mpc` or `controller:=state_feedback`, the
 hardware GUI waits until Controller has applied its task and Estimator and
@@ -106,7 +116,7 @@ Enable it with one argument:
 
 ```bash
 ros2 launch haply_study_gui study_gui.launch.py \
-  participant_id:=P03 docking_enabled:=true
+  controller:=state_feedback participant_id:=P03 docking_enabled:=true
 ```
 
 This activates `docking_start_percent=85`, `docking_stiffness_scale=2.0`, and

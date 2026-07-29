@@ -44,7 +44,7 @@ def generate_launch_description():
         [
             DeclareLaunchArgument(
                 "controller",
-                default_value="state_feedback",
+                default_value="mpc",
                 description="Controller family: none, mpc, or state_feedback.",
             ),
             DeclareLaunchArgument(
@@ -86,9 +86,7 @@ def generate_launch_description():
                 OnProcessExit(
                     target_action=study_gui,
                     on_exit=[
-                        EmitEvent(
-                            event=Shutdown(reason="study_gui window closed")
-                        )
+                        EmitEvent(event=Shutdown(reason="study_gui window closed"))
                     ],
                 )
             ),

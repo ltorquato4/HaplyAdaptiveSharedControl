@@ -197,15 +197,28 @@ Use this WSL-owned hardware path:
 
 5. Launch the study GUI:
 
-   To include a controller (and its required estimator):
+   For a participant experiment, use the questionnaire runner. It assigns the
+   next participant ID (`P01`, `P02`, ...), collects demographics, launches the
+   default MPC hardware study, and asks the post-study questions after the GUI
+   closes:
+
    ```bash
-   # MPC controller including docking, which is always true here
+   python3 scripts/run_experiment.py
+   ```
+
+   The questionnaire is stored with its session at
+   `logs/<participant-id>_<timestamp>/questionnaire/questionnaire.csv`.
+
+   To launch the study manually:
+
+   ```bash
+   # Default MPC controller; MPC docking is enabled by control_node/config/mpc.yaml
    ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03
 
-   # Alternative state-feedback controller with no docking enabled
+   # Alternative State Feedback controller without docking
    ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03
 
-   # Alternative state-feedback controller with docking enabled
+   # Alternative State Feedback controller with docking
    ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03 docking_enabled:=true
    ```
 
@@ -214,7 +227,7 @@ Use this WSL-owned hardware path:
    # No controller
    ros2 launch haply_study_gui study_gui_mouse.launch.py participant_id:=P03
 
-   # MPC Controller, which always includes docking
+   # MPC controller; docking is enabled by the MPC profile
    ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=mpc participant_id:=P03
 
    # State-Feedback with no docking

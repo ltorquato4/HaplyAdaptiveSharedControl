@@ -92,6 +92,15 @@ default.
 
 ## Launches
 
+For a production participant run, use the questionnaire wrapper. It assigns the
+participant ID and starts the default MPC hardware launch:
+
+```bash
+python3 scripts/run_experiment.py
+```
+
+Manual launch commands remain available:
+
 ```bash
 # GUI, Mapper, and Scenario with mouse input
 ros2 launch haply_study_gui study_gui_mouse.launch.py
@@ -104,20 +113,16 @@ ros2 launch haply_study_gui study_gui_mouse.launch.py \
 ros2 launch haply_study_gui study_gui_mouse.launch.py \
   controller:=state_feedback
 
-# Full state-feedback hardware stack (the default production controller)
+# Full MPC hardware stack (the default production controller)
 ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03
 
-# Optional state-feedback docking (uses the documented safe defaults)
+# Select State Feedback explicitly
 ros2 launch haply_study_gui study_gui.launch.py \
-  participant_id:=P03 docking_enabled:=true
+  participant_id:=P03 controller:=state_feedback
 
-# Select the optional MPC family explicitly.
+# Optional State Feedback docking
 ros2 launch haply_study_gui study_gui.launch.py \
-  participant_id:=P03 controller:=mpc
-
-# mpc controller with docking
-ros2 launch haply_study_gui study_gui.launch.py \
-  participant_id:=P03 controller:=mpc docking_enabled:=true
+  participant_id:=P03 controller:=state_feedback docking_enabled:=true
 ```
 
 ### Controller visualization launches
