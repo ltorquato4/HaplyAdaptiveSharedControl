@@ -56,93 +56,15 @@ def get_padded_limits(series_list, pad=0.05):
     return (min_val - pad * rng, max_val + pad * rng)
 
 # ==========================================
-# 2. Plotting & Phase Marker Logic
+# 2. Plotting Logic
 # ==========================================
-
-def add_global_phase_labels(axes, df):
-    if not isinstance(axes, (list, np.ndarray, tuple)):
-        axes = [axes]
-    bottom_ax = axes[-1]
-    
-    if 'study_phase' not in df.columns:
-        return 1
-        
-    blocks = []
-    
-    for traj in df['file_stem'].unique():
-        traj_df = df[df['file_stem'] == traj].sort_values('timestamp')
-        if traj_df.empty: 
-            continue
-            
-        traj_df['block'] = (traj_df['study_phase'] != traj_df['study_phase'].shift(1)).cumsum()
-
-        for _, block_df in traj_df.groupby('block'):
-            blocks.append({
-                'phase': block_df['study_phase'].iloc[0],
-                'min': block_df['timestamp'].min(),
-                'max': block_df['timestamp'].max()
-            })
-            
-    if not blocks:
-        return 1
-    
-    blocks_df = pd.DataFrame(blocks).sort_values('min')
-    
-    merged_blocks = []
-    for _, row in blocks_df.iterrows():
-        if not merged_blocks:
-            merged_blocks.append(row.to_dict())
-        else:
-            last = merged_blocks[-1]
-            if row['phase'] == last['phase'] and row['min'] <= last['max'] + 60.0:
-                last['max'] = max(last['max'], row['max'])
-            else:
-                merged_blocks.append(row.to_dict())
-                
-    trans = bottom_ax.get_xaxis_transform()
-    levels = []
-    
-    for idx, row in pd.DataFrame(merged_blocks).iterrows():
-        phase_name = str(row['phase']).replace('_', ' ').title()
-        p_start = row['min']
-        p_end = row['max']
-        p_mid = (p_start + p_end) / 2
-        
-        level = 0
-        for l_idx, l_end in enumerate(levels):
-            if p_start >= l_end:
-                level = l_idx
-                break
-        else:
-            level = len(levels)
-            levels.append(p_end)
-            
-        levels[level] = p_end
-        
-        y_arrow = -0.15 - (level * 0.12)
-        y_text = -0.21 - (level * 0.12)
-        
-        for ax in axes:
-            if p_start > df['timestamp'].min():
-                ax.axvline(x=p_start, color='black', linestyle='--', linewidth=1.2, alpha=0.6)
-            if p_end < df['timestamp'].max():
-                ax.axvline(x=p_end, color='black', linestyle='--', linewidth=1.2, alpha=0.6)
-                
-            bottom_ax.annotate('', xy=(p_start, y_arrow), xytext=(p_end, y_arrow),
-                    xycoords=trans, textcoords=trans,
-                    arrowprops=dict(arrowstyle='<|-|>', color='black', shrinkA=0, shrinkB=0),
-                    annotation_clip=False)
-                    
-            bottom_ax.text(p_mid, y_text, phase_name, transform=trans,
-                ha='center', va='top', fontsize=11, color='black', clip_on=False)
-                
-    return len(levels)
 
 def generate_controller_summary_plots(df, controller, behaviors, output_dir, limits):
     save_dir = os.path.join(output_dir, controller)
     os.makedirs(save_dir, exist_ok=True)
     
-    common_norm_dist = np.linspace(0, 1, 500)
+    # Define 101 bin edges to create 100 discrete progress bins (0% to 100%)
+    bin_edges = np.linspace(0.0, 1.0, 101)
     
     # Define explicit order and colors according to instructions
     phase_config = {
@@ -165,17 +87,16 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
         ax = axes_traj[i]
         if i < len(ordered_behaviors):
             behavior = ordered_behaviors[i]
-            beh_color = phase_config[behavior] # Fetch the specific color
+            beh_color = phase_config[behavior] 
             beh_df = df[df['study_phase'] == behavior]
             
             trajectories = beh_df['file_stem'].unique()
             max_end_x = 0
-            interp_nx = []
-            interp_ny = []
             
+            # Plot individual raw trajectories first
             for idx, traj in enumerate(trajectories):
                 traj_data = beh_df[beh_df['file_stem'] == traj]
-                ax.plot(traj_data['norm_x'], traj_data['norm_y'], alpha=0.2, color=beh_color, linestyle='--')
+                ax.plot(traj_data['norm_x'], traj_data['norm_y'], alpha=0.5, color=beh_color, linestyle='--')
                 
                 end_x = traj_data['norm_end_x'].iloc[0]
                 max_end_x = max(max_end_x, end_x)
@@ -184,21 +105,23 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                 l_end = 'End' if idx == 0 else ""
                 ax.scatter(0, 0, c='green', marker='o', s=50, zorder=5, label=l_start, alpha=0.7)
                 ax.scatter(end_x, 0, c='red', marker='X', s=50, zorder=5, label=l_end, alpha=0.7)
-                
-                traj_data_sorted = traj_data.dropna(subset=['normalized_distance', 'norm_x', 'norm_y']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
-                if len(traj_data_sorted) > 1:
-                    interp_nx.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['norm_x']))
-                    interp_ny.append(np.interp(common_norm_dist, traj_data_sorted['normalized_distance'], traj_data_sorted['norm_y']))
             
             ax.plot([0, max_end_x], [0, 0], 'k--', alpha=0.8, label='Reference', zorder=3)
             
-            if interp_nx and interp_ny:
-                mean_nx = np.mean(interp_nx, axis=0)
-                mean_ny = np.mean(interp_ny, axis=0)
-                std_ny = np.std(interp_ny, axis=0)
+            # Calculate grouped bin aggregations across all trajectories in this phase
+            beh_df_clean = beh_df.dropna(subset=['normalized_distance', 'norm_x', 'norm_y']).copy()
+            beh_df_clean = beh_df_clean[(beh_df_clean['normalized_distance'] >= 0.0) & (beh_df_clean['normalized_distance'] <= 1.0)]
+            beh_df_clean['progress_bin'] = pd.cut(beh_df_clean['normalized_distance'], bin_edges, labels=False, include_lowest=True)
+            
+            summary = beh_df_clean.groupby('progress_bin')[['norm_x', 'norm_y']].agg(['mean', 'std'])
+            
+            if not summary.empty:
+                mean_nx = summary[('norm_x', 'mean')].to_numpy()
+                mean_ny = summary[('norm_y', 'mean')].to_numpy()
+                std_ny = summary[('norm_y', 'std')].fillna(0).to_numpy() # Fill NaNs for bins with only 1 sample
                 
                 ax.fill_between(mean_nx, mean_ny - std_ny, mean_ny + std_ny, color=beh_color, alpha=0.2, zorder=4, label="Variance")
-                ax.plot(mean_nx, mean_ny, color=beh_color, linewidth=2, linestyle='--', label="Mean", zorder=10)
+                ax.plot(mean_nx, mean_ny, color=beh_color, linewidth=2, label="Mean", zorder=10)
             
             ax.set_title(f"Phase: {behavior.replace('_', ' ').title()}")
             ax.set_xlabel("Normalized X")

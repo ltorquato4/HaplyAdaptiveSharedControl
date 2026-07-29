@@ -46,11 +46,13 @@ def calculate_metrics(df):
 # ==========================================
 
 def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir="../plots/comparison_plots"):
-    """Plots the mean aligned trajectory of each user per controller mode and phase."""
+    """Plots the mean aligned trajectory of each user per controller mode and phase using discrete binning."""
     os.makedirs(output_dir, exist_ok=True)
-    common_norm_dist = np.linspace(0, 1, 500)
     
-    # Nested dict structure: {mode: {phase: {run_name: {'nx': [], 'ny': [], 'max_end_x': 0}}}}
+    # Define 101 bin edges to create 100 discrete progress bins (0% to 100%)
+    bin_edges = np.linspace(0.0, 1.0, 101)
+    
+    # Nested dict structure: {mode: {phase: {run_name: {'ndist': [], 'nx': [], 'ny': [], 'max_end_x': 0}}}}
     mode_data = {}
     
     subdirectories = [f.path for f in os.scandir(base_data_dir) if f.is_dir()]
@@ -88,19 +90,17 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
                         if phase not in mode_data[mode]:
                             mode_data[mode][phase] = {}
                         if run_name not in mode_data[mode][phase]:
-                            mode_data[mode][phase][run_name] = {'nx': [], 'ny': [], 'max_end_x': 0}
+                            mode_data[mode][phase][run_name] = {'ndist': [], 'nx': [], 'ny': [], 'max_end_x': 0}
                             
-                        # Sort and drop duplicates to allow for clean interpolation
-                        p_traj_sorted = phase_df.dropna(subset=['normalized_distance', 'norm_x', 'norm_y']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
+                        # Keep raw data instead of interpolating
+                        valid_data = phase_df.dropna(subset=['normalized_distance', 'norm_x', 'norm_y'])
                         
-                        if len(p_traj_sorted) > 1:
-                            interp_nx = np.interp(common_norm_dist, p_traj_sorted['normalized_distance'], p_traj_sorted['norm_x'])
-                            interp_ny = np.interp(common_norm_dist, p_traj_sorted['normalized_distance'], p_traj_sorted['norm_y'])
+                        if not valid_data.empty:
+                            mode_data[mode][phase][run_name]['ndist'].extend(valid_data['normalized_distance'].tolist())
+                            mode_data[mode][phase][run_name]['nx'].extend(valid_data['norm_x'].tolist())
+                            mode_data[mode][phase][run_name]['ny'].extend(valid_data['norm_y'].tolist())
                             
-                            mode_data[mode][phase][run_name]['nx'].append(interp_nx)
-                            mode_data[mode][phase][run_name]['ny'].append(interp_ny)
-                            
-                            end_x = p_traj_sorted['norm_end_x'].iloc[0]
+                            end_x = valid_data['norm_end_x'].iloc[0]
                             mode_data[mode][phase][run_name]['max_end_x'] = max(mode_data[mode][phase][run_name]['max_end_x'], end_x)
                             
             except Exception as e:
@@ -136,24 +136,37 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
                 local_max_end_x = 0
                 label_added = False
                 
-                # Plot the mean line for EACH USER
+                # Plot the mean line for EACH USER using discrete bins
                 for user_name, user_data in phase_data.items():
-                    if user_data['nx'] and user_data['ny']:
-                        # Calculate the mean trajectory across all runs for this specific user
-                        user_mean_nx = np.mean(user_data['nx'], axis=0)
-                        user_mean_ny = np.mean(user_data['ny'], axis=0)
+                    if user_data['ndist']:
+                        user_df = pd.DataFrame({
+                            'ndist': user_data['ndist'], 
+                            'nx': user_data['nx'], 
+                            'ny': user_data['ny']
+                        })
                         
-                        ax.plot(user_mean_nx, user_mean_ny, color=color, linewidth=2, alpha=0.7, 
-                                label="User Mean" if not label_added else "")
-                        label_added = True
+                        # Filter to bounds and bin
+                        user_df = user_df[(user_df['ndist'] >= 0.0) & (user_df['ndist'] <= 1.0)].copy()
+                        user_df['bin'] = pd.cut(user_df['ndist'], bin_edges, labels=False, include_lowest=True)
                         
-                        # Expand figure limits based on plotted lines
-                        fig_min_x = min(fig_min_x, np.min(user_mean_nx))
-                        fig_max_x = max(fig_max_x, np.max(user_mean_nx))
-                        fig_min_y = min(fig_min_y, np.min(user_mean_ny))
-                        fig_max_y = max(fig_max_y, np.max(user_mean_ny))
+                        # Calculate mean within discrete bins
+                        user_summary = user_df.groupby('bin')[['nx', 'ny']].mean().dropna()
                         
-                        local_max_end_x = max(local_max_end_x, user_data['max_end_x'])
+                        if not user_summary.empty:
+                            user_mean_nx = user_summary['nx'].to_numpy()
+                            user_mean_ny = user_summary['ny'].to_numpy()
+                            
+                            ax.plot(user_mean_nx, user_mean_ny, color=color, linewidth=2, alpha=0.7, 
+                                    label="User Mean" if not label_added else "")
+                            label_added = True
+                            
+                            # Expand figure limits based on plotted lines
+                            fig_min_x = min(fig_min_x, np.min(user_mean_nx))
+                            fig_max_x = max(fig_max_x, np.max(user_mean_nx))
+                            fig_min_y = min(fig_min_y, np.min(user_mean_ny))
+                            fig_max_y = max(fig_max_y, np.max(user_mean_ny))
+                            
+                            local_max_end_x = max(local_max_end_x, user_data['max_end_x'])
                 
                 # Expand X bounds to cover reference line
                 fig_max_x = max(fig_max_x, local_max_end_x)
