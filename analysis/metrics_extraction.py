@@ -88,17 +88,29 @@ def main(data_directory="../processed_logs", output_directory="../plots/metrics"
 
     # Convert list of dictionaries to a DataFrame
     metrics_df = pd.DataFrame(metrics_list)
+    print(f"Successfully calculated metrics for {len(metrics_df)} total trials.\n")
     
-    # Save to CSV
-    output_path = os.path.join(output_directory, "trial_metrics_summary.csv")
-    metrics_df.to_csv(output_path, index=False)
-    print(f"Successfully calculated metrics for {len(metrics_df)} trials.")
-    print(f"Summary saved to: {output_path}")
+    # ---------------------------------------------------------
+    # 3. Group and Export Separated Files
+    # ---------------------------------------------------------
+    grouped = metrics_df.groupby(['controller_mode', 'phase'])
     
-    # Optionally print a quick condition summary to the terminal
-    print("\n--- Quick Condition Summary (Mean) ---")
-    summary = metrics_df.groupby(['controller_mode', 'phase']).mean(numeric_only=True)
-    print(summary)
+    for (controller, phase), group_df in grouped:
+        # Create a safe filename (e.g., mpc_aggressive_metrics.csv)
+        safe_controller = str(controller).replace(' ', '_').replace('/', '_')
+        safe_phase = str(phase).replace(' ', '_')
+        
+        filename = f"{safe_controller}_{safe_phase}_metrics.csv"
+        output_path = os.path.join(output_directory, filename)
+        
+        # Save the separated dataset
+        group_df.to_csv(output_path, index=False)
+        print(f" -> Saved {len(group_df):02d} trials to: {filename}")
+        
+    # Keep one master summary file just in case you need it for global plotting
+    master_path = os.path.join(output_directory, "all_trials_metrics_master.csv")
+    metrics_df.to_csv(master_path, index=False)
+    print(f"\nMaster summary saved to: {master_path}")
 
 if __name__ == "__main__":
     main()
