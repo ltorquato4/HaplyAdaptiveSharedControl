@@ -22,7 +22,7 @@ control_node:
     # docking experience. The trajectory weight is the most important for
     weight_comfort: 10e2
     weight_trajectory: 10e2
-    weight_goal: 10e1
+    weight_goal: 1e1
 
     # Existing adaptive-MPC terminal docking behavior, formerly hard-coded in
     # AdaptiveMpcController. These defaults preserve the previous behavior.
