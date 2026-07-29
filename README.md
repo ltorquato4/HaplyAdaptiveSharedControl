@@ -203,10 +203,6 @@ Use this WSL-owned hardware path:
    session manifest so the answers can be mapped safely to fixed and adaptive
    control.
 
-   These three items are informed by SoAS, QUEAD2, and UEQ-S concepts, but they
-   are not the complete validated questionnaires and must not be reported as
-   validated questionnaire scores.
-
    The runner uses the normal hardware-launch defaults:
 
   - the next participant ID is generated automatically (`P01`, `P02`, ...);
