@@ -233,7 +233,15 @@ def main(data_directory="data", base_output_dir="authority_plots"):
     for file in csv_files:
         try:
             df = pd.read_csv(file)
-            all_data.append(process_dataframe(df, Path(file).stem))
+            # Apply identical dropna logic here to ensure math doesn't break
+            required_cols = ['cursor_x', 'cursor_y', 'end_x', 'end_y']
+            if all(col in df.columns for col in required_cols):
+                df = df.dropna(subset=required_cols)
+                
+            if not df.empty:
+                all_data.append(process_dataframe(df, Path(file).stem))
+        except pd.errors.EmptyDataError:
+            continue
         except Exception as e:
             print(f"Skipping {file} due to error: {e}")
 
@@ -243,8 +251,8 @@ def main(data_directory="data", base_output_dir="authority_plots"):
         
     master_df = pd.concat(all_data, ignore_index=True)
     
-    limits = {
-        'time': get_padded_limits([master_df['timestamp']], pad=0),
+    # Calculate ONLY the Y-limits globally so the controllers are visually comparable
+    global_limits = {
         'kh': get_padded_limits([master_df['Kh_x1'], master_df['Kh_x2'], master_df['Kh_y1'], master_df['Kh_y2']]),
         'u_mag': get_padded_limits([master_df['u_h_mag'], master_df['u_a_mag']])
     }
@@ -254,8 +262,12 @@ def main(data_directory="data", base_output_dir="authority_plots"):
     for controller in controllers:
         controller_df = master_df[master_df['study_controller_mode'] == controller]
         
+        # Determine the time limit locally for THIS controller mode
+        controller_limits = global_limits.copy()
+        controller_limits['time'] = get_padded_limits([controller_df['timestamp']], pad=0)
+        
         print(f"Generating aggregated plot for {controller.upper()} Controller...")
-        generate_aggregated_plots(controller_df, controller, base_output_dir, limits)
+        generate_aggregated_plots(controller_df, controller, base_output_dir, controller_limits)
 
 if __name__ == "__main__":
     main(data_directory="../processed_logs", base_output_dir="../plots/authority_plots")

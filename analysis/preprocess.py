@@ -8,7 +8,7 @@ def preprocess_directory(input_dir, output_dir):
     """
     Scans a directory for CSV files, filters to keep only the highest attempt 
     for each trial, discards non-running study data, drops uninitialized 
-    startup samples, and normalizes time.
+    startup samples, and normalizes time per controller mode.
     """
     input_path = Path(input_dir)
     output_path = Path(output_dir)
@@ -51,7 +51,9 @@ def preprocess_directory(input_dir, output_dir):
     
     total_initial_rows = 0
     total_kept_rows = 0
-    global_start_time = None
+    
+    # Track start time independently for each controller mode
+    mode_start_times = {}
     
     for file_path in csv_files:
         print(f"Processing: {file_path.name}")
@@ -81,17 +83,19 @@ def preprocess_directory(input_dir, output_dir):
                 print("  -> No valid running data found after dropping NaNs. Skipping.")
                 continue
 
-            # Time normalization
-            if 'timestamp' not in filtered_df.columns:
-                print("  -> Warning: Column 'timestamp' not found. Cannot normalize time.")
+            # Time normalization per controller mode
+            if 'timestamp' not in filtered_df.columns or 'study_controller_mode' not in filtered_df.columns:
+                print("  -> Warning: 'timestamp' or 'study_controller_mode' column not found. Cannot normalize time by mode.")
             else:
-                # Capture the global start time from the very first valid row of the first file
-                if global_start_time is None:
-                    global_start_time = filtered_df['timestamp'].iloc[0]
-                    print(f"  -> [Time Sync] Global start time set to: {global_start_time}")
+                # Get the controller mode for this file
+                file_mode = filtered_df['study_controller_mode'].astype(str).str.strip().str.lower().iloc[0]
                 
-                # Apply the global start time offset to this file
-                filtered_df['timestamp'] = filtered_df['timestamp'] - global_start_time
+                if file_mode not in mode_start_times:
+                    mode_start_times[file_mode] = filtered_df['timestamp'].iloc[0]
+                    print(f"  -> [Time Sync] First seen mode '{file_mode}'. Time reset to 0.")
+                
+                # Apply the mode-specific start time offset
+                filtered_df['timestamp'] = filtered_df['timestamp'] - mode_start_times[file_mode]
             
             kept_rows = len(filtered_df)
             total_kept_rows += kept_rows
@@ -107,8 +111,10 @@ def preprocess_directory(input_dir, output_dir):
             
     print("\n--- Processing Summary ---")
     print(f"Files processed: {len(csv_files)}")
-    if global_start_time is not None:
-        print(f"Global Start Time (t=0): {global_start_time}")
+    if mode_start_times:
+        print("Mode Start Times (t=0):")
+        for mode, start_t in mode_start_times.items():
+            print(f"  - {mode}: {start_t}")
     print(f"Total initial rows: {total_initial_rows}")
     print(f"Total discarded rows: {total_initial_rows - total_kept_rows}")
     print(f"Total kept rows: {total_kept_rows}")
