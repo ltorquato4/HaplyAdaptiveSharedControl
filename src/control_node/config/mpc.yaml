@@ -8,7 +8,7 @@ control_node:
     # State Feedback controller's 2 N Euclidean vector-norm limit.
     max_control_amplitude: 10.0
     max_velocity_amplitude: 10.0
-    acceleration_to_force_factor: 0.2
+    acceleration_to_force_factor: 0.21
     cursor_timeout_s: 0.2
     mpc_control_every_i_th_iteration: 1
     adapt_every_i_th_iterarion: 3
@@ -22,7 +22,7 @@ control_node:
     # docking experience. The trajectory weight is the most important for
     weight_comfort: 10e2
     weight_trajectory: 10e2
-    weight_goal: 1e1
+    weight_goal: 10e1
 
     # Existing adaptive-MPC terminal docking behavior, formerly hard-coded in
     # AdaptiveMpcController. These defaults preserve the previous behavior.
