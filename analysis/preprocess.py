@@ -8,7 +8,7 @@ def preprocess_directory(input_dir, output_dir):
     """
     Scans a directory for CSV files, filters to keep only the highest attempt 
     for each trial, discards non-running study data, drops uninitialized 
-    startup samples, and normalizes time per controller mode.
+    startup samples, and stitches timestamps together cumulatively per mode.
     """
     input_path = Path(input_dir)
     output_path = Path(output_dir)
@@ -52,8 +52,8 @@ def preprocess_directory(input_dir, output_dir):
     total_initial_rows = 0
     total_kept_rows = 0
     
-    # Track start time independently for each controller mode
-    mode_start_times = {}
+    # Track cumulative time independently for each controller mode
+    mode_cumulative_time = defaultdict(float)
     
     for file_path in csv_files:
         print(f"Processing: {file_path.name}")
@@ -83,19 +83,22 @@ def preprocess_directory(input_dir, output_dir):
                 print("  -> No valid running data found after dropping NaNs. Skipping.")
                 continue
 
-            # Time normalization per controller mode
+            # Time normalization per controller mode (Stitching trials together)
             if 'timestamp' not in filtered_df.columns or 'study_controller_mode' not in filtered_df.columns:
                 print("  -> Warning: 'timestamp' or 'study_controller_mode' column not found. Cannot normalize time by mode.")
             else:
                 # Get the controller mode for this file
                 file_mode = filtered_df['study_controller_mode'].astype(str).str.strip().str.lower().iloc[0]
                 
-                if file_mode not in mode_start_times:
-                    mode_start_times[file_mode] = filtered_df['timestamp'].iloc[0]
-                    print(f"  -> [Time Sync] First seen mode '{file_mode}'. Time reset to 0.")
+                # 1. Normalize this specific trial's timestamps to start at 0.0
+                local_time = filtered_df['timestamp'] - filtered_df['timestamp'].iloc[0]
                 
-                # Apply the mode-specific start time offset
-                filtered_df['timestamp'] = filtered_df['timestamp'] - mode_start_times[file_mode]
+                # 2. Shift the normalized time by the cumulative time already spent in this mode
+                filtered_df['timestamp'] = local_time + mode_cumulative_time[file_mode]
+                
+                # 3. Update the cumulative time for the next trial to pick up where this one left off
+                # (Adding a tiny 0.01s buffer prevents identical overlapping timestamps)
+                mode_cumulative_time[file_mode] = filtered_df['timestamp'].iloc[-1] + 0.01
             
             kept_rows = len(filtered_df)
             total_kept_rows += kept_rows
@@ -111,10 +114,10 @@ def preprocess_directory(input_dir, output_dir):
             
     print("\n--- Processing Summary ---")
     print(f"Files processed: {len(csv_files)}")
-    if mode_start_times:
-        print("Mode Start Times (t=0):")
-        for mode, start_t in mode_start_times.items():
-            print(f"  - {mode}: {start_t}")
+    if mode_cumulative_time:
+        print("Total Cumulative Active Time Per Mode:")
+        for mode, total_time in mode_cumulative_time.items():
+            print(f"  - {mode}: {total_time:.2f} seconds")
     print(f"Total initial rows: {total_initial_rows}")
     print(f"Total discarded rows: {total_initial_rows - total_kept_rows}")
     print(f"Total kept rows: {total_kept_rows}")
