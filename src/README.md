@@ -102,7 +102,7 @@ python3 scripts/run_experiment.py
 Manual launch commands remain available:
 
 ```bash
-# GUI, Mapper, and Scenario with mouse input
+# GUI, Mapper, and Scenario with mouse input and no controller
 ros2 launch haply_study_gui study_gui_mouse.launch.py
 
 # Use a Full HD screen instead of the default 2560x1440
@@ -141,12 +141,12 @@ production hardware stack, readiness gate, and visualization window:
 ros2 launch control_node haply_control_debug_launch.py
 ```
 
-Both wrappers default to `controller:=state_feedback` and DEBUG logging. MPC
+Both wrappers default to `controller:=mpc` and DEBUG logging. State Feedback
 can still be selected explicitly when required:
 
 ```bash
-ros2 launch control_node mouse_control_debug_launch.py controller:=mpc
-ros2 launch control_node haply_control_debug_launch.py controller:=mpc
+ros2 launch control_node mouse_control_debug_launch.py controller:=state_feedback
+ros2 launch control_node haply_control_debug_launch.py controller:=state_feedback
 ```
 
 These are visualization wrappers around the same production launches above;

@@ -10,13 +10,13 @@ This package now exposes two runtime paths with separate executables:
 The shared GUI launch selects the correct executable from `controller`:
 
 ```bash
-# Default production controller
-ros2 launch haply_study_gui study_gui.launch.py \
-  controller:=state_feedback participant_id:=P03
-
-# MPC
+# Default MPC production controller
 ros2 launch haply_study_gui study_gui.launch.py \
   controller:=mpc participant_id:=P03
+
+# State Feedback
+ros2 launch haply_study_gui study_gui.launch.py \
+  controller:=state_feedback participant_id:=P03
 ```
 
 ## Configuration profiles

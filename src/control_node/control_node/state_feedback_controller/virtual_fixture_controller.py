@@ -144,6 +144,42 @@ class VirtualFixtureStateFeedbackController:
             1.0 + (self.config.docking_stiffness_scale - 1.0) * smooth_fraction
         )
 
+    def _calculate_sigmoid_scale(self, current_point: Sequence[float]) -> float:
+        """Calculates a smooth, stretched S-curve scaling factor [0, 1] based on progress.
+
+        Curve specifications:
+        - S(0.00) ≈ 0.0020 (0.2% control at start, allowing a gentler, wider slope)
+        - S(d >= 0.32) = 1.0 (Hard-clamped to 100% control from 32% distance onwards;
+        the raw sigmoid yields ~0.9980 at d = 0.32)
+        """
+        # Ensure all vectors share 2D spatial coordinates (x, y)
+        start = np.asarray(self.experiment_start_point[:2], dtype=float)
+        end = np.asarray(self.experiment_end_point[:2], dtype=float)
+        curr = np.asarray(current_point[:2], dtype=float)
+
+        path_vec = end - start
+        path_length_sq = float(np.dot(path_vec, path_vec))
+
+        if path_length_sq < 1e-9:
+            return 0.0
+
+        # Calculate relative progress d_rel along start -> end path
+        progress_vec = curr - start
+        d_rel = np.dot(progress_vec, path_vec) / path_length_sq
+        d_rel = float(np.clip(d_rel, 0.0, 1.0))
+
+        # Full 100% control reached from 32% distance onwards
+        if d_rel >= 0.32:
+            return 1.0
+
+        # Stretched Logistic Sigmoid: S(d) = 1 / (1 + exp(-k * (d - d0)))
+        d0 = 0.16   # Midpoint of interval [0.0, 0.32]
+        k = 38.83   # Stretches the curve to yield S(0) ≈ 0.0020 and S(0.32) ≈ 0.9980
+
+        scale = 1.0 / (1.0 + np.exp(-k * (d_rel - d0)))
+        return float(np.clip(scale, 0.0, 1.0))
+
+    
     def compute_force(
         self, position: Sequence[float], timestamp_s: float
     ) -> np.ndarray:
@@ -171,6 +207,10 @@ class VirtualFixtureStateFeedbackController:
             - self.config.fixture_damping_ns_per_m * velocity_cross
         )
         force = along_force + fixture_force
+
+        scale_factor = self._calculate_sigmoid_scale(point)
+        force = force * scale_factor
+
         magnitude = float(np.linalg.norm(force))
         if magnitude > self.config.max_force_n:
             force *= self.config.max_force_n / magnitude

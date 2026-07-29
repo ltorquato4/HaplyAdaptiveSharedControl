@@ -28,7 +28,7 @@ class MpcController(Controller):
         y_bounds: tuple[float, float] | None = None,
         weight_comfort: float = 50e1,
         weight_trajectory: float = 10e2,
-        weight_goal: float = 30e2,
+        weight_goal: float = 10e1,
     ) -> None:
         super().__init__(start_point, end_point, dt)
         self.prediction_horizon = prediction_horizon
@@ -134,6 +134,41 @@ class MpcController(Controller):
         shifted_sequence = np.vstack([control_sequence[1:], control_sequence[-1]])
         return shifted_sequence.reshape(-1)
 
+    def _calculate_sigmoid_scale(self, current_point: Sequence[float]) -> float:
+        """Calculates a smooth, stretched S-curve scaling factor [0, 1] based on progress.
+
+        Curve specifications:
+        - S(0.00) ≈ 0.0020 (0.2% control at start, allowing a gentler, wider slope)
+        - S(d >= 0.32) = 1.0 (Hard-clamped to 100% control from 32% distance onwards;
+        the raw sigmoid yields ~0.9980 at d = 0.32)
+        """
+        # Ensure all vectors share 2D spatial coordinates (x, y)
+        start = np.asarray(self.experiment_start_point[:2], dtype=float)
+        end = np.asarray(self.experiment_end_point[:2], dtype=float)
+        curr = np.asarray(current_point[:2], dtype=float)
+
+        path_vec = end - start
+        path_length_sq = float(np.dot(path_vec, path_vec))
+
+        if path_length_sq < 1e-9:
+            return 0.0
+
+        # Calculate relative progress d_rel along start -> end path
+        progress_vec = curr - start
+        d_rel = np.dot(progress_vec, path_vec) / path_length_sq
+        d_rel = float(np.clip(d_rel, 0.0, 1.0))
+
+        # Full 100% control reached from 32% distance onwards
+        if d_rel >= 0.32:
+            return 1.0
+
+        # Stretched Logistic Sigmoid: S(d) = 1 / (1 + exp(-k * (d - d0)))
+        d0 = 0.16   # Midpoint of interval [0.0, 0.32]
+        k = 38.83   # Stretches the curve to yield S(0) ≈ 0.0020 and S(0.32) ≈ 0.9980
+
+        scale = 1.0 / (1.0 + np.exp(-k * (d_rel - d0)))
+        return float(np.clip(scale, 0.0, 1.0))
+
     def compute_control(
         self,
         current_point: Sequence[float],
@@ -156,6 +191,11 @@ class MpcController(Controller):
         u_command = np.clip(
             u_optimum[:2], -np.asarray(self.max_control), np.asarray(self.max_control)
         )
+
+        # Apply progress-based sigmoid attenuation to control output
+        scale_factor = self._calculate_sigmoid_scale(current_point)
+        u_command = u_command * scale_factor
+
         self.u_a = u_command
 
         return u_command.tolist()
@@ -198,7 +238,6 @@ class MpcController(Controller):
         for component_attr in child_components:
             component = getattr(self, component_attr, None)
             if component is not None:
-                # If these classes get upgraded later to have internal destroy loops
                 if hasattr(component, "destroy"):
                     try:
                         component.destroy()
