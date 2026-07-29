@@ -51,21 +51,6 @@ rebuild the affected entrypoints and refresh the environment:
 source install/setup.bash
 ```
 
-For other missing project Python modules, rebuild the full workspace with the
-first command above. To pass advanced `colcon build` arguments, start with an
-option:
-
-```bash
-./build.sh --packages-select haply_study_gui --event-handlers console_direct+
-```
-
-To verify a Python ROS executable uses `.venv`, inspect its first line:
-
-```bash
-head -n 1 install/haply_interface/lib/haply_interface/haply_driver_node
-```
-
-It should point at `.venv/bin/python`, not `/usr/bin/python3`.
 
 ### Docker / Devcontainer
 
@@ -140,11 +125,6 @@ The runner uses the normal hardware-launch defaults:
 - the GUI resolution is `2560x1440`;
 - participant display mode is used; and
 - experiment data is written below `./logs`.
-
-MPC docking is configurable rather than hard-coded, but it remains enabled in
-normal MPC runs because the committed MPC profile sets `docking_enabled: true`.
-The launch argument `docking_enabled` is a separate switch that applies only
-when `controller:=state_feedback` is selected.
 
 ## Haply Hardware Setup
 
@@ -240,12 +220,6 @@ Use this WSL-owned hardware path:
    ```bash
    # Default MPC controller; adaptive-MPC docking is enabled by mpc.yaml
    ros2 launch haply_study_gui study_gui.launch.py participant_id:=P03
-
-   # Alternative State Feedback controller without docking
-   ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03
-
-   # Alternative State Feedback controller with docking
-   ros2 launch haply_study_gui study_gui.launch.py controller:=state_feedback participant_id:=P03 docking_enabled:=true
    ```
 
    For debugging without Haply device, use the mouse test path instead, can also be tested with controller and estimator:
@@ -255,27 +229,11 @@ Use this WSL-owned hardware path:
 
    # MPC controller; adaptive-MPC docking is enabled by the MPC profile
    ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=mpc participant_id:=P03
-
-   # State-Feedback with no docking
-   ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback participant_id:=P03
-   
-   # State-Feedback with docking
-   ros2 launch haply_study_gui study_gui_mouse.launch.py controller:=state_feedback docking_enabled:=true participant_id:=P03
    ```
 
    The GUI defaults to `2560x1440`. To use another display resolution, append
-   `screen_size:=WIDTHxHEIGHT` to either the hardware or mouse launch. For
-   example, for a `1920x1080` display:
-
-   ```bash
-   # Hardware GUI with another resolution
-   ros2 launch haply_study_gui study_gui.launch.py \
-     participant_id:=P03 screen_size:=1920x1080
-
-   # Mouse GUI with another resolution
-   ros2 launch haply_study_gui study_gui_mouse.launch.py \
-     participant_id:=P03 screen_size:=1920x1080
-   ```
+   `screen_size:=WIDTHxHEIGHT` to either the hardware or mouse launch, for
+   example,  `1920x1080`.
 
    The participant sidebar shows the current trial, run state, and neutral
    controller label (`A` for the first controller block, `B` for the second).
@@ -290,7 +248,7 @@ Use this WSL-owned hardware path:
 
 ## Manual Checks
 
-This repository does not install git hooks. Run formatting, linting, and type
+Run formatting, linting, and type
 checks manually from the repository root:
 
 ```bash
@@ -305,15 +263,3 @@ To apply Ruff formatting and autofixes:
 ruff format --force-exclude .
 ruff check --fix --force-exclude .
 ```
-
-The copied Haply interface under `src/haply_ros2_interface/` is excluded by tool
-configuration and should not be reformatted as project-owned code.
-
-## Troubleshooting
-
-If `./setup.sh` reports `Conflicting values set for option Signed-By` for
-`packages.ros.org/ros2/ubuntu`, the machine has duplicate ROS apt source
-definitions. The setup script normalizes this automatically by backing up ROS
-source files under `/etc/apt/sources.list.d/` and writing one canonical
-`/etc/apt/sources.list.d/ros2.list` entry that uses
-`/usr/share/keyrings/ros-archive-keyring.gpg`.
