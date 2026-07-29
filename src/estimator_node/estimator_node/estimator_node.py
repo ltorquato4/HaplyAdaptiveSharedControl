@@ -195,10 +195,7 @@ class RLSEstimatorNode(Node):
         self.current_trial_id = int(msg.trial_id)
         self.cursor = None
         self.cursor_sample_time = None
-        
-        # Check and update study phase from the task message
         self._update_study_phase(msg.phase)
-        
         self._reset_kinematics()
         if not self.initialized:
             self.rls.initialize_from_start_point(self.start_point)
