@@ -7,7 +7,7 @@ import preprocess
 import trajectory_analysis
 # import mpc_weight_analysis
 import authority_disagreement_analysis
-import compare_directories_error
+import analysis.compare_directories as compare_directories
 
 def run_pipeline(run_name):
     # Define base directories relative to this script
@@ -102,7 +102,7 @@ if __name__ == "__main__":
             global_comparison_plots_dir = os.path.join(script_base_dir, "../plots/comparison_plots")
             
             # This calls the actual function inside your compare script
-            compare_directories_error.plot_user_mean_trajectories(
+            compare_directories.plot_user_mean_trajectories(
                 base_data_dir=all_processed_logs_dir,
                 output_dir=global_comparison_plots_dir
             )
