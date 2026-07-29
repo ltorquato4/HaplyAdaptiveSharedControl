@@ -96,7 +96,10 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
             # Plot individual raw trajectories first
             for idx, traj in enumerate(trajectories):
                 traj_data = beh_df[beh_df['file_stem'] == traj]
-                ax.plot(traj_data['norm_x'], traj_data['norm_y'], alpha=0.5, color=beh_color, linestyle='--')
+                
+                # Assign label only on the first iteration to prevent legend duplication
+                l_traj = 'Run Trajectories' if idx == 0 else ""
+                ax.plot(traj_data['norm_x'], traj_data['norm_y'], alpha=0.5, color=beh_color, linestyle='--', label=l_traj)
                 
                 end_x = traj_data['norm_end_x'].iloc[0]
                 max_end_x = max(max_end_x, end_x)
@@ -139,7 +142,8 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
     y_min, y_max = limits['norm_y']
     
     # FIXED absolute padding added to the top to accommodate the legend safely
-    fixed_top_padding = 0.035
+    # Increased to 0.15 to ensure the aggressive variance does not overlap with the legend box
+    fixed_top_padding = 0.05
     axes_traj[0].set_ylim(y_min, y_max + fixed_top_padding)
     axes_traj[0].set_xlim(limits['norm_x'])
     

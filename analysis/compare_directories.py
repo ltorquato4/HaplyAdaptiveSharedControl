@@ -196,7 +196,7 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
         pad_y_bottom = rng_y * 0.05 if rng_y != 0 else 0.01
         
         # FIXED absolute padding added to the top to accommodate the legend safely
-        fixed_top_padding = 0.035
+        fixed_top_padding = 0.05
         axes[0].set_ylim(fig_min_y - pad_y_bottom, fig_max_y + fixed_top_padding)
         
         # Ensure aspect ratio is equal to accurately reflect deviation magnitude
