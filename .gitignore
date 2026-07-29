@@ -20,4 +20,3 @@ __pycache__/
 .vscode/
 
 *.log
-logs/*
