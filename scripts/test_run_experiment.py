@@ -17,12 +17,14 @@ class FakeProcess:
         participant_id="P01",
         return_code=0,
         interrupt=False,
+        schedule=None,
     ):
         self.session_directory = session_directory
         self.participant_id = participant_id
         self.returncode = None
         self.final_return_code = return_code
         self.interrupt = interrupt
+        self.schedule = schedule
         self.poll_count = 0
         self.signal = None
 
@@ -34,7 +36,16 @@ class FakeProcess:
             return None
         if self.session_directory is not None and self.poll_count == 1:
             self.session_directory.mkdir(parents=True)
-            manifest = {"participant_id": self.participant_id}
+            schedule = self.schedule
+            if schedule is None:
+                schedule = [
+                    {"controller_mode": "fixed"},
+                    {"controller_mode": "adaptive"},
+                ]
+            manifest = {
+                "participant_id": self.participant_id,
+                "schedule": schedule,
+            }
             (self.session_directory / "session_manifest.json").write_text(
                 json.dumps(manifest), encoding="utf-8"
             )
@@ -125,6 +136,36 @@ def test_demographics_reprompt_invalid_values():
     assert any("number from 1 to 5" in message for message in messages)
 
 
+def test_agreement_rating_reprompts_invalid_values():
+    messages = []
+    answers = answer_source("0", "six", "4")
+
+    rating = run_experiment.prompt_choice(
+        "Rating", run_experiment.AGREEMENT_CHOICES, answers, messages.append
+    )
+
+    assert rating == 4
+    assert messages.count("Please enter a number from 1 to 5.") == 2
+
+
+def test_controller_label_mapping_follows_manifest_order(tmp_path):
+    manifest = {
+        "schedule": [
+            {"controller_mode": "adaptive"},
+            {"controller_mode": "adaptive"},
+            {"controller_mode": "fixed"},
+        ]
+    }
+    (tmp_path / "session_manifest.json").write_text(
+        json.dumps(manifest), encoding="utf-8"
+    )
+
+    assert run_experiment.controller_label_mapping(tmp_path) == {
+        "A": "adaptive",
+        "B": "fixed",
+    }
+
+
 def test_successful_experiment_writes_questionnaire_with_launch_defaults(
     tmp_path, monkeypatch
 ):
@@ -144,9 +185,15 @@ def test_successful_experiment_writes_questionnaire_with_launch_defaults(
         "2",
         "4",
         "3",
+        "5",
+        "4",
+        "3",
+        "2",
+        "1",
+        "4",
         "The guidance near the endpoint.",
         "The initial force change.",
-        "Yes, after a short adjustment.",
+        "Controller B, after a short adjustment.",
         "Use a longer familiarization trial.",
     )
 
@@ -172,6 +219,14 @@ def test_successful_experiment_writes_questionnaire_with_launch_defaults(
     assert row["participant_id"] == "P01"
     assert row["experiment_status"] == "completed"
     assert row["gender"] == "woman"
+    assert row["controller_a_mode"] == "fixed"
+    assert row["controller_b_mode"] == "adaptive"
+    assert row["controller_a_sense_of_agency_rating"] == "5"
+    assert row["controller_a_assistive_interaction_rating"] == "4"
+    assert row["controller_a_user_experience_rating"] == "3"
+    assert row["controller_b_sense_of_agency_rating"] == "2"
+    assert row["controller_b_assistive_interaction_rating"] == "1"
+    assert row["controller_b_user_experience_rating"] == "4"
     assert row["supportive_aspects"] == "The guidance near the endpoint."
     assert not (tmp_path / "logs" / ".pending_questionnaires" / "P01.csv").exists()
 
@@ -217,3 +272,58 @@ def test_interrupted_launch_is_stopped_and_preserved(tmp_path, monkeypatch):
     pending_path = tmp_path / "logs" / ".pending_questionnaires" / "P01.csv"
     row = read_questionnaire(pending_path)
     assert row["experiment_status"] == "interrupted"
+
+
+def test_interrupted_post_study_preserves_partial_ratings(tmp_path, monkeypatch):
+    session_directory = tmp_path / "logs" / "P01_2026-07-29_12-00-00Z"
+    fake_process = FakeProcess(session_directory=session_directory)
+    values = iter(("28", "3", "2", "3", "4", "5"))
+
+    def answers(_prompt):
+        try:
+            return next(values)
+        except StopIteration as exc:
+            raise KeyboardInterrupt from exc
+
+    monkeypatch.setattr(run_experiment.shutil, "which", lambda _name: "/usr/bin/ros2")
+
+    result = run_experiment.run_experiment(
+        repository_root=tmp_path,
+        input_fn=answers,
+        output_fn=lambda _message: None,
+        process_factory=lambda _command, **_kwargs: fake_process,
+        sleep_fn=lambda _duration: None,
+    )
+
+    assert result == 130
+    row = read_questionnaire(
+        session_directory / "questionnaire" / "questionnaire.csv"
+    )
+    assert row["experiment_status"] == "post_study_incomplete"
+    assert row["controller_a_mode"] == "fixed"
+    assert row["controller_b_mode"] == "adaptive"
+    assert row["controller_a_sense_of_agency_rating"] == "5"
+    assert row["controller_a_assistive_interaction_rating"] == ""
+
+
+def test_missing_controller_mapping_skips_post_study(tmp_path, monkeypatch):
+    session_directory = tmp_path / "logs" / "P01_2026-07-29_12-00-00Z"
+    fake_process = FakeProcess(session_directory=session_directory, schedule=[])
+    monkeypatch.setattr(run_experiment.shutil, "which", lambda _name: "/usr/bin/ros2")
+    answers = answer_source("28", "3", "2", "3", "4")
+
+    result = run_experiment.run_experiment(
+        repository_root=tmp_path,
+        input_fn=answers,
+        output_fn=lambda _message: None,
+        process_factory=lambda _command, **_kwargs: fake_process,
+        sleep_fn=lambda _duration: None,
+    )
+
+    assert result == 1
+    row = read_questionnaire(
+        session_directory / "questionnaire" / "questionnaire.csv"
+    )
+    assert row["experiment_status"] == "controller_mapping_error"
+    assert row["controller_a_mode"] == ""
+    assert row["controller_a_sense_of_agency_rating"] == ""

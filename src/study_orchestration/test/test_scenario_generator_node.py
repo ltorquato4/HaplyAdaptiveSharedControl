@@ -299,6 +299,7 @@ def test_default_yaml_paths_have_equal_length():
     config_dir = Path(__file__).resolve().parents[1] / "config"
     paths = yaml.safe_load((config_dir / "default_tasks.yaml").read_text())["paths"]
 
+    assert len(paths) == 6
     lengths = [
         (
             (path["end_point"][0] - path["start_point"][0]) ** 2

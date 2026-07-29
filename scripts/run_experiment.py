@@ -30,6 +30,14 @@ QUESTIONNAIRE_FIELDS = [
     "dominant_hand",
     "calm_active_assessment",
     "mouse_use_frequency",
+    "controller_a_mode",
+    "controller_b_mode",
+    "controller_a_sense_of_agency_rating",
+    "controller_b_sense_of_agency_rating",
+    "controller_a_assistive_interaction_rating",
+    "controller_b_assistive_interaction_rating",
+    "controller_a_user_experience_rating",
+    "controller_b_user_experience_rating",
     "supportive_aspects",
     "uncomfortable_aspects",
     "adaptive_behavior_improved",
@@ -62,6 +70,29 @@ MOUSE_USE_CHOICES = [
     ("four_to_six_days_per_week", "4-6 days per week"),
     ("daily", "Daily"),
 ]
+AGREEMENT_CHOICES = [
+    (1, "Strongly disagree"),
+    (2, "Disagree"),
+    (3, "Neither agree nor disagree"),
+    (4, "Agree"),
+    (5, "Strongly agree"),
+]
+SUBJECTIVE_RATING_ITEMS = [
+    (
+        "sense_of_agency_rating",
+        "While using Controller {label}, I felt in control of my movements "
+        "and their outcomes.",
+    ),
+    (
+        "assistive_interaction_rating",
+        "Controller {label} provided assistance that felt useful, easy to "
+        "work with, and physically comfortable.",
+    ),
+    (
+        "user_experience_rating",
+        "Overall, Controller {label} was easy, efficient, and satisfying to use.",
+    ),
+]
 POST_STUDY_QUESTIONS = [
     (
         "supportive_aspects",
@@ -73,7 +104,8 @@ POST_STUDY_QUESTIONS = [
     ),
     (
         "adaptive_behavior_improved",
-        "Did the adaptive behaviour improve the interaction?",
+        "Did one controller improve the interaction compared with the other? "
+        "If so, which one and how?",
     ),
     (
         "suggested_improvements",
@@ -203,6 +235,37 @@ def session_directories(log_directory, participant_id):
         if str(manifest.get("participant_id", "")) == participant_id:
             sessions.add(candidate.resolve())
     return sessions
+
+
+def controller_label_mapping(session_directory):
+    """Return the GUI's A/B labels mapped to modes from manifest task order."""
+    manifest_path = session_directory / "session_manifest.json"
+    try:
+        manifest = json.loads(manifest_path.read_text(encoding="utf-8"))
+    except OSError as exc:
+        raise ValueError(f"cannot read {manifest_path}") from exc
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"invalid JSON in {manifest_path}") from exc
+
+    schedule = manifest.get("schedule")
+    if not isinstance(schedule, list):
+        raise ValueError("session manifest does not contain a schedule")
+
+    ordered_modes = []
+    for task in schedule:
+        if not isinstance(task, dict):
+            raise ValueError("session manifest contains an invalid task")
+        mode = str(task.get("controller_mode", "")).strip().lower()
+        if not mode:
+            raise ValueError("session manifest task has no controller mode")
+        if mode not in ordered_modes:
+            ordered_modes.append(mode)
+
+    if len(ordered_modes) != 2 or set(ordered_modes) != {"fixed", "adaptive"}:
+        raise ValueError(
+            "session schedule must contain exactly fixed and adaptive modes"
+        )
+    return {"A": ordered_modes[0], "B": ordered_modes[1]}
 
 
 def attach_questionnaire(pending_path, session_directory):
@@ -376,10 +439,37 @@ def run_experiment(
         )
         return 1
 
+    session_directory = questionnaire_path.parent.parent
+    try:
+        label_mapping = controller_label_mapping(session_directory)
+    except ValueError as exc:
+        row["experiment_status"] = "controller_mapping_error"
+        write_questionnaire(questionnaire_path, row)
+        output_fn(
+            "\nThe controller A/B mapping could not be read from the session "
+            f"manifest; post-study questions were skipped: {exc}"
+        )
+        return 1
+
+    row["controller_a_mode"] = label_mapping["A"]
+    row["controller_b_mode"] = label_mapping["B"]
     output_fn("\nPost-study questionnaire")
     row["experiment_status"] = "post_study_in_progress"
     write_questionnaire(questionnaire_path, row)
     try:
+        for label in ("A", "B"):
+            output_fn(f"\nRatings for Controller {label}")
+            for field_suffix, question in SUBJECTIVE_RATING_ITEMS:
+                field = f"controller_{label.lower()}_{field_suffix}"
+                row[field] = prompt_choice(
+                    question.format(label=label),
+                    AGREEMENT_CHOICES,
+                    input_fn,
+                    output_fn,
+                )
+                write_questionnaire(questionnaire_path, row)
+
+        output_fn("\nOpen-ended questions")
         for field, question in POST_STUDY_QUESTIONS:
             row[field] = prompt_non_empty(question, input_fn, output_fn)
             write_questionnaire(questionnaire_path, row)
