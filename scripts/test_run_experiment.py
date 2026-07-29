@@ -3,6 +3,7 @@
 import csv
 import json
 import signal
+from datetime import datetime, timedelta
 
 from scripts import run_experiment
 
@@ -88,6 +89,15 @@ def test_pending_questionnaire_reserves_participant_id(tmp_path):
     (pending / "P03.csv").write_text("", encoding="utf-8")
 
     assert run_experiment.next_participant_id(tmp_path) == "P04"
+
+
+def test_questionnaire_timestamp_uses_berlin_timezone():
+    timestamp = datetime.fromisoformat(run_experiment.berlin_timestamp())
+
+    assert timestamp.utcoffset() in {
+        timedelta(hours=1),
+        timedelta(hours=2),
+    }
 
 
 def test_demographics_reprompt_invalid_values():

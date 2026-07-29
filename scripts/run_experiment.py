@@ -11,12 +11,14 @@ import signal
 import subprocess
 import sys
 import time
-from datetime import datetime, timezone
+from datetime import datetime
 from pathlib import Path
+from zoneinfo import ZoneInfo
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 PENDING_DIRECTORY_NAME = ".pending_questionnaires"
 PARTICIPANT_PATTERN = re.compile(r"^P(\d+)(?:_|$)")
+BERLIN_TIMEZONE = ZoneInfo("Europe/Berlin")
 
 QUESTIONNAIRE_FIELDS = [
     "participant_id",
@@ -80,9 +82,9 @@ POST_STUDY_QUESTIONS = [
 ]
 
 
-def utc_timestamp():
-    """Return a timezone-aware ISO-8601 timestamp."""
-    return datetime.now(timezone.utc).isoformat()
+def berlin_timestamp():
+    """Return an ISO-8601 timestamp in the Europe/Berlin timezone."""
+    return datetime.now(BERLIN_TIMEZONE).isoformat()
 
 
 def participant_numbers(log_directory):
@@ -305,7 +307,7 @@ def run_experiment(
     row.update(
         {
             "participant_id": participant_id,
-            "questionnaire_started_at": utc_timestamp(),
+            "questionnaire_started_at": berlin_timestamp(),
             "experiment_status": "ready_to_launch",
         }
     )
@@ -318,7 +320,7 @@ def run_experiment(
 
     if shutil.which("ros2") is None:
         row["experiment_status"] = "launch_failed"
-        row["experiment_finished_at"] = utc_timestamp()
+        row["experiment_finished_at"] = berlin_timestamp()
         write_questionnaire(pending_path, row)
         output_fn("Cannot start the experiment: ros2 is not available on PATH.")
         return 1
@@ -346,12 +348,12 @@ def run_experiment(
         )
     except OSError as exc:
         row["experiment_status"] = "launch_failed"
-        row["experiment_finished_at"] = utc_timestamp()
+        row["experiment_finished_at"] = berlin_timestamp()
         write_questionnaire(pending_path, row)
         output_fn(f"Cannot start the experiment: {exc}")
         return 1
 
-    row["experiment_finished_at"] = utc_timestamp()
+    row["experiment_finished_at"] = berlin_timestamp()
     if interrupted:
         row["experiment_status"] = "interrupted"
         write_questionnaire(questionnaire_path, row)

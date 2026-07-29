@@ -92,7 +92,8 @@ python3 scripts/run_experiment.py
 ```
 
 It generates the participant ID, runs the default hardware launch, and stores
-the questionnaire under the logger-created session directory.
+the questionnaire under the logger-created session directory. Questionnaire
+timestamps use `Europe/Berlin` local time, including daylight-saving changes.
 
 When launched with `controller:=mpc` or `controller:=state_feedback`, the
 hardware GUI waits until Controller has applied its task and Estimator and
