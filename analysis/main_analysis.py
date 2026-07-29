@@ -5,7 +5,7 @@ from pathlib import Path
 # Import your existing scripts as modules
 import preprocess
 import trajectory_analysis
-import mpc_weight_analysis
+# import mpc_weight_analysis
 import authority_disagreement_analysis
 import compare_directories_error
 
@@ -47,14 +47,14 @@ def run_pipeline(run_name):
     )
     print("")
 
-    print("3. RUNNING MPC WEIGHTS ANALYSIS")
-    print("--------------------------------------------------")
-    # Parses JSON K_a columns and outputs to the mirrored plots dir
-    mpc_weight_analysis.main(
-        data_directory=processed_logs_dir, 
-        output_directory=os.path.join(plots_base_dir, "mpc_plots")
-    )
-    print("")
+    # print("3. RUNNING MPC WEIGHTS ANALYSIS")
+    # print("--------------------------------------------------")
+    # # Parses JSON K_a columns and outputs to the mirrored plots dir
+    # mpc_weight_analysis.main(
+    #     data_directory=processed_logs_dir, 
+    #     output_directory=os.path.join(plots_base_dir, "mpc_plots")
+    # )
+    # print("")
 
     print("4. RUNNING AUTHORITY DISAGREEMENT ANALYSIS")
     print("--------------------------------------------------")
