@@ -144,38 +144,42 @@ class VirtualFixtureStateFeedbackController:
             1.0 + (self.config.docking_stiffness_scale - 1.0) * smooth_fraction
         )
 
-    def _calculate_sigmoid_scale(self, position: Sequence[float]) -> float:
-        """Calculates a smooth S-curve scaling factor [0, 1] based on progress from start to end.
-        
+    def _calculate_sigmoid_scale(self, current_point: Sequence[float]) -> float:
+        """Calculates a smooth, stretched S-curve scaling factor [0, 1] based on progress.
+
         Curve specifications:
-        - S(0.00) ≈ 0.0001 (0.01% control at start)
-        - S(0.20) = 0.34   (34% control at 20% distance)
-        - S(d >= 0.4) = 1.0 (Full 100% control from 40% distance onwards)
+        - S(0.00) ≈ 0.0020 (0.2% control at start, allowing a gentler, wider slope)
+        - S(d >= 0.32) = 1.0 (Hard-clamped to 100% control from 32% distance onwards;
+        the raw sigmoid yields ~0.9980 at d = 0.32)
         """
-        curr = np.asarray(position[:2], dtype=float)
-        path_vec = self.end - self.start
-        path_length_sq = np.dot(path_vec, path_vec)
+        # Ensure all vectors share 2D spatial coordinates (x, y)
+        start = np.asarray(self.experiment_start_point[:2], dtype=float)
+        end = np.asarray(self.experiment_end_point[:2], dtype=float)
+        curr = np.asarray(current_point[:2], dtype=float)
+
+        path_vec = end - start
+        path_length_sq = float(np.dot(path_vec, path_vec))
 
         if path_length_sq < 1e-9:
             return 0.0
 
         # Calculate relative progress d_rel along start -> end path
-        progress_vec = curr - self.start
+        progress_vec = curr - start
         d_rel = np.dot(progress_vec, path_vec) / path_length_sq
         d_rel = float(np.clip(d_rel, 0.0, 1.0))
 
-        # Full force at 40% distance
-        if d_rel >= 0.4:
+        # Full 100% control reached from 32% distance onwards
+        if d_rel >= 0.32:
             return 1.0
 
-        # Smooth-step curve parameters normalized for [0.0, 0.4] domain
-        x_norm = d_rel / 0.4
-        p = 1.986
-        q = 3.693
+        # Stretched Logistic Sigmoid: S(d) = 1 / (1 + exp(-k * (d - d0)))
+        d0 = 0.16   # Midpoint of interval [0.0, 0.32]
+        k = 38.83   # Stretches the curve to yield S(0) ≈ 0.0020 and S(0.32) ≈ 0.9980
 
-        scale = np.power(1.0 - np.power(1.0 - x_norm, p), q)
+        scale = 1.0 / (1.0 + np.exp(-k * (d_rel - d0)))
         return float(np.clip(scale, 0.0, 1.0))
 
+    
     def compute_force(
         self, position: Sequence[float], timestamp_s: float
     ) -> np.ndarray:
