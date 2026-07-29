@@ -8,6 +8,7 @@ import trajectory_analysis
 # import mpc_weight_analysis
 import authority_disagreement_analysis
 import compare_directories # <-- FIXED IMPORT
+import metrics_extraction # <-- NEW IMPORT
 
 def run_pipeline(run_name):
     # Define base directories relative to this script
@@ -47,14 +48,14 @@ def run_pipeline(run_name):
     )
     print("")
 
-    # print("3. RUNNING MPC WEIGHTS ANALYSIS")
-    # print("--------------------------------------------------")
-    # # Parses JSON K_a columns and outputs to the mirrored plots dir
-    # mpc_weight_analysis.main(
-    #     data_directory=processed_logs_dir, 
-    #     output_directory=os.path.join(plots_base_dir, "mpc_plots")
-    # )
-    # print("")
+    print("3. RUNNING METRICS EXTRACTION")
+    print("--------------------------------------------------")
+    # Extracts Duration, RMSE, and Max Error for this specific run
+    metrics_extraction.main(
+        data_directory=processed_logs_dir, 
+        output_directory=os.path.join(plots_base_dir, "metrics")
+    )
+    print("")
 
     print("4. RUNNING AUTHORITY DISAGREEMENT ANALYSIS")
     print("--------------------------------------------------")
@@ -105,6 +106,16 @@ if __name__ == "__main__":
             compare_directories.plot_user_mean_trajectories(
                 base_data_dir=all_processed_logs_dir,
                 output_dir=global_comparison_plots_dir
+            )
+            print("")
+
+            print("6. EXTRACTING GLOBAL METRICS SUMMARY")
+            print("--------------------------------------------------")
+            # Run metrics extraction globally across all processed logs to create a master dataset
+            global_metrics_dir = os.path.join(script_base_dir, "../plots/global_metrics")
+            metrics_extraction.main(
+                data_directory=all_processed_logs_dir,
+                output_directory=global_metrics_dir
             )
             print("")
             
