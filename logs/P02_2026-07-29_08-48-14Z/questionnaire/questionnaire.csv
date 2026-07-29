@@ -1,0 +1,2 @@
+participant_id,questionnaire_started_at,experiment_finished_at,experiment_status,age,gender,dominant_hand,calm_active_assessment,mouse_use_frequency,supportive_aspects,uncomfortable_aspects,adaptive_behavior_improved,suggested_improvements
+P02,2026-07-29T10:48:13.648947+02:00,2026-07-29T10:52:12.798894+02:00,completed,28,man,left,balanced,one_to_three_days_per_week,-,the third axis of motion that the haply device offers,yes,-

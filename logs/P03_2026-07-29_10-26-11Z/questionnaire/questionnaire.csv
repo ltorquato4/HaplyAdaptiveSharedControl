@@ -1,0 +1,2 @@
+participant_id,questionnaire_started_at,experiment_finished_at,experiment_status,age,gender,dominant_hand,calm_active_assessment,mouse_use_frequency,supportive_aspects,uncomfortable_aspects,adaptive_behavior_improved,suggested_improvements
+P03,2026-07-29T12:26:10.807599+02:00,2026-07-29T12:29:42.922441+02:00,completed,24,man,right,balanced,daily,B has supported me more than A,-,yes,Te area at which the goal counts as reached could be larger

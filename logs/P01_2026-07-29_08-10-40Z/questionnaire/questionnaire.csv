@@ -1,0 +1,2 @@
+participant_id,questionnaire_started_at,experiment_finished_at,experiment_status,age,gender,dominant_hand,calm_active_assessment,mouse_use_frequency,supportive_aspects,uncomfortable_aspects,adaptive_behavior_improved,suggested_improvements
+P01,2026-07-29T10:10:40.100842+02:00,2026-07-29T10:15:11.300289+02:00,completed,28,man,right,balanced,daily,Wenn man kurz vor dem ziel war hat es einen noch final dorthin gezogen,"Es gab ein mal ein auschlag, eventuell hat sich der regler aufgeschungen.",Ja,ausschaltung der gravitation

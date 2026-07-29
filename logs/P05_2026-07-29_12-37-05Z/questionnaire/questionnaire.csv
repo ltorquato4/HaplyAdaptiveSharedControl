@@ -1,0 +1,2 @@
+participant_id,questionnaire_started_at,experiment_finished_at,experiment_status,age,gender,dominant_hand,calm_active_assessment,mouse_use_frequency,supportive_aspects,uncomfortable_aspects,adaptive_behavior_improved,suggested_improvements
+P05,2026-07-29T14:37:05.058481+02:00,2026-07-29T14:41:31.050238+02:00,post_study_incomplete,1,woman,left,very_calm,never,,,,
