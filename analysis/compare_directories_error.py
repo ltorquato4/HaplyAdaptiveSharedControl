@@ -4,8 +4,12 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 
+# ==========================================
+# 1. Math & Metric Calculations
+# ==========================================
+
 def calculate_metrics(df):
-    """Calculates orthogonal error and normalized distance."""
+    """Calculates orthogonal error, normalized distance, and f(x)=0 transformation."""
     line_vec_x = df['end_x'] - df['start_x']
     line_vec_y = df['end_y'] - df['start_y']
     line_len_sq = line_vec_x**2 + line_vec_y**2
@@ -22,14 +26,31 @@ def calculate_metrics(df):
     dot_prod = (point_vec_x * line_vec_x) + (point_vec_y * line_vec_y)
     df['normalized_distance'] = np.where(line_len_sq == 0, 0, dot_prod / line_len_sq)
     
+    # --- f(x)=0 (Ursprungsgerade) Transformation ---
+    theta = np.arctan2(line_vec_y, line_vec_x)
+    cos_theta = np.cos(theta)
+    sin_theta = np.sin(theta)
+    
+    # Apply 2D rotation matrix by -theta
+    df['norm_x'] = point_vec_x * cos_theta + point_vec_y * sin_theta
+    df['norm_y'] = -point_vec_x * sin_theta + point_vec_y * cos_theta
+    
+    # The end point is now perfectly on the X-axis
+    df['norm_end_x'] = line_len
+    df['norm_end_y'] = 0.0
+    
     return df
 
-def plot_directories_error_by_mode(base_data_dir="../processed_logs", output_dir="../plots/comparison_plots"):
-    """Plots mean positional errors separated by mode and phase across all directories."""
+# ==========================================
+# 2. Main Execution Workflow
+# ==========================================
+
+def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir="../plots/comparison_plots"):
+    """Plots the mean aligned trajectory of each user per controller mode and phase."""
     os.makedirs(output_dir, exist_ok=True)
     common_norm_dist = np.linspace(0, 1, 500)
     
-    # Nested dict structure: {mode: {phase: {run_name: [interpolated_errors]}}}
+    # Nested dict structure: {mode: {phase: {run_name: {'nx': [], 'ny': [], 'max_end_x': 0}}}}
     mode_data = {}
     
     subdirectories = [f.path for f in os.scandir(base_data_dir) if f.is_dir()]
@@ -47,7 +68,9 @@ def plot_directories_error_by_mode(base_data_dir="../processed_logs", output_dir
             try:
                 df = pd.read_csv(file)
                 
-                if 'study_controller_mode' not in df.columns or 'study_phase' not in df.columns:
+                # SAFETY CHECK
+                required_cols = ['end_x', 'start_x', 'end_y', 'start_y', 'cursor_x', 'cursor_y', 'study_controller_mode', 'study_phase']
+                if not all(col in df.columns for col in required_cols):
                     continue
                 
                 # Standardize strings
@@ -58,82 +81,114 @@ def plot_directories_error_by_mode(base_data_dir="../processed_logs", output_dir
                 # Group by mode
                 for mode, mode_df in df.groupby('study_controller_mode'):
                     if mode not in mode_data:
-                        mode_data[mode] = {'all_phases': {}}
+                        mode_data[mode] = {}
                         
-                    if run_name not in mode_data[mode]['all_phases']:
-                        mode_data[mode]['all_phases'][run_name] = []
-                        
-                    # 1. Store ALL PHASES data for this file
-                    traj_sorted = mode_df.dropna(subset=['normalized_distance', 'orthogonal_error']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
-                    if len(traj_sorted) > 1:
-                        interp = np.interp(
-                            common_norm_dist, 
-                            traj_sorted['normalized_distance'], 
-                            traj_sorted['orthogonal_error']
-                        )
-                        mode_data[mode]['all_phases'][run_name].append(interp)
-                    
-                    # 2. Store INDIVIDUAL PHASE data for this file
+                    # Store INDIVIDUAL PHASE data for this file
                     for phase, phase_df in mode_df.groupby('study_phase'):
                         if phase not in mode_data[mode]:
                             mode_data[mode][phase] = {}
                         if run_name not in mode_data[mode][phase]:
-                            mode_data[mode][phase][run_name] = []
+                            mode_data[mode][phase][run_name] = {'nx': [], 'ny': [], 'max_end_x': 0}
                             
-                        p_traj_sorted = phase_df.dropna(subset=['normalized_distance', 'orthogonal_error']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
+                        # Sort and drop duplicates to allow for clean interpolation
+                        p_traj_sorted = phase_df.dropna(subset=['normalized_distance', 'norm_x', 'norm_y']).sort_values(by='normalized_distance').drop_duplicates(subset=['normalized_distance'])
+                        
                         if len(p_traj_sorted) > 1:
-                            interp = np.interp(
-                                common_norm_dist, 
-                                p_traj_sorted['normalized_distance'], 
-                                p_traj_sorted['orthogonal_error']
-                            )
-                            mode_data[mode][phase][run_name].append(interp)
+                            interp_nx = np.interp(common_norm_dist, p_traj_sorted['normalized_distance'], p_traj_sorted['norm_x'])
+                            interp_ny = np.interp(common_norm_dist, p_traj_sorted['normalized_distance'], p_traj_sorted['norm_y'])
+                            
+                            mode_data[mode][phase][run_name]['nx'].append(interp_nx)
+                            mode_data[mode][phase][run_name]['ny'].append(interp_ny)
+                            
+                            end_x = p_traj_sorted['norm_end_x'].iloc[0]
+                            mode_data[mode][phase][run_name]['max_end_x'] = max(mode_data[mode][phase][run_name]['max_end_x'], end_x)
                             
             except Exception as e:
                 print(f"Skipping {file} due to error: {e}")
 
-    # Generate the plots
+    # Define explicit order and colors
+    phase_config = {
+        'careful': 'tab:green',
+        'normal': 'tab:orange',
+        'aggressive': 'tab:red'
+    }
+
+    # Generate the plots for each mode
     for mode, phases_dict in mode_data.items():
-        # Get individual phases and append 'all_phases' at the bottom
-        individual_phases = sorted([p for p in phases_dict.keys() if p != 'all_phases'])
-        plot_phases = individual_phases + ['all_phases']
+        ordered_phases = [p for p in phase_config.keys() if p in phases_dict]
         
-        # Create stacked subplots
-        fig, axes = plt.subplots(len(plot_phases), 1, figsize=(10, 2.5 * len(plot_phases)), sharex=True, sharey=True)
-        
-        if len(plot_phases) == 1:
+        # We want exactly 3 columns (Careful, Normal, Aggressive)
+        fig, axes = plt.subplots(1, 3, figsize=(18, 5), sharex=True, sharey=True)
+        if not isinstance(axes, np.ndarray):
             axes = [axes]
-            
-        fig.suptitle(f"Mean Positional Error Comparison (No Variance)\nController Mode: {mode.title()}", fontsize=14)
         
-        # Populate each subplot
-        for i, phase in enumerate(plot_phases):
+        min_norm_y = float('inf')
+        max_norm_y = float('-inf')
+        global_max_end_x = 0
+        
+        for i in range(3):
             ax = axes[i]
-            ax.plot([0, 1], [0, 0], 'k--', alpha=0.5, linewidth=1.5, zorder=1)
-            ax.grid(True)
-            ax.set_ylabel("Error")
-            
-            for run_name, errors in phases_dict[phase].items():
-                if errors:
-                    # Calculate mean line only, skipping variance fills
-                    mean_err = np.mean(errors, axis=0)
-                    ax.plot(common_norm_dist, mean_err, linewidth=2)
-            
-            # Label the subplot with the phase name inline
-            phase_label = "All Phases" if phase == 'all_phases' else phase.replace('_', ' ').title()
-            ax.text(0.02, 0.85, phase_label, transform=ax.transAxes, fontsize=11, fontweight='bold', va='top')
-            
-        # Global limits and formatting
-        axes[-1].set_xlabel("Position along Reference Trajectory (Normalized)")
-        axes[0].set_xlim(0, 1)
+            if i < len(ordered_phases):
+                phase = ordered_phases[i]
+                color = phase_config[phase]
+                phase_data = phases_dict[phase]
+                
+                local_max_end_x = 0
+                label_added = False
+                
+                # Plot the mean line for EACH USER
+                for user_name, user_data in phase_data.items():
+                    if user_data['nx'] and user_data['ny']:
+                        # Calculate the mean trajectory across all runs for this specific user
+                        user_mean_nx = np.mean(user_data['nx'], axis=0)
+                        user_mean_ny = np.mean(user_data['ny'], axis=0)
+                        
+                        ax.plot(user_mean_nx, user_mean_ny, color=color, linewidth=2, alpha=0.7, 
+                                label="User Mean" if not label_added else "")
+                        label_added = True
+                        
+                        min_norm_y = min(min_norm_y, np.min(user_mean_ny))
+                        max_norm_y = max(max_norm_y, np.max(user_mean_ny))
+                        local_max_end_x = max(local_max_end_x, user_data['max_end_x'])
+                
+                global_max_end_x = max(global_max_end_x, local_max_end_x)
+                
+                # Markers and Reference Line
+                ax.plot([0, local_max_end_x], [0, 0], 'k--', alpha=0.8, label='Reference')
+                ax.scatter(0, 0, c='green', marker='o', s=50, zorder=5, label='Start', alpha=0.7, linestyle=':')
+                ax.scatter(local_max_end_x, 0, c='red', marker='X', s=50, zorder=5, label='End', alpha=0.7, linestyle=':')
+                
+                ax.set_title(f"Phase: {phase.replace('_', ' ').title()}")
+                ax.set_xlabel("Normalized X")
+                if i == 0:
+                    ax.set_ylabel("Normalized Y")
+                ax.grid(True)
+                
+                # Hardcoded Legend location to bottom right
+                ax.legend(loc='lower right', fontsize=9)
+            else:
+                ax.set_visible(False)
         
+        # Formatting limits safely
+        if min_norm_y == float('inf'):
+            min_norm_y, max_norm_y = -0.1, 0.1
+            
+        pad_norm_y = (max_norm_y - min_norm_y) * 0.05 if max_norm_y != min_norm_y else 1.0
+        axes[0].set_ylim(min_norm_y - pad_norm_y, max_norm_y + pad_norm_y)
+        
+        if global_max_end_x > 0:
+            axes[0].set_xlim(-global_max_end_x * 0.05, global_max_end_x * 1.05)
+        
+        # Ensure aspect ratio is equal to accurately reflect deviation magnitude
+        for ax in axes:
+            ax.set_aspect('equal', adjustable='box')
+            
         plt.tight_layout()
-        fig.subplots_adjust(top=0.92)
         
-        save_path = os.path.join(output_dir, f"directories_error_comparison_{mode}.pdf")
+        save_path = os.path.join(output_dir, f"directories_mean_trajectories_{mode}.pdf")
         plt.savefig(save_path, bbox_inches='tight')
         plt.close(fig)
         print(f"Successfully generated comparison plot: {save_path}")
 
 if __name__ == "__main__":
-    plot_directories_error_by_mode()
+    plot_user_mean_trajectories()

@@ -102,7 +102,7 @@ if __name__ == "__main__":
             global_comparison_plots_dir = os.path.join(script_base_dir, "../plots/comparison_plots")
             
             # This calls the actual function inside your compare script
-            compare_directories_error.plot_directories_error_by_mode(
+            compare_directories_error.plot_user_mean_trajectories(
                 base_data_dir=all_processed_logs_dir,
                 output_dir=global_comparison_plots_dir
             )

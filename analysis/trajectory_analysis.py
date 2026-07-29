@@ -207,7 +207,7 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                 min_norm_y = min(min_norm_y, np.min(mean_ny - std_ny))
                 max_norm_y = max(max_norm_y, np.max(mean_ny + std_ny))
             
-            ax.set_title(f"Aligned Trajectories\nPhase: {behavior.replace('_', ' ').title()}")
+            ax.set_title(f"Phase: {behavior.replace('_', ' ').title()}")
             ax.set_xlabel("Normalized X")
             if i == 0:
                 ax.set_ylabel("Normalized Y")
