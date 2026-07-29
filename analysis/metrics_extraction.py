@@ -91,19 +91,18 @@ def main(data_directory="../processed_logs", output_directory="../plots/metrics"
     print(f"Successfully calculated metrics for {len(metrics_df)} total trials.\n")
     
     # ---------------------------------------------------------
-    # 3. Group and Export Separated Files with Summary Rows
+    # 3a. Group and Export Separated Files (By Controller + Phase)
     # ---------------------------------------------------------
-    grouped = metrics_df.groupby(['controller_mode', 'phase'])
+    grouped_both = metrics_df.groupby(['controller_mode', 'phase'])
     
-    for (controller, phase), group_df in grouped:
-        # Create a safe filename (e.g., mpc_aggressive_metrics.csv)
+    print("--- Phase-Specific Summaries ---")
+    for (controller, phase), group_df in grouped_both:
         safe_controller = str(controller).replace(' ', '_').replace('/', '_')
         safe_phase = str(phase).replace(' ', '_')
         
         filename = f"{safe_controller}_{safe_phase}_metrics.csv"
         output_path = os.path.join(output_directory, filename)
         
-        # Calculate the means for this specific mode/phase combination
         summary_row = pd.DataFrame([{
             'file_name': 'SUMMARY_MEAN',
             'controller_mode': controller,
@@ -113,14 +112,38 @@ def main(data_directory="../processed_logs", output_directory="../plots/metrics"
             'cross_track_max': group_df['cross_track_max'].mean()
         }])
         
-        # Append the summary row to the bottom of the grouped dataframe
         final_df = pd.concat([group_df, summary_row], ignore_index=True)
+        final_df.to_csv(output_path, index=False)
+        print(f" -> Saved {len(group_df):02d} trials + summary to: {filename}")
+
+    # ---------------------------------------------------------
+    # 3b. Group and Export Separated Files (By Controller Only)
+    # ---------------------------------------------------------
+    grouped_controller = metrics_df.groupby('controller_mode')
+    
+    print("\n--- Controller-Wide Summaries ---")
+    for controller, group_df in grouped_controller:
+        safe_controller = str(controller).replace(' ', '_').replace('/', '_')
         
-        # Save the separated dataset (now including the summary line)
+        filename = f"{safe_controller}_all_phases_metrics.csv"
+        output_path = os.path.join(output_directory, filename)
+        
+        summary_row = pd.DataFrame([{
+            'file_name': 'SUMMARY_MEAN',
+            'controller_mode': controller,
+            'phase': 'ALL_PHASES',
+            'duration_s': group_df['duration_s'].mean(),
+            'cross_track_rmse': group_df['cross_track_rmse'].mean(),
+            'cross_track_max': group_df['cross_track_max'].mean()
+        }])
+        
+        final_df = pd.concat([group_df, summary_row], ignore_index=True)
         final_df.to_csv(output_path, index=False)
         print(f" -> Saved {len(group_df):02d} trials + summary to: {filename}")
         
-    # Keep one master summary file without the aggregated rows mixed in
+    # ---------------------------------------------------------
+    # 3c. Master Summary
+    # ---------------------------------------------------------
     master_path = os.path.join(output_directory, "all_trials_metrics_master.csv")
     metrics_df.to_csv(master_path, index=False)
     print(f"\nMaster summary (raw trials only) saved to: {master_path}")
