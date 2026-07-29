@@ -183,32 +183,6 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
     plt.savefig(os.path.join(save_dir, f"{controller}_all_Kh.pdf"), bbox_inches='tight')
     plt.close()
 
-    # ----------------------------------------
-    # Plot 2: Input Comparison (Aggregated)
-    # ----------------------------------------
-    fig, ax = plt.subplots(figsize=(12, 7))
-    
-    for idx, traj in enumerate(trajectories):
-        traj_data = df[df['file_stem'] == traj]
-        label_h = "Human Input ($u_h$)" if idx == 0 else ""
-        label_a = "Adaptive Input ($u_a$)" if idx == 0 else ""
-        
-        if 'u_h_mag' in traj_data.columns: ax.plot(traj_data['timestamp'], traj_data['u_h_mag'], color='blue', label=label_h)
-        if 'u_a_mag' in traj_data.columns: ax.plot(traj_data['timestamp'], traj_data['u_a_mag'], color='red', label=label_a)
-        
-    ax.set_title(f"Control Input Comparison ($u_h$ vs. $u_a$)\n{title_info}", pad=15)
-    ax.set_ylabel("Control Input Magnitude")
-    ax.set_xlim(limits['time'])
-    ax.set_ylim(limits['u_mag'])
-    ax.grid(True)
-    
-    num_levels = add_global_phase_labels(ax, df)
-    ax.set_xlabel("Timestamp", labelpad=35 + (num_levels * 18))
-    
-    ax.legend(loc='upper right')
-    plt.savefig(os.path.join(save_dir, f"{controller}_all_inputs.pdf"), bbox_inches='tight')
-    plt.close()
-
 # ==========================================
 # 3. Main Execution Workflow
 # ==========================================
