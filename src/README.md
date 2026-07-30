@@ -14,7 +14,7 @@ cursor, button press, start request, dwell update, and trial-state message.
 | `study_gui` | Shows the task and mapped cursor, sends validated start/abort requests, and never decides whether a trial is running. |
 | `state_feedback_control_node` | Applies timestamped, bounded Cartesian force with independent goal and straight-line virtual-fixture components. |
 | `mpc_control_node` | Runs the separately selected MPC implementation through the typed study lifecycle. |
-| `estimator_node` | Estimates effective closed-loop interaction dynamics from task-identified cursor samples. RLS learning is retained within a single identified study session and reused across trials according to the estimator state policy. Estimation executes only while the study trial state is `RUNNING` or `DWELL`. |
+| `estimator_node` | Estimates effective closed-loop interaction dynamics from task-identified cursor samples. RLS learning is retained across trials within the current study phase and reset when the phase or session changes. Estimation executes only while the study trial state is `RUNNING` or `DWELL`. |
 | `data_logger_node` | Records session manifests, retry-aware attempt outcomes, task metadata, and sampled signals. |
 | `study_analysis` | Validates deterministic Controller/Estimator behavior and produces descriptive CSV/PDF study reports. |
 
