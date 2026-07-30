@@ -44,6 +44,7 @@ class RLSEstimatorNode(Node):
         self.goal = None
         self.start_point = None
         self.current_trial_id = None
+        self.study_phase = None
 
         self.prev_pos = None
         self.prev_vel = None
@@ -138,6 +139,7 @@ class RLSEstimatorNode(Node):
             self.processed_cursor_sample_id = 0
             self.typed_cursor_received = False
             self.trial_active = False
+            self.study_phase = None
             if (
                 self.pending_trial_state is not None
                 and str(self.pending_trial_state.session_id) != session_id
@@ -166,12 +168,34 @@ class RLSEstimatorNode(Node):
         self.prev_vel = None
         self.prev_time = None
 
+    def _update_study_phase(self, phase_data: str):
+        """Adapted from study_phase_callback for the new StudyTask architecture."""
+        if not phase_data:
+            return
+            
+        new_phase = phase_data.strip().lower()
+        if self.study_phase == new_phase:
+            return
+            
+        old_phase = self.study_phase
+        self.study_phase = new_phase
+        self.get_logger().debug(
+            f"Study phase changed from {old_phase} to {self.study_phase}"
+        )
+        self._reset_estimator_state()
+
+    def _reset_estimator_state(self):
+        self.rls = RLSEstimator()
+        self.initialized = False
+        self._reset_kinematics()
+
     def _apply_task(self, msg: StudyTask):
         self.start_point = msg.start_point
         self.goal = msg.end_point
         self.current_trial_id = int(msg.trial_id)
         self.cursor = None
         self.cursor_sample_time = None
+        self._update_study_phase(msg.phase)
         self._reset_kinematics()
         if not self.initialized:
             self.rls.initialize_from_start_point(self.start_point)

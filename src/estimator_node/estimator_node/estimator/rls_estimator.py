@@ -14,7 +14,7 @@ class RLSEstimator:
 
         self.P_y = np.eye(2) * 1000.0
 
-        self.lam = 0.995
+        self.lam = 0.999
 
     def initialize_from_start_point(self, start_point):
 
