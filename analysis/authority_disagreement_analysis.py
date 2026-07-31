@@ -148,7 +148,7 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
     os.makedirs(save_dir, exist_ok=True)
     
     trajectories = df['file_stem'].unique()
-    title_info = f"Controller: {controller.title()} | Phase: All Phases"
+    # title_info = f"Controller: {controller.title()}"
     colors = {'x1': 'tab:blue', 'x2': 'tab:orange', 'y1': 'tab:green', 'y2': 'tab:red'}
 
     # ----------------------------------------
@@ -170,14 +170,14 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
             ax.plot(traj_data['timestamp'], traj_data['Kh_y1'], color=colors['y1'], label=lbl_y1)
             ax.plot(traj_data['timestamp'], traj_data['Kh_y2'], color=colors['y2'], label=lbl_y2)
             
-    ax.set_title(f"Human Control Parameters ($K_h$) Evolution\n{title_info}", pad=15)
+    # ax.set_title(f"Human Control Parameters ($K_h$) Evolution\n{title_info}", pad=15)
     ax.set_ylabel("Estimated $K_h$ Components")
     ax.set_xlim(limits['time'])
     ax.set_ylim(limits['kh'])
     ax.grid(True)
     
     num_levels = add_global_phase_labels(ax, df)
-    ax.set_xlabel("Timestamp", labelpad=35 + (num_levels * 18))
+    ax.set_xlabel("Time", labelpad=35 + (num_levels * 18))
     
     ax.legend(loc='upper right')
     plt.savefig(os.path.join(save_dir, f"{controller}_all_Kh.pdf"), bbox_inches='tight')

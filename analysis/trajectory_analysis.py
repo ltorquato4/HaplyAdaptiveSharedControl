@@ -126,10 +126,10 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                 ax.fill_between(mean_nx, mean_ny - std_ny, mean_ny + std_ny, color=beh_color, alpha=0.2, zorder=4, label="Variance")
                 ax.plot(mean_nx, mean_ny, color=beh_color, linewidth=2, label="Mean", zorder=10)
             
-            ax.set_title(f"Phase: {behavior.replace('_', ' ').title()}")
-            ax.set_xlabel("Normalized X")
+            ax.set_title(f"{behavior.replace('_', ' ').title()}")
+            ax.set_xlabel("X")
             if i == 0:
-                ax.set_ylabel("Normalized Y")
+                ax.set_ylabel("Y")
             ax.grid(True)
             ax.set_aspect('equal', adjustable='box')
             

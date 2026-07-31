@@ -92,9 +92,7 @@ def main(data_directory="../logs", output_directory="../plots/questionnaire_plot
     )
 
     # Formatting the plot
-    ax.set_title("Subjective Questionnaire Ratings by Controller Mode", pad=15)
     ax.set_ylabel("Rating (1 = Strongly Disagree, 5 = Strongly Agree)")
-    ax.set_xlabel("Questionnaire Category")
     ax.set_yticks([1, 2, 3, 4, 5])
     
     # Force Legend location outside the plot to avoid overlapping data
