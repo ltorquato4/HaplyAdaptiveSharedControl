@@ -91,6 +91,10 @@ python3 -m pip install --upgrade \
   mypy \
   orjson \
   ruff \
+  matplotlib \
+  pandas \
+  seaborn \
+  # "numpy<2.0.0" \ activate for analysis scripts
   "websockets>=10.4,<12"
 
 if [[ ! -f /etc/ros/rosdep/sources.list.d/20-default.list ]]; then

@@ -52,5 +52,6 @@ module = [
     "pygame.*",
     "rclpy.*",
     "std_msgs.*",
+    "seaborn.*",
 ]
 ignore_missing_imports = true
