@@ -7,8 +7,9 @@ import preprocess
 import trajectory_analysis
 # import mpc_weight_analysis
 import authority_disagreement_analysis
-import compare_directories # <-- FIXED IMPORT
-import metrics_extraction # <-- NEW IMPORT
+import compare_directories
+import metrics_extraction
+import questionnaire_analysis
 
 def run_pipeline(run_name):
     # Define base directories relative to this script
@@ -116,6 +117,16 @@ if __name__ == "__main__":
             metrics_extraction.main(
                 data_directory=all_processed_logs_dir,
                 output_directory=global_metrics_dir
+            )
+            print("")
+
+            print("7. RUNNING QUESTIONNAIRE ANALYSIS")
+            print("--------------------------------------------------")
+            # Pulls directly from the raw logs directory as they are not preprocessed
+            global_questionnaire_dir = os.path.join(script_base_dir, "../plots/questionnaires")
+            questionnaire_analysis.main(
+                data_directory=logs_base_dir,
+                output_directory=global_questionnaire_dir
             )
             print("")
             
