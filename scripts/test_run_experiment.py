@@ -191,10 +191,6 @@ def test_successful_experiment_writes_questionnaire_with_launch_defaults(
         "2",
         "1",
         "4",
-        "The guidance near the endpoint.",
-        "The initial force change.",
-        "Controller B, after a short adjustment.",
-        "Use a longer familiarization trial.",
     )
 
     result = run_experiment.run_experiment(
@@ -227,7 +223,7 @@ def test_successful_experiment_writes_questionnaire_with_launch_defaults(
     assert row["controller_b_sense_of_agency_rating"] == "2"
     assert row["controller_b_assistive_interaction_rating"] == "1"
     assert row["controller_b_user_experience_rating"] == "4"
-    assert row["supportive_aspects"] == "The guidance near the endpoint."
+    assert "supportive_aspects" not in row
     assert not (tmp_path / "logs" / ".pending_questionnaires" / "P01.csv").exists()
 
 
@@ -251,7 +247,7 @@ def test_launch_failure_preserves_demographics_and_skips_post_questions(
     row = read_questionnaire(pending_path)
     assert row["age"] == "42"
     assert row["experiment_status"] == "launch_failed"
-    assert row["supportive_aspects"] == ""
+    assert row["controller_a_sense_of_agency_rating"] == ""
 
 
 def test_interrupted_launch_is_stopped_and_preserved(tmp_path, monkeypatch):

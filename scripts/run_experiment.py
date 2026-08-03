@@ -38,10 +38,6 @@ QUESTIONNAIRE_FIELDS = [
     "controller_b_assistive_interaction_rating",
     "controller_a_user_experience_rating",
     "controller_b_user_experience_rating",
-    "supportive_aspects",
-    "uncomfortable_aspects",
-    "adaptive_behavior_improved",
-    "suggested_improvements",
 ]
 
 GENDER_CHOICES = [
@@ -93,27 +89,6 @@ SUBJECTIVE_RATING_ITEMS = [
         "Overall, Controller {label} was easy, efficient, and satisfying to use.",
     ),
 ]
-POST_STUDY_QUESTIONS = [
-    (
-        "supportive_aspects",
-        "What aspects of the interaction felt most supportive?",
-    ),
-    (
-        "uncomfortable_aspects",
-        "What aspects felt uncomfortable or unnatural?",
-    ),
-    (
-        "adaptive_behavior_improved",
-        "Did one controller improve the interaction compared with the other? "
-        "If so, which one and how?",
-    ),
-    (
-        "suggested_improvements",
-        "What changes would improve the overall experience?",
-    ),
-]
-
-
 def berlin_timestamp():
     """Return an ISO-8601 timestamp in the Europe/Berlin timezone."""
     return datetime.now(BERLIN_TIMEZONE).isoformat()
@@ -469,10 +444,6 @@ def run_experiment(
                 )
                 write_questionnaire(questionnaire_path, row)
 
-        output_fn("\nOpen-ended questions")
-        for field, question in POST_STUDY_QUESTIONS:
-            row[field] = prompt_non_empty(question, input_fn, output_fn)
-            write_questionnaire(questionnaire_path, row)
     except (EOFError, KeyboardInterrupt):
         row["experiment_status"] = "post_study_incomplete"
         write_questionnaire(questionnaire_path, row)
