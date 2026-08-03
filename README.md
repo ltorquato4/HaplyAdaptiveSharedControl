@@ -197,11 +197,10 @@ Use this WSL-owned hardware path:
    After the experiment, each participant rates Controller A and Controller B
    separately on three study-specific items covering sense of agency, assistive
    interaction, and overall user experience. Ratings use a five-point agreement
-   scale from `1` (strongly disagree) to `5` (strongly agree), followed by the
-   open-ended questions. The CSV stores the six numeric ratings together with
-   `controller_a_mode` and `controller_b_mode`, which are derived from the
-   session manifest so the answers can be mapped safely to fixed and adaptive
-   control.
+   scale from `1` (strongly disagree) to `5` (strongly agree). The CSV stores
+   the numeric ratings together with `controller_a_mode` and
+   `controller_b_mode`, which are derived from the session manifest so the
+   answers can be mapped safely to fixed and adaptive control.
 
    The runner uses the normal hardware-launch defaults:
 
