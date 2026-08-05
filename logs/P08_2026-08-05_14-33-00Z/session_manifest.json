@@ -1,0 +1,590 @@
+{
+  "controller_family": "mpc",
+  "estimator_state_policy": "persist_session",
+  "input_source": "haply",
+  "loop_tasks": false,
+  "max_control_amplitude": 10.0,
+  "order_seed": 4067880216,
+  "order_strategy": "seeded_random",
+  "participant_id": "P08",
+  "schedule": [
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.096,
+        "y": -0.022,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.0,
+        "y": -0.15,
+        "z": 0.0
+      },
+      "trial_id": 0
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 1
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 2
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 3
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 4
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.064,
+        "y": 0.048,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.064,
+        "y": -0.048,
+        "z": 0.0
+      },
+      "trial_id": 5
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.064,
+        "y": 0.048,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.064,
+        "y": -0.048,
+        "z": 0.0
+      },
+      "trial_id": 6
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 7
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 8
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 9
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 10
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.096,
+        "y": -0.022,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.0,
+        "y": -0.15,
+        "z": 0.0
+      },
+      "trial_id": 11
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 12
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 13
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 14
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.096,
+        "y": -0.022,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.0,
+        "y": -0.15,
+        "z": 0.0
+      },
+      "trial_id": 15
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.064,
+        "y": 0.048,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.064,
+        "y": -0.048,
+        "z": 0.0
+      },
+      "trial_id": 16
+    },
+    {
+      "controller_mode": "fixed",
+      "end_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 17
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 18
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 19
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 20
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.064,
+        "y": 0.048,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.064,
+        "y": -0.048,
+        "z": 0.0
+      },
+      "trial_id": 21
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 22
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.096,
+        "y": -0.022,
+        "z": 0.0
+      },
+      "phase": "careful",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.0,
+        "y": -0.15,
+        "z": 0.0
+      },
+      "trial_id": 23
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 24
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 25
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.096,
+        "y": -0.022,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.0,
+        "y": -0.15,
+        "z": 0.0
+      },
+      "trial_id": 26
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 27
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.064,
+        "y": 0.048,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.064,
+        "y": -0.048,
+        "z": 0.0
+      },
+      "trial_id": 28
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "normal",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 29
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.064,
+        "y": 0.048,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.064,
+        "y": -0.048,
+        "z": 0.0
+      },
+      "trial_id": 30
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 31
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.096,
+        "y": -0.022,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.0,
+        "y": -0.15,
+        "z": 0.0
+      },
+      "trial_id": 32
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": -0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 33
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": -0.08,
+        "z": 0.0
+      },
+      "trial_id": 34
+    },
+    {
+      "controller_mode": "adaptive",
+      "end_point": {
+        "x": -0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "phase": "aggressive",
+      "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575",
+      "start_point": {
+        "x": 0.08,
+        "y": 0.08,
+        "z": 0.0
+      },
+      "trial_id": 35
+    }
+  ],
+  "schema_version": 3,
+  "session_id": "abe42be7-89e9-4e71-9e82-462c67c1a575"
+}
