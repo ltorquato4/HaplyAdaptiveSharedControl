@@ -1,0 +1,2 @@
+participant_id,questionnaire_started_at,experiment_finished_at,experiment_status,age,gender,dominant_hand,calm_active_assessment,mouse_use_frequency,controller_a_mode,controller_b_mode,controller_a_sense_of_agency_rating,controller_b_sense_of_agency_rating,controller_a_assistive_interaction_rating,controller_b_assistive_interaction_rating,controller_a_user_experience_rating,controller_b_user_experience_rating
+P03,2026-08-05T13:03:58.041512+02:00,2026-08-05T13:08:08.008238+02:00,completed,24,man,right,somewhat_calm,daily,fixed,adaptive,4,2,4,1,5,2
