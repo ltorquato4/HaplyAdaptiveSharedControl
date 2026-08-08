@@ -102,7 +102,7 @@ if __name__ == "__main__":
             print("5. RUNNING CROSS-DIRECTORY COMPARISON ANALYSIS")
             print("--------------------------------------------------")
             # After all individual runs are processed, run the global comparison
-            all_processed_logs_dir = os.path.join(script_base_dir, "../processed_logs")
+            all_processed_logs_dir = os.path.join(script_base_dir, "../processed_logs/processed_logs")
             global_comparison_plots_dir = os.path.join(script_base_dir, "../plots/comparison_plots")
             
             # This calls the actual function inside your compare script
