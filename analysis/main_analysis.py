@@ -18,8 +18,9 @@ def run_pipeline(run_name):
     # Map the input directory using the provided run_name (e.g., ../logs/session_1)
     raw_logs_dir = os.path.join(base_dir, "../logs", run_name)
     
-    # Map the output directories to mirror the run_name
-    processed_logs_dir = os.path.join(base_dir, "../processed_logs", run_name)
+    # Map the output directories to mirror the run_name side-by-side
+    processed_logs_dir = os.path.join(base_dir, "../processed_logs/processed_logs", run_name)
+    processed_logs_kh_dir = os.path.join(base_dir, "../processed_logs/processed_logs_kh", run_name)
     plots_base_dir = os.path.join(base_dir, "../plots", run_name)
     
     print("==================================================")
@@ -33,10 +34,11 @@ def run_pipeline(run_name):
 
     print("1. STARTING PREPROCESSING")
     print("--------------------------------------------------")
-    # Process the specific session folder and output to the mirrored processed_logs dir
+    # Process the specific session folder and pass BOTH output directories
     preprocess.preprocess_directory(
         input_dir=raw_logs_dir, 
-        output_dir=processed_logs_dir
+        output_dir=processed_logs_dir,
+        output_dir_kh=processed_logs_kh_dir
     )
     print("")
 
@@ -62,7 +64,7 @@ def run_pipeline(run_name):
     print("--------------------------------------------------")
     # Calculates control inputs and outputs to the mirrored plots dir
     authority_disagreement_analysis.main(
-        data_directory=processed_logs_dir, 
+        data_directory=processed_logs_kh_dir, 
         base_output_dir=os.path.join(plots_base_dir, "authority_plots")
     )
     print("")

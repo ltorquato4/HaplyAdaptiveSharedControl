@@ -3,6 +3,7 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+from matplotlib.ticker import MultipleLocator
 from pathlib import Path
 
 # ==========================================
@@ -130,6 +131,10 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
             ax.set_xlabel("X")
             if i == 0:
                 ax.set_ylabel("Y")
+            
+            # Apply the 0.01 spacing
+            # ax.xaxis.set_major_locator(MultipleLocator(0.01))
+            ax.yaxis.set_major_locator(MultipleLocator(0.01))
             ax.grid(True)
             ax.set_aspect('equal', adjustable='box')
             
@@ -143,7 +148,7 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
     
     # FIXED absolute padding added to the top to accommodate the legend safely
     # Increased to 0.15 to ensure the aggressive variance does not overlap with the legend box
-    fixed_top_padding = 0.05
+    fixed_top_padding = 0.055
     axes_traj[0].set_ylim(y_min, y_max + fixed_top_padding)
     axes_traj[0].set_xlim(limits['norm_x'])
     

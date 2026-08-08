@@ -3,6 +3,8 @@ import glob
 import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
+import matplotlib.cm as cm
+from matplotlib.ticker import MultipleLocator
 
 # ==========================================
 # 1. Math & Metric Calculations
@@ -61,6 +63,13 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
         print(f"No subdirectories found in {base_data_dir}")
         return
 
+    # Create a unique color for each participant (run_name)
+    unique_users = sorted([os.path.basename(subdir) for subdir in subdirectories])
+    
+    # Choose a colormap that can handle the number of users (tab20 is good for up to 20, otherwise use a continuous one)
+    cmap = cm.get_cmap('tab20') if len(unique_users) <= 20 else cm.get_cmap('nipy_spectral')
+    user_colors = {user: cmap(i / len(unique_users)) for i, user in enumerate(unique_users)}
+
     # Extract and calculate data for all runs
     for subdir in sorted(subdirectories):
         run_name = os.path.basename(subdir)
@@ -106,16 +115,12 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
             except Exception as e:
                 print(f"Skipping {file} due to error: {e}")
 
-    # Define explicit order and colors
-    phase_config = {
-        'careful': 'tab:green',
-        'normal': 'tab:orange',
-        'aggressive': 'tab:red'
-    }
+    # Explicit order for the subplots
+    ordered_phases_list = ['careful', 'normal', 'aggressive']
 
     # Generate the plots for each mode
     for mode, phases_dict in mode_data.items():
-        ordered_phases = [p for p in phase_config.keys() if p in phases_dict]
+        ordered_phases = [p for p in ordered_phases_list if p in phases_dict]
         
         # Track limits specifically for THIS mode's plot
         fig_min_x, fig_max_x = 0.0, 0.0
@@ -130,11 +135,9 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
             ax = axes[i]
             if i < len(ordered_phases):
                 phase = ordered_phases[i]
-                color = phase_config[phase]
                 phase_data = phases_dict[phase]
                 
                 local_max_end_x = 0
-                label_added = False
                 
                 # Plot the mean line for EACH USER using discrete bins
                 for user_name, user_data in phase_data.items():
@@ -156,9 +159,10 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
                             user_mean_nx = user_summary['nx'].to_numpy()
                             user_mean_ny = user_summary['ny'].to_numpy()
                             
-                            ax.plot(user_mean_nx, user_mean_ny, color=color, linewidth=2, alpha=0.7, 
-                                    label="User Mean" if not label_added else "")
-                            label_added = True
+                            # Use the dynamically generated color for this specific user
+                            user_color = user_colors[user_name]
+                            
+                            ax.plot(user_mean_nx, user_mean_ny, color=user_color, linewidth=2, alpha=0.7)
                             
                             # Expand figure limits based on plotted lines
                             fig_min_x = min(fig_min_x, np.min(user_mean_nx))
@@ -180,6 +184,10 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
                 ax.set_xlabel("X")
                 if i == 0:
                     ax.set_ylabel("Y")
+                
+                # Apply the 0.01 spacing
+                # ax.xaxis.set_major_locator(MultipleLocator(0.01))
+                ax.yaxis.set_major_locator(MultipleLocator(0.01))
                 ax.grid(True)
                 
                 # Force Legend location to top right with an opaque background
@@ -196,7 +204,7 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
         pad_y_bottom = rng_y * 0.05 if rng_y != 0 else 0.01
         
         # FIXED absolute padding added to the top to accommodate the legend safely
-        fixed_top_padding = 0.05
+        fixed_top_padding = 0.025
         axes[0].set_ylim(fig_min_y - pad_y_bottom, fig_max_y + fixed_top_padding)
         
         # Ensure aspect ratio is equal to accurately reflect deviation magnitude
