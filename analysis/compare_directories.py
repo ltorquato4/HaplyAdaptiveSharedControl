@@ -185,13 +185,8 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
                 if i == 0:
                     ax.set_ylabel("Y")
                 
-                # Apply the 0.01 spacing
-                # ax.xaxis.set_major_locator(MultipleLocator(0.01))
                 ax.yaxis.set_major_locator(MultipleLocator(0.01))
                 ax.grid(True)
-                
-                # Force Legend location to top right with an opaque background
-                ax.legend(loc='upper right', fontsize=9, framealpha=0.95, edgecolor='gray')
             else:
                 ax.set_visible(False)
         
@@ -203,7 +198,7 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
         rng_y = fig_max_y - fig_min_y
         pad_y_bottom = rng_y * 0.05 if rng_y != 0 else 0.01
         
-        # FIXED absolute padding added to the top to accommodate the legend safely
+        # FIXED absolute padding added to the top
         fixed_top_padding = 0.025
         axes[0].set_ylim(fig_min_y - pad_y_bottom, fig_max_y + fixed_top_padding)
         
@@ -213,7 +208,16 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
             
         plt.tight_layout()
         
+        # CHANGED: Attach the legend to the middle subplot (axes[1]) instead of the figure
+        handles, labels = axes[0].get_legend_handles_labels()
+        if handles:
+            # bbox_to_anchor is now relative to axes[1]. -0.25 places it just beneath the x-label
+            axes[1].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.1), 
+                           ncol=3, fontsize=10, framealpha=0.95, edgecolor='gray')
+        
         save_path = os.path.join(output_dir, f"directories_mean_trajectories_{mode}.pdf")
+        
+        # bbox_inches='tight' will crop away the large empty gaps caused by set_aspect('equal')
         plt.savefig(save_path, bbox_inches='tight')
         plt.close(fig)
         print(f"Successfully generated comparison plot: {save_path}")

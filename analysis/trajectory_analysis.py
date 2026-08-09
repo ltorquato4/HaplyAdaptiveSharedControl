@@ -4,6 +4,8 @@ import numpy as np
 import pandas as pd
 import matplotlib.pyplot as plt
 from matplotlib.ticker import MultipleLocator
+from matplotlib.lines import Line2D
+from matplotlib.patches import Patch
 from pathlib import Path
 
 # ==========================================
@@ -132,27 +134,50 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
             if i == 0:
                 ax.set_ylabel("Y")
             
-            # Apply the 0.01 spacing
-            # ax.xaxis.set_major_locator(MultipleLocator(0.01))
             ax.yaxis.set_major_locator(MultipleLocator(0.01))
             ax.grid(True)
             ax.set_aspect('equal', adjustable='box')
             
-            # Force Legend location to top right with an opaque background
-            ax.legend(loc='upper right', fontsize=9, framealpha=0.95, edgecolor='gray')
         else:
             ax.set_visible(False)
             
     # Apply the locally calculated limits specifically for THIS controller mode
     y_min, y_max = limits['norm_y']
     
-    # FIXED absolute padding added to the top to accommodate the legend safely
-    # Increased to 0.15 to ensure the aggressive variance does not overlap with the legend box
+    # FIXED absolute padding added to the top
     fixed_top_padding = 0.055
     axes_traj[0].set_ylim(y_min, y_max + fixed_top_padding)
     axes_traj[0].set_xlim(limits['norm_x'])
     
     plt.tight_layout()
+    
+    # Generate custom grey handles for the legend specifically
+    handles, labels = axes_traj[0].get_legend_handles_labels()
+    if handles:
+        # Create a dictionary mapping labels to their corresponding handles
+        handle_dict = {}
+        for handle, label in zip(handles, labels):
+            if label == 'Run Trajectories':
+                handle_dict[label] = Line2D([0], [0], color='grey', linestyle='--', alpha=0.5)
+            elif label == 'Mean':
+                handle_dict[label] = Line2D([0], [0], color='grey', linewidth=2)
+            elif label == 'Variance':
+                handle_dict[label] = Patch(color='grey', alpha=0.2)
+            else:
+                # Start, End, and Reference markers retain their original colors
+                handle_dict[label] = handle
+                
+        # Specify the new desired order for the legend items
+        desired_order = ['Start', 'End', 'Reference', 'Run Trajectories', 'Variance', 'Mean']
+        
+        # Build the final ordered lists for the legend
+        custom_handles = [handle_dict[lbl] for lbl in desired_order if lbl in handle_dict]
+        final_labels = [lbl for lbl in desired_order if lbl in handle_dict]
+                
+        # Attach the modified legend to the middle subplot with an adjusted offset
+        axes_traj[1].legend(custom_handles, final_labels, loc='upper center', bbox_to_anchor=(0.5, -0.15), 
+                            ncol=9, fontsize=10, framealpha=0.95, edgecolor='gray')
+    
     fig_traj.savefig(os.path.join(save_dir, f"{controller}_summary_aligned_trajectories.pdf"), bbox_inches='tight')
     plt.close(fig_traj)
 
