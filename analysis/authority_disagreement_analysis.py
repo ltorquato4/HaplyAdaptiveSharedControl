@@ -147,8 +147,6 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
     save_dir = os.path.join(output_dir, controller)
     os.makedirs(save_dir, exist_ok=True)
     
-    trajectories = df['file_stem'].unique()
-    # title_info = f"Controller: {controller.title()}"
     colors = {'x1': 'tab:blue', 'x2': 'tab:orange', 'y1': 'tab:green', 'y2': 'tab:red'}
 
     # ----------------------------------------
@@ -156,21 +154,24 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
     # ----------------------------------------
     fig, ax = plt.subplots(figsize=(12, 7))
     
-    for idx, traj in enumerate(trajectories):
-        traj_data = df[df['file_stem'] == traj]
+    # Sort the ENTIRE dataframe for this controller chronologically
+    # This prevents Matplotlib from treating separate files as separated segments.
+    traj_data = df.sort_values('timestamp')
+    
+    if not traj_data[['Kh_x1', 'Kh_x2', 'Kh_y1', 'Kh_y2']].isna().all().all():
+        # Drop NaNs to connect lines directly across any empty rows
+        valid_x1 = traj_data.dropna(subset=['Kh_x1'])
+        ax.plot(valid_x1['timestamp'], valid_x1['Kh_x1'], color=colors['x1'], label=r'$k_{x_1}$')
         
-        lbl_x1 = r'$k_{x_1}$' if idx == 0 else ""
-        lbl_x2 = r'$k_{x_2}$' if idx == 0 else ""
-        lbl_y1 = r'$k_{y_1}$' if idx == 0 else ""
-        lbl_y2 = r'$k_{y_2}$' if idx == 0 else ""
+        valid_x2 = traj_data.dropna(subset=['Kh_x2'])
+        ax.plot(valid_x2['timestamp'], valid_x2['Kh_x2'], color=colors['x2'], label=r'$k_{x_2}$')
         
-        if not traj_data[['Kh_x1', 'Kh_x2', 'Kh_y1', 'Kh_y2']].isna().all().all():
-            ax.plot(traj_data['timestamp'], traj_data['Kh_x1'], color=colors['x1'], label=lbl_x1)
-            ax.plot(traj_data['timestamp'], traj_data['Kh_x2'], color=colors['x2'], label=lbl_x2)
-            ax.plot(traj_data['timestamp'], traj_data['Kh_y1'], color=colors['y1'], label=lbl_y1)
-            ax.plot(traj_data['timestamp'], traj_data['Kh_y2'], color=colors['y2'], label=lbl_y2)
+        valid_y1 = traj_data.dropna(subset=['Kh_y1'])
+        ax.plot(valid_y1['timestamp'], valid_y1['Kh_y1'], color=colors['y1'], label=r'$k_{y_1}$')
+        
+        valid_y2 = traj_data.dropna(subset=['Kh_y2'])
+        ax.plot(valid_y2['timestamp'], valid_y2['Kh_y2'], color=colors['y2'], label=r'$k_{y_2}$')
             
-    # ax.set_title(f"Human Control Parameters ($K_h$) Evolution\n{title_info}", pad=15)
     ax.set_ylabel("Estimated $K_h$ Components")
     ax.set_xlim(limits['time'])
     ax.set_ylim(limits['kh'])
@@ -207,7 +208,6 @@ def main(data_directory="data", base_output_dir="authority_plots"):
     for file in csv_files:
         try:
             df = pd.read_csv(file)
-            # Apply identical dropna logic here to ensure math doesn't break
             required_cols = ['cursor_x', 'cursor_y', 'end_x', 'end_y']
             if all(col in df.columns for col in required_cols):
                 df = df.dropna(subset=required_cols)
@@ -225,7 +225,6 @@ def main(data_directory="data", base_output_dir="authority_plots"):
         
     master_df = pd.concat(all_data, ignore_index=True)
     
-    # Calculate ONLY the Y-limits globally so the controllers are visually comparable
     global_limits = {
         'kh': get_padded_limits([master_df['Kh_x1'], master_df['Kh_x2'], master_df['Kh_y1'], master_df['Kh_y2']]),
         'u_mag': get_padded_limits([master_df['u_h_mag'], master_df['u_a_mag']])
@@ -236,7 +235,6 @@ def main(data_directory="data", base_output_dir="authority_plots"):
     for controller in controllers:
         controller_df = master_df[master_df['study_controller_mode'] == controller]
         
-        # Determine the time limit locally for THIS controller mode
         controller_limits = global_limits.copy()
         controller_limits['time'] = get_padded_limits([controller_df['timestamp']], pad=0)
         
