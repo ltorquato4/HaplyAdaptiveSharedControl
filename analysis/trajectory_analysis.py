@@ -144,10 +144,9 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
             
     # Apply the locally calculated limits specifically for THIS controller mode
     y_min, y_max = limits['norm_y']
-    
-    # FIXED absolute padding added to the top
-    fixed_top_padding = 0.055
-    axes_traj[0].set_ylim(y_min, y_max + fixed_top_padding)
+    y_padding = 0.01
+
+    axes_traj[0].set_ylim(y_min - y_padding, y_max + y_padding)
     axes_traj[0].set_xlim(limits['norm_x'])
     
     plt.tight_layout()
@@ -171,13 +170,21 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
         # Specify the new desired order for the legend items
         desired_order = ['Start', 'End', 'Reference', 'Run Trajectories', 'Variance', 'Mean']
         
-        # Build the final ordered lists for the legend
+# Build the final ordered lists for the legend
         custom_handles = [handle_dict[lbl] for lbl in desired_order if lbl in handle_dict]
         final_labels = [lbl for lbl in desired_order if lbl in handle_dict]
                 
-        # Attach the modified legend to the middle subplot with an adjusted offset
-        axes_traj[1].legend(custom_handles, final_labels, loc='upper center', bbox_to_anchor=(0.5, -0.15), 
-                            ncol=9, fontsize=10, framealpha=0.95, edgecolor='gray')
+        # Import mtransforms at the top of the file, or inline here
+        import matplotlib.transforms as mtransforms
+        
+        # Create a transform that anchors to the bottom center (0.5, 0.0) but offsets by a fixed offset downwards
+        offset = mtransforms.ScaledTranslation(0, -30/72., fig_traj.dpi_scale_trans)
+        fixed_offset_trans = axes_traj[1].transAxes + offset
+        
+        # Attach the modified legend using the fixed physical transform
+        axes_traj[1].legend(custom_handles, final_labels, loc='upper center', 
+                            bbox_to_anchor=(0.5, 0.0), bbox_transform=fixed_offset_trans, 
+                            ncol=6, fontsize=10, framealpha=0.95, edgecolor='gray')
     
     fig_traj.savefig(os.path.join(save_dir, f"{controller}_summary_aligned_trajectories.pdf"), bbox_inches='tight')
     plt.close(fig_traj)

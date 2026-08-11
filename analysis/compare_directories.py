@@ -5,6 +5,7 @@ import pandas as pd
 import matplotlib.pyplot as plt
 import matplotlib.cm as cm
 from matplotlib.ticker import MultipleLocator
+import matplotlib.transforms as mtransforms
 
 # ==========================================
 # 1. Math & Metric Calculations
@@ -197,11 +198,8 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
         axes[0].set_xlim(fig_min_x - pad_x, fig_max_x + pad_x)
         
         rng_y = fig_max_y - fig_min_y
-        pad_y_bottom = rng_y * 0.05 if rng_y != 0 else 0.01
-        
-        # FIXED absolute padding added to the top
-        fixed_top_padding = 0.025
-        axes[0].set_ylim(fig_min_y - pad_y_bottom, fig_max_y + fixed_top_padding)
+        pad_y = rng_y * 0.05 if rng_y != 0 else 0.01
+        axes[0].set_ylim(fig_min_y - pad_y, fig_max_y + pad_y)
         
         # Ensure aspect ratio is equal to accurately reflect deviation magnitude
         for ax in axes:
@@ -209,11 +207,15 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
             
         plt.tight_layout()
         
-        # CHANGED: Attach the legend to the middle subplot (axes[1]) instead of the figure
         handles, labels = axes[0].get_legend_handles_labels()
         if handles:
-            # bbox_to_anchor is now relative to axes[1]. -0.25 places it just beneath the x-label
-            axes[1].legend(handles, labels, loc='upper center', bbox_to_anchor=(0.5, -0.1), 
+            # Create a transform that anchors to the bottom center (0.5, 0.0) but offsets by a fixed 30 points downwards
+            offset = mtransforms.ScaledTranslation(0, -30/72., fig.dpi_scale_trans)
+            fixed_offset_trans = axes[1].transAxes + offset
+            
+            # Attach the modified legend using the fixed physical transform
+            axes[1].legend(handles, labels, loc='upper center', 
+                           bbox_to_anchor=(0.5, 0.0), bbox_transform=fixed_offset_trans, 
                            ncol=3, fontsize=10, framealpha=0.95, edgecolor='gray')
         
         save_path = os.path.join(output_dir, f"directories_mean_trajectories_{mode}.pdf")
