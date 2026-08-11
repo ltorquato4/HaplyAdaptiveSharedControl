@@ -178,7 +178,7 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
     ax.grid(True)
     
     num_levels = add_global_phase_labels(ax, df)
-    ax.set_xlabel("Time", labelpad=35 + (num_levels * 18))
+    ax.set_xlabel("t [s]", labelpad=35 + (num_levels * 18))
     
     ax.legend(loc='upper right')
     plt.savefig(os.path.join(save_dir, f"{controller}_all_Kh.pdf"), bbox_inches='tight')

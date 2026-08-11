@@ -130,11 +130,12 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                 ax.plot(mean_nx, mean_ny, color=beh_color, linewidth=2, label="Mean", zorder=10)
             
             ax.set_title(f"{behavior.replace('_', ' ').title()}")
-            ax.set_xlabel("X")
+            ax.set_xlabel("X []")
             if i == 0:
-                ax.set_ylabel("Y")
+                ax.set_ylabel("Y []")
             
             ax.yaxis.set_major_locator(MultipleLocator(0.01))
+            ax.xaxis.set_major_locator(MultipleLocator(0.02))
             ax.grid(True)
             ax.set_aspect('equal', adjustable='box')
             
@@ -218,20 +219,20 @@ def main(data_directory="data", output_directory="analysis_plots"):
     controllers = master_df['study_controller_mode'].dropna().unique()
     behaviors = master_df['study_phase'].dropna().unique()
 
+    # Calculate global limits across ALL controllers for this participant
+    limits = {
+        'x_2d': get_padded_limits([master_df['cursor_x'], master_df['start_x'], master_df['end_x']]),
+        'y_2d': get_padded_limits([master_df['cursor_y'], master_df['start_y'], master_df['end_y']]),
+        'norm_x': get_padded_limits([master_df['norm_x'], master_df['norm_end_x'], pd.Series([0])]),
+        'norm_y': get_padded_limits([master_df['norm_y'], master_df['norm_end_y'], pd.Series([0])]),
+        'time': get_padded_limits([master_df['timestamp']], pad=0),
+        'error': get_padded_limits([master_df['orthogonal_error']]),
+        'vel_x': get_padded_limits([master_df['haply_vel_x']]),
+        'vel_y': get_padded_limits([master_df['haply_vel_y']])
+    }
+
     for controller in controllers:
         controller_df = master_df[master_df['study_controller_mode'] == controller]
-        
-        # Calculate limits SPECIFICALLY for the subset of data belonging to this controller
-        limits = {
-            'x_2d': get_padded_limits([controller_df['cursor_x'], controller_df['start_x'], controller_df['end_x']]),
-            'y_2d': get_padded_limits([controller_df['cursor_y'], controller_df['start_y'], controller_df['end_y']]),
-            'norm_x': get_padded_limits([controller_df['norm_x'], controller_df['norm_end_x'], pd.Series([0])]),
-            'norm_y': get_padded_limits([controller_df['norm_y'], controller_df['norm_end_y'], pd.Series([0])]),
-            'time': get_padded_limits([controller_df['timestamp']], pad=0),
-            'error': get_padded_limits([controller_df['orthogonal_error']]),
-            'vel_x': get_padded_limits([controller_df['haply_vel_x']]),
-            'vel_y': get_padded_limits([controller_df['haply_vel_y']])
-        }
         
         print(f"Generating summary dashboard plots for {controller} controller...")
         generate_controller_summary_plots(controller_df, controller, behaviors, output_directory, limits)

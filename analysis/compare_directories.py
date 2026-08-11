@@ -181,11 +181,12 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
                 ax.scatter(local_max_end_x, 0, c='red', marker='X', s=50, zorder=5, label='End', alpha=0.7, linestyle=':')
                 
                 ax.set_title(f"{phase.replace('_', ' ').title()}")
-                ax.set_xlabel("X")
+                ax.set_xlabel("X []")
                 if i == 0:
-                    ax.set_ylabel("Y")
+                    ax.set_ylabel("Y []")
                 
                 ax.yaxis.set_major_locator(MultipleLocator(0.01))
+                ax.xaxis.set_major_locator(MultipleLocator(0.02))
                 ax.grid(True)
             else:
                 ax.set_visible(False)
