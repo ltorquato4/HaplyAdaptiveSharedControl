@@ -130,9 +130,9 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                 ax.plot(mean_nx, mean_ny, color=beh_color, linewidth=2, label="Mean", zorder=10)
             
             ax.set_title(f"{behavior.replace('_', ' ').title()}")
-            ax.set_xlabel("X []")
+            ax.set_xlabel("X [m]")
             if i == 0:
-                ax.set_ylabel("Y []")
+                ax.set_ylabel("Y [m]")
             
             ax.yaxis.set_major_locator(MultipleLocator(0.01))
             ax.xaxis.set_major_locator(MultipleLocator(0.02))
