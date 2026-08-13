@@ -126,7 +126,7 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                 mean_ny = summary[('norm_y', 'mean')].to_numpy()
                 std_ny = summary[('norm_y', 'std')].fillna(0).to_numpy() # Fill NaNs for bins with only 1 sample
                 
-                ax.fill_between(mean_nx, mean_ny - std_ny, mean_ny + std_ny, color=beh_color, alpha=0.2, zorder=4, label="Variance")
+                ax.fill_between(mean_nx, mean_ny - std_ny, mean_ny + std_ny, color=beh_color, alpha=0.2, zorder=4, label= r"$\pm$std")
                 ax.plot(mean_nx, mean_ny, color=beh_color, linewidth=2, label="Mean", zorder=10)
             
             ax.set_title(f"{behavior.replace('_', ' ').title()}")
@@ -161,14 +161,14 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                 handle_dict[label] = Line2D([0], [0], color='grey', linestyle='--', alpha=0.5)
             elif label == 'Mean':
                 handle_dict[label] = Line2D([0], [0], color='grey', linewidth=2)
-            elif label == 'Variance':
+            elif label == r"$\pm$std":
                 handle_dict[label] = Patch(color='grey', alpha=0.2)
             else:
                 # Start, End, and Reference markers retain their original colors
                 handle_dict[label] = handle
                 
         # Specify the new desired order for the legend items
-        desired_order = ['Start', 'End', 'Reference', 'Run Trajectories', 'Variance', 'Mean']
+        desired_order = ['Start', 'End', 'Reference', 'Run Trajectories', r"$\pm$std", 'Mean']
         
 # Build the final ordered lists for the legend
         custom_handles = [handle_dict[lbl] for lbl in desired_order if lbl in handle_dict]

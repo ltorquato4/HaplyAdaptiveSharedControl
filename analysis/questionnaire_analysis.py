@@ -119,7 +119,7 @@ def main(data_directory="../logs", output_directory="../plots/questionnaire_plot
         ax.set_xticklabels(modes, rotation=45, ha='right', fontsize=11)
         
         if i == 0:
-            ax.set_ylabel("Rating Scale (1 - 5)", fontsize=12)
+            ax.set_ylabel("Rating Scale", fontsize=12)
 
     plt.tight_layout()
 
