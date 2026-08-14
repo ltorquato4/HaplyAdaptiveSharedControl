@@ -28,7 +28,7 @@ def calculate_trial_metrics(df, file_stem):
     mode = df['study_controller_mode'].iloc[0] if 'study_controller_mode' in df.columns else 'unknown'
     phase = df['study_phase'].iloc[0] if 'study_phase' in df.columns else 'unknown'
     
-    # 3. Calculate Core Metrics matching study_analysis logic
+    # 3. Calculate Core Metrics
     duration_s = df['timestamp'].iloc[-1] - df['timestamp'].iloc[0]
     cross_track_rmse = np.sqrt(np.mean(orthogonal_error**2))
     cross_track_max = np.max(orthogonal_error)
@@ -91,62 +91,47 @@ def main(data_directory="../processed_logs", output_directory="../plots/metrics"
     print(f"Successfully calculated metrics for {len(metrics_df)} total trials.\n")
     
     # ---------------------------------------------------------
-    # 3a. Group and Export Separated Files (By Controller + Phase)
+    # 3. Create Single Summary DataFrame for Table Output
     # ---------------------------------------------------------
-    grouped_both = metrics_df.groupby(['controller_mode', 'phase'])
-    
-    print("--- Phase-Specific Summaries ---")
-    for (controller, phase), group_df in grouped_both:
-        safe_controller = str(controller).replace(' ', '_').replace('/', '_')
-        safe_phase = str(phase).replace(' ', '_')
-        
-        filename = f"{safe_controller}_{safe_phase}_metrics.csv"
-        output_path = os.path.join(output_directory, filename)
-        
-        summary_row = pd.DataFrame([{
-            'file_name': 'SUMMARY_MEAN',
-            'controller_mode': controller,
-            'phase': phase,
-            'duration_s': group_df['duration_s'].mean(),
-            'cross_track_rmse': group_df['cross_track_rmse'].mean(),
-            'cross_track_max': group_df['cross_track_max'].mean()
-        }])
-        
-        final_df = pd.concat([group_df, summary_row], ignore_index=True)
-        final_df.to_csv(output_path, index=False)
-        print(f" -> Saved {len(group_df):02d} trials + summary to: {filename}")
+    summary_data = []
 
-    # ---------------------------------------------------------
-    # 3b. Group and Export Separated Files (By Controller Only)
-    # ---------------------------------------------------------
+    # Group by Controller + Phase
+    grouped_both = metrics_df.groupby(['controller_mode', 'phase'])
+    for (controller, phase), group_df in grouped_both:
+        summary_data.append({
+            'Controller': controller.capitalize(),
+            'Mode': phase.capitalize(),
+            'Duration': group_df['duration_s'].sum(), # Calculates the sum instead of mean
+            'RMSE': group_df['cross_track_rmse'].mean(),
+            'Maximum Error': group_df['cross_track_max'].mean()
+        })
+
+    # Group by Controller Only (for the 'All' phase row)
     grouped_controller = metrics_df.groupby('controller_mode')
-    
-    print("\n--- Controller-Wide Summaries ---")
     for controller, group_df in grouped_controller:
-        safe_controller = str(controller).replace(' ', '_').replace('/', '_')
-        
-        filename = f"{safe_controller}_all_phases_metrics.csv"
-        output_path = os.path.join(output_directory, filename)
-        
-        summary_row = pd.DataFrame([{
-            'file_name': 'SUMMARY_MEAN',
-            'controller_mode': controller,
-            'phase': 'ALL_PHASES',
-            'duration_s': group_df['duration_s'].mean(),
-            'cross_track_rmse': group_df['cross_track_rmse'].mean(),
-            'cross_track_max': group_df['cross_track_max'].mean()
-        }])
-        
-        final_df = pd.concat([group_df, summary_row], ignore_index=True)
-        final_df.to_csv(output_path, index=False)
-        print(f" -> Saved {len(group_df):02d} trials + summary to: {filename}")
-        
-    # ---------------------------------------------------------
-    # 3c. Master Summary
-    # ---------------------------------------------------------
-    master_path = os.path.join(output_directory, "all_trials_metrics_master.csv")
-    metrics_df.to_csv(master_path, index=False)
-    print(f"\nMaster summary (raw trials only) saved to: {master_path}")
+        summary_data.append({
+            'Controller': controller.capitalize(),
+            'Mode': 'All',
+            'Duration': group_df['duration_s'].sum(), # Calculates the sum instead of mean
+            'RMSE': group_df['cross_track_rmse'].mean(),
+            'Maximum Error': group_df['cross_track_max'].mean()
+        })
+
+    # Create DataFrame from the summary data
+    summary_df = pd.DataFrame(summary_data)
+
+    # Sort to match the desired table format (Fixed -> Adaptive; Careful -> Normal -> Aggressive -> All)
+    mode_order = {'Careful': 0, 'Normal': 1, 'Aggressive': 2, 'All': 3}
+    summary_df['mode_sort'] = summary_df['Mode'].map(mode_order)
+    
+    # Sorts 'Fixed' before 'Adaptive' by using descending order for the Controller column
+    summary_df = summary_df.sort_values(by=['Controller', 'mode_sort'], ascending=[False, True]).drop(columns=['mode_sort'])
+
+    # Export to a single CSV file
+    filename = "performance_measures_summary.csv"
+    output_path = os.path.join(output_directory, filename)
+    summary_df.to_csv(output_path, index=False)
+    print(f" -> Saved single summary metrics file to: {output_path}")
 
 if __name__ == "__main__":
     main()
