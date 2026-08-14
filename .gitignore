@@ -4,13 +4,6 @@ install/
 log/
 logs/
 
-# Experiment log results
-
-
-# Analysis results
-processed_logs/*
-plots/*
-
 # python environment
 .venv/
 
