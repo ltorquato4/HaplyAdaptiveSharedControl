@@ -28,6 +28,15 @@ def calculate_trial_metrics(df, file_stem):
     mode = df['study_controller_mode'].iloc[0] if 'study_controller_mode' in df.columns else 'unknown'
     phase = df['study_phase'].iloc[0] if 'study_phase' in df.columns else 'unknown'
     
+    # Extract Participant ID (Checks for column first, falls back to filename prefix)
+    if 'participant_id' in df.columns:
+        participant = str(df['participant_id'].iloc[0])
+    elif 'subject_id' in df.columns:
+        participant = str(df['subject_id'].iloc[0])
+    else:
+        # Assumes format like "P01_trial_data.csv" -> extracts "P01"
+        participant = file_stem.split('_')[0] 
+    
     # 3. Calculate Core Metrics
     duration_s = df['timestamp'].iloc[-1] - df['timestamp'].iloc[0]
     cross_track_rmse = np.sqrt(np.mean(orthogonal_error**2))
@@ -35,6 +44,7 @@ def calculate_trial_metrics(df, file_stem):
     
     return {
         'file_name': file_stem,
+        'participant_id': participant,
         'controller_mode': str(mode).strip().lower(),
         'phase': str(phase).strip().lower(),
         'duration_s': float(duration_s),
@@ -95,24 +105,38 @@ def main(data_directory="../processed_logs", output_directory="../plots/metrics"
     # ---------------------------------------------------------
     summary_data = []
 
-    # Group by Controller + Phase
-    grouped_both = metrics_df.groupby(['controller_mode', 'phase'])
-    for (controller, phase), group_df in grouped_both:
+    # --- A) Group by Controller + Phase ---
+    # Step 1: Sum duration and average errors PER participant
+    part_phase_group = metrics_df.groupby(['controller_mode', 'phase', 'participant_id']).agg({
+        'duration_s': 'sum',
+        'cross_track_rmse': 'mean',
+        'cross_track_max': 'mean'
+    }).reset_index()
+
+    # Step 2: Average those values ACROSS all participants
+    for (controller, phase), group_df in part_phase_group.groupby(['controller_mode', 'phase']):
         summary_data.append({
             'Controller': controller.capitalize(),
             'Mode': phase.capitalize(),
-            'Duration': group_df['duration_s'].sum(), # Calculates the sum instead of mean
+            'Duration': group_df['duration_s'].mean(),
             'RMSE': group_df['cross_track_rmse'].mean(),
             'Maximum Error': group_df['cross_track_max'].mean()
         })
 
-    # Group by Controller Only (for the 'All' phase row)
-    grouped_controller = metrics_df.groupby('controller_mode')
-    for controller, group_df in grouped_controller:
+    # --- B) Group by Controller Only (for the 'All' phase row) ---
+    # Step 1: Sum duration and average errors PER participant across all phases
+    part_all_group = metrics_df.groupby(['controller_mode', 'participant_id']).agg({
+        'duration_s': 'sum',
+        'cross_track_rmse': 'mean',
+        'cross_track_max': 'mean'
+    }).reset_index()
+
+    # Step 2: Average those total values ACROSS all participants
+    for controller, group_df in part_all_group.groupby('controller_mode'):
         summary_data.append({
             'Controller': controller.capitalize(),
             'Mode': 'All',
-            'Duration': group_df['duration_s'].sum(), # Calculates the sum instead of mean
+            'Duration': group_df['duration_s'].mean(), 
             'RMSE': group_df['cross_track_rmse'].mean(),
             'Maximum Error': group_df['cross_track_max'].mean()
         })
@@ -131,7 +155,7 @@ def main(data_directory="../processed_logs", output_directory="../plots/metrics"
     filename = "performance_measures_summary.csv"
     output_path = os.path.join(output_directory, filename)
     summary_df.to_csv(output_path, index=False)
-    print(f" -> Saved single summary metrics file to: {output_path}")
+    print(f" -> Saved aggregated summary metrics file to: {output_path}")
 
 if __name__ == "__main__":
     main()
