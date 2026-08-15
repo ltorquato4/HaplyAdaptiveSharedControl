@@ -24,6 +24,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-ament-pep257 \
     python3-colcon-common-extensions \
     python3-matplotlib \
+    python3-seaborn \
     python3-pandas \
     python3-pip \
     python3-pygame \
