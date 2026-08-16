@@ -110,16 +110,16 @@ def main(data_directory="../logs", output_directory="../plots/questionnaire_plot
         )
         
         # Formatting individual subplot
-        ax.set_title(cat, fontweight='bold', fontsize=14, pad=10)
+        ax.set_title(cat, fontweight='bold', fontsize=15, pad=10)
         ax.set_ylim(0.5, 5.5)
         ax.set_yticks([1, 2, 3, 4, 5])
         ax.grid(True, axis='y', linestyle=':', alpha=0.6)
         
         # Rotate X-tick labels like reference image
-        ax.set_xticklabels(modes, rotation=45, ha='right', fontsize=11)
+        ax.set_xticklabels(modes, rotation=45, ha='right', fontsize=14)
         
         if i == 0:
-            ax.set_ylabel("Rating Scale", fontsize=12)
+            ax.set_ylabel("Rating Scale", fontsize=14)
 
     plt.tight_layout()
 

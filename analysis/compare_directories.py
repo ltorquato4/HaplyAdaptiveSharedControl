@@ -216,7 +216,7 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
             # Attach the modified legend using the fixed physical transform
             axes[1].legend(handles, labels, loc='upper center', 
                            bbox_to_anchor=(0.5, 0.0), bbox_transform=fixed_offset_trans, 
-                           ncol=3, fontsize=10, framealpha=0.95, edgecolor='gray')
+                           ncol=3, fontsize=12, framealpha=0.95, edgecolor='gray')
         
         save_path = os.path.join(output_dir, f"directories_mean_trajectories_{mode}.pdf")
         

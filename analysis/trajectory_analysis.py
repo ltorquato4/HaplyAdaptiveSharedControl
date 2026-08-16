@@ -184,7 +184,7 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
         # Attach the modified legend using the fixed physical transform
         axes_traj[1].legend(custom_handles, final_labels, loc='upper center', 
                             bbox_to_anchor=(0.5, 0.0), bbox_transform=fixed_offset_trans, 
-                            ncol=6, fontsize=10, framealpha=0.95, edgecolor='gray')
+                            ncol=6, fontsize=12, framealpha=0.95, edgecolor='gray')
     
     fig_traj.savefig(os.path.join(save_dir, f"{controller}_summary_aligned_trajectories.pdf"), bbox_inches='tight')
     plt.close(fig_traj)
