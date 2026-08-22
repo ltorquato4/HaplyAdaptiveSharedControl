@@ -218,12 +218,14 @@ def plot_user_mean_trajectories(base_data_dir="../processed_logs", output_dir=".
                            bbox_to_anchor=(0.5, 0.0), bbox_transform=fixed_offset_trans, 
                            ncol=3, fontsize=12, framealpha=0.95, edgecolor='gray')
         
-        save_path = os.path.join(output_dir, f"directories_mean_trajectories_{mode}.pdf")
+        save_path_pdf = os.path.join(output_dir, f"directories_mean_trajectories_{mode}.pdf")
+        save_path_svg = os.path.join(output_dir, f"directories_mean_trajectories_{mode}.svg")
         
         # bbox_inches='tight' will crop away the large empty gaps caused by set_aspect('equal')
-        plt.savefig(save_path, bbox_inches='tight')
+        plt.savefig(save_path_pdf, bbox_inches='tight')
+        plt.savefig(save_path_svg, bbox_inches='tight')
         plt.close(fig)
-        print(f"Successfully generated comparison plot: {save_path}")
+        print(f"Successfully generated comparison plot: {save_path_pdf} and {save_path_svg}")
 
 if __name__ == "__main__":
     plot_user_mean_trajectories()

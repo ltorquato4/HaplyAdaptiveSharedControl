@@ -123,13 +123,16 @@ def main(data_directory="../logs", output_directory="../plots/questionnaire_plot
 
     plt.tight_layout()
 
-    # Save to PDF matching your existing analysis pipeline
-    output_filename = os.path.join(output_directory, "subjective_ratings_subplots.pdf")
-    plt.savefig(output_filename, bbox_inches='tight')
+    # Save to PDF and SVG matching your existing analysis pipeline
+    output_filename_pdf = os.path.join(output_directory, "subjective_ratings_subplots.pdf")
+    output_filename_svg = os.path.join(output_directory, "subjective_ratings_subplots.svg")
+    
+    plt.savefig(output_filename_pdf, bbox_inches='tight')
+    plt.savefig(output_filename_svg, bbox_inches='tight')
     plt.close(fig)
     
     print(f"Successfully evaluated subjective ratings across {len(plot_df)} responses.")
-    print(f" -> Saved side-by-side subplots to: {output_filename}")
+    print(f" -> Saved side-by-side subplots (PDF/SVG) to: {output_directory}")
 
 if __name__ == "__main__":
     main()

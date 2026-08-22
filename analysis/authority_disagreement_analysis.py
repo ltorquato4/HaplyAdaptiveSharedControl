@@ -181,7 +181,9 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
     ax.set_xlabel("t [s]", labelpad=35 + (num_levels * 18))
     
     ax.legend(loc='upper right', fontsize=14)
+    # Save as PDF and SVG
     plt.savefig(os.path.join(save_dir, f"{controller}_all_Kh.pdf"), bbox_inches='tight')
+    plt.savefig(os.path.join(save_dir, f"{controller}_all_Kh.svg"), bbox_inches='tight')
     plt.close()
 
 # ==========================================

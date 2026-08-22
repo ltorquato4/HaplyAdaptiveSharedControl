@@ -186,8 +186,9 @@ def generate_controller_summary_plots(df, controller, behaviors, output_dir, lim
                             bbox_to_anchor=(0.5, 0.0), bbox_transform=fixed_offset_trans, 
                             ncol=6, fontsize=12, framealpha=0.95, edgecolor='gray')
     
+    # Save as both PDF and SVG
     fig_traj.savefig(os.path.join(save_dir, f"{controller}_summary_aligned_trajectories.pdf"), bbox_inches='tight')
-    plt.close(fig_traj)
+    fig_traj.savefig(os.path.join(save_dir, f"{controller}_summary_aligned_trajectories.svg"), bbox_inches='tight')
 
 # ==========================================
 # 3. Main Execution Workflow
