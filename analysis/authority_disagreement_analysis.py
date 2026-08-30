@@ -139,7 +139,7 @@ def add_global_phase_labels(ax, df):
                     annotation_clip=False)
                     
         ax.text(p_mid, y_text, phase_name, transform=trans,
-                ha='center', va='top', fontsize=11, color='black', clip_on=False)
+                ha='center', va='top', fontsize=14, color='black', clip_on=False)
                 
     return len(levels)
 
@@ -172,7 +172,7 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
         valid_y2 = traj_data.dropna(subset=['Kh_y2'])
         ax.plot(valid_y2['timestamp'], valid_y2['Kh_y2'], color=colors['y2'], label=r'$k_{y_2}$')
             
-    ax.set_ylabel("Estimated $K_h$ Components")
+    ax.set_ylabel("Estimated $K_h$ Components", fontsize=14)
     ax.set_xlim(limits['time'])
     ax.set_ylim(limits['kh'])
     ax.grid(True)
@@ -180,8 +180,10 @@ def generate_aggregated_plots(df, controller, output_dir, limits):
     num_levels = add_global_phase_labels(ax, df)
     ax.set_xlabel("t [s]", labelpad=35 + (num_levels * 18))
     
-    ax.legend(loc='upper right')
+    ax.legend(loc='upper right', fontsize=14)
+    # Save as PDF and SVG
     plt.savefig(os.path.join(save_dir, f"{controller}_all_Kh.pdf"), bbox_inches='tight')
+    plt.savefig(os.path.join(save_dir, f"{controller}_all_Kh.svg"), bbox_inches='tight')
     plt.close()
 
 # ==========================================

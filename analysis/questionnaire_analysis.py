@@ -110,26 +110,29 @@ def main(data_directory="../logs", output_directory="../plots/questionnaire_plot
         )
         
         # Formatting individual subplot
-        ax.set_title(cat, fontweight='bold', fontsize=14, pad=10)
+        ax.set_title(cat, fontweight='bold', fontsize=15, pad=10)
         ax.set_ylim(0.5, 5.5)
         ax.set_yticks([1, 2, 3, 4, 5])
         ax.grid(True, axis='y', linestyle=':', alpha=0.6)
         
         # Rotate X-tick labels like reference image
-        ax.set_xticklabels(modes, rotation=45, ha='right', fontsize=11)
+        ax.set_xticklabels(modes, rotation=45, ha='right', fontsize=14)
         
         if i == 0:
-            ax.set_ylabel("Rating Scale", fontsize=12)
+            ax.set_ylabel("Rating Scale", fontsize=14)
 
     plt.tight_layout()
 
-    # Save to PDF matching your existing analysis pipeline
-    output_filename = os.path.join(output_directory, "subjective_ratings_subplots.pdf")
-    plt.savefig(output_filename, bbox_inches='tight')
+    # Save to PDF and SVG matching your existing analysis pipeline
+    output_filename_pdf = os.path.join(output_directory, "subjective_ratings_subplots.pdf")
+    output_filename_svg = os.path.join(output_directory, "subjective_ratings_subplots.svg")
+    
+    plt.savefig(output_filename_pdf, bbox_inches='tight')
+    plt.savefig(output_filename_svg, bbox_inches='tight')
     plt.close(fig)
     
     print(f"Successfully evaluated subjective ratings across {len(plot_df)} responses.")
-    print(f" -> Saved side-by-side subplots to: {output_filename}")
+    print(f" -> Saved side-by-side subplots (PDF/SVG) to: {output_directory}")
 
 if __name__ == "__main__":
     main()
